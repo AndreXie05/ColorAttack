@@ -1,5 +1,6 @@
 import { COLORS, PRIMARIES, SECONDARIES, chipHTML, resolveHit } from "./colors.js";
 import { CONFIG } from "./game-config.js";
+import { UPGRADES } from "./upgrades.js";
 
 /* ============================================================
    ECRÃ DE INSTRUÇÕES
@@ -16,8 +17,8 @@ const MOVE_KEYS = [
 ];
 const OTHER_KEYS = [
   ["E", "Abrir um baú"],
-  ["G", "Granada de tinta: segura para apontar, roda do rato muda a cor, larga para lançar"],
-  ["H", "Usar uma Cura (+40 de vida)"],
+  ["G", "Granada de tinta: segura para apontar, roda do rato (ou 1, 2, 3) muda a cor, larga para lançar"],
+  ["T", "Usar uma Cura (+40 de vida)"],
   ["F", "Usar a Invisibilidade (5 s)"],
   ["V", "Vista aérea do mapa"],
   ["C · Q", "Mudar o clima · mudar a qualidade gráfica"],
@@ -42,8 +43,10 @@ function buildPages() {
 
   return [
     card("🎯 Objetivo", `
-      <p>Duas equipas de 5 (tu + 4 bots contra 5 bots). Cada round dura <b>3 minutos</b> e ganha a equipa com mais pontos.
+      <p>Duas equipas de 5 (tu + 4 bots contra 5 bots). Cada round dura <b>${Math.round(CONFIG.roundSeconds / 60)} minutos</b> e ganha a equipa com mais pontos.
       Vence o jogo quem ganhar primeiro <b>${CONFIG.match.toWin} rounds</b>. Se o tempo acabar empatado em eliminações, há <b>morte súbita</b>: a primeira equipa a fazer uma eliminação ganha o round. Nessa altura os baús são reabastecidos, mas só têm item em metade das vezes, todos os itens são igualmente prováveis e cada baú dá uma só caixa de munição, com <b>1 a 5 balas</b> da mesma cor.</p>
+      <p>Antes de jogar escolhes a <b>dificuldade dos adversários</b>: Fácil, Médio, Difícil ou Impossível. Os bots também apanham e usam itens, e os bots da equipa que ganha cada round ganham melhorias. Quem és novo? Faz o <b>Tutorial</b> no ecrã inicial.</p>
+      <p>Quando uma equipa chega a <b>${CONFIG.match.intenseAt} rounds ganhos</b> entra o <b>modo intenso</b>: as cores de toda a gente mudam de 5 em 5 segundos até haver um vencedor. A cada round o mapa muda.</p>
       <p>Os adversários têm cores. <b>Só os eliminas com a cor certa</b>, que tu misturas na arma.</p>`),
 
     card("🎨 As cores", `
@@ -63,28 +66,28 @@ function buildPages() {
 
     card("💥 Acertar no adversário", `
       <ul>
-        <li><b>Mesma cor</b> do adversário: é eliminado de uma vez. Se acertares à primeira, ganhas bónus.</li>
-        <li><b>Cor errada</b>: tira só <b>4</b> de vida e a cor dele muda pela tabela de misturas.</li>
-        <li>Se ele já tiver <b>cor misturada</b>, a cor não muda (só o empurra um pouco), mas se acertares numa das cores que a formam, tira <b>8</b> em vez de 4.</li>
+        <li><b>Mesma cor</b>: é eliminado de uma vez, e ganhas <b>balas de volta</b> e um <b>radar</b> de 5 s (os adversários aparecem no minimapa).</li>
+        <li><b>Cor errada</b>: tira <b>4</b> de vida e a cor dele muda pela tabela de misturas.</li>
+        <li>Cor <b>misturada</b>: não muda, mas se acertares numa das cores que a formam, tira <b>8</b>.</li>
       </ul>
-      <p>Exemplo: um adversário amarelo atingido por vermelho fica laranja.</p>
-      <div class="eq">${chipHTML("vermelho", 60)}<span>acerta em</span>${chipHTML("amarelo", 60)}<span>→</span>${chipHTML(example.newColor, 60)}</div>
-      <p><b>Como sei a cor deles?</b> O boneco de cada jogador fica <b>todo da cor</b> que tem agora. Os nomes por cima da cabeça são <b>azuis</b> nos teus aliados e <b>vermelhos</b> nos adversários. Quando apontas para um adversário, aparece no topo o nome, a cor dele e o que carregar para a teres na mão.</p>
-      <p>Pontos: eliminação com a cor certa à primeira (bónus), eliminação normal, assistência e combos de eliminações seguidas.
-      Quem é eliminado volta 5 segundos depois na sua base, com 2 segundos de proteção.</p>
-      <p>No canto direito do ecrã aparece, a cada eliminação, <b>quem eliminou quem</b>, a cor usada e se foi com a <b>cor certa</b> ou não.</p>`),
+      <div class="eq">${chipHTML("vermelho", 56)}<span>acerta em</span>${chipHTML("amarelo", 56)}<span>→</span>${chipHTML(example.newColor, 56)}</div>
+      <p><b>Como sei a cor deles?</b> O boneco fica <b>todo da cor</b> que tem. Nomes <b>azuis</b> = aliados, <b>vermelhos</b> = adversários.</p>
+      <p>Quem é eliminado volta 5 s depois, num dos 5 lugares da base, com 2 s de proteção. No canto direito vês quem eliminou quem.</p>`),
 
     card("🟣 Poças de tinta", `
-      <p>Cada eliminação deixa uma <b>poça da cor</b> do jogador eliminado. Quem passar por cima muda de cor pela tabela de misturas,
-      por isso cuidado por onde andas!</p>`),
+      <p>Cada eliminação deixa uma <b>poça da cor</b> do jogador eliminado, que dura ${CONFIG.paint.lifeSeconds} segundos.
+      Quem passar por cima dela <b>fica dessa cor</b>, por isso cuidado por onde andas, ou usa-as para mudares a tua cor!</p>
+      <p>Só estas poças mudam a cor de quem as pisa. A tinta dos tiros e das granadas que pinta o chão é só decoração e <b>não faz nada</b> a quem passa por cima.</p>`),
 
     card("🎁 Baús", `
       <p>Espalhados pelo mapa. Chega-te perto e carrega em <b>E</b>. Em 80% das vezes sai um item: munição (70%), granada de tinta (15%), cura (12%) ou, muito raramente, invisibilidade (3%). Em 20% está vazio. A <b>Invisibilidade</b> 👻 fica guardada na lista e, com <b>F</b>, ficas invisível durante 5 segundos, ideal para aparecer atrás de alguém. Cada caixa de munição dá ${CONFIG.ammoBox.shots} balas de uma cor, e um baú pode dar de 1 a 3 caixas.</p>
-      <p><b>Granada de tinta:</b> segura <b>G</b> para ver o círculo onde vai cair (tem alcance limitado), usa a <b>roda do rato</b> para escolher a cor (as 3 primárias e as 3 secundárias, sem misturar nada) e larga <b>G</b> para lançar. Os adversários na área que já tenham essa cor são <b>eliminados</b>; os outros ficam dessa cor. Os teus colegas de equipa também ficam dessa cor, mas nunca são eliminados.</p>
+      <p><b>Granada de tinta:</b> segura <b>G</b> para ver o círculo onde vai cair (tem alcance limitado), escolhe a cor com a <b>roda do rato</b> (as 3 primárias e as 3 secundárias) ou com as teclas <b>1, 2, 3</b> (juntando duas, misturas) e larga <b>G</b> para lançar. Os adversários na área que já tenham essa cor são <b>eliminados</b>; os outros ficam dessa cor. Os teus colegas de equipa também ficam dessa cor, mas nunca são eliminados.</p>
       <p>Cada baú volta a abrir ao fim de <b>1 minuto</b> e pode ser aberto <b>3 vezes por round</b>. Passa por cima dos itens para os apanhares.</p>`),
 
     card("⬆️ Melhorias", `
-      <p>No fim de cada round escolhes <b>1 de 3 melhorias</b> aleatórias, carregando na tecla <b>1</b>, <b>2</b> ou <b>3</b>: tanques turbo, mistura instantânea, tiro que atravessa, granadas extra, mais cadência, mais velocidade ou mais vida. Duram até ao fim do jogo e podem acumular. As melhorias incluem também dano duplo com a cor errada, granadas maiores e <b>granada de 2 cores</b> (tecla <b>X</b> troca qual das duas cores estás a escolher com a roda do rato).</p>`),
+      <p><b>Só a equipa que ganha o round recebe uma melhoria.</b> Se ganhares, aparecem <b>3 à sorte</b> e escolhes uma com o clique ou carregando em <b>1</b>, <b>2</b> ou <b>3</b>; os bots da tua equipa também recebem uma. Se perderes, quem recebe são os bots adversários. Quanto mais ganhas, mais fortes ficas!
+      Duram até ao fim do jogo e podem acumular (as marcadas com ★ só se escolhem uma vez).</p>
+      <div class="upList">${UPGRADES.map((u) => `<div><b>${u.icon} ${u.name}${u.once ? " ★" : ""}</b><small>${u.desc}</small></div>`).join("")}</div>`),
 
     card("🕹️ Movimento e tiro", keyTable(MOVE_KEYS)),
 
@@ -95,7 +98,7 @@ function buildPages() {
 
 // Instruções página a página: Anterior / Seguinte (ou setas do teclado)
 export function createInstructions({ content, prev, next, dots, onClose }) {
-  const pages = buildPages();
+  let pages = buildPages();
   let i = 0;
 
   function render() {
@@ -112,5 +115,5 @@ export function createInstructions({ content, prev, next, dots, onClose }) {
   prev.addEventListener("click", () => go(-1));
   next.addEventListener("click", () => go(1));
   render();
-  return { go, reset() { i = 0; render(); } };
+  return { go, reset() { pages = buildPages(); i = 0; render(); } };
 }

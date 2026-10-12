@@ -16,7 +16,7 @@ MATERIALS.update({
     "Balloon1": 0xFF5A66, "Balloon2": 0x4D8CFF, "Balloon3": 0xFFD84A, "Balloon4": 0x47CC63, "Balloon5": 0xA06BFF, "Night": 0x6A4CB5,
     "TrackRed": 0xFF5A66, "Hill": 0xB59CFF, "Fence": 0xFF8FC0,
 })
-ROUGH.update({"Gold": 0.25})
+ROUGH.update({"Gold": 0.25, "Path": 1.0, "FairA": 0.95, "FairB": 0.95})      # chão mate: sem brilhos no centro (o caminho era brilhante com o sol)
 
 
 def striped_awning(x, z, w, yaw_front):
@@ -138,8 +138,8 @@ def floors():
         for j in range(-7, 7):
             if (i + j) % 2 == 0:
                 flat_rect("FairB", i * 5 + 2.5, j * 5 + 2.5, 5.0, 5.0, 0.012)
-    flat_rect("Path", 0, 0, 100, 5.5, 0.02); flat_rect("Path", 0, 0, 5.5, 70, 0.02)
-    flat_disc("Path", 0, 0, 14, 0.022)
+    flat_rect("Path", 0, 0, 100, 5.5, 0.018); flat_rect("Path", 0, 0, 5.5, 70, 0.02)
+    flat_disc("Path", 0, 0, 14, 0.026)
     for i in range(8):
         a = i * math.pi / 4
         flat_disc(PAINT_NAMES[i % 6], math.cos(a) * 11.8, math.sin(a) * 11.8, 1.0, 0.03)       # bolinhas coloridas à volta da roda
@@ -186,6 +186,7 @@ def build():
         for (x, z) in [(14, -14), (14, 14), (28, 0), (6, -26), (6, 26)]:
             lamp(s * x, z, 5.4)
     patrol = [(10, -12), (10, 12), (24, -12), (24, 12), (22, -28), (22, 28), (34, -13), (34, 13), (0, -14), (0, 14)]
+    exec(open("/home/andrexie/Documents/ColorAttack/tools/blender/map_extras.py").read(), globals()); decorate(seed=4, wall_h=2.4, patrol=patrol)
     return finish_map("diversoes", patrol, OUTPUT)
 
 

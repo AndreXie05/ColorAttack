@@ -101,12 +101,23 @@ export class PickupManager {
     return best;
   }
 
-  // Apanha as caixas de munição que estão ao alcance de um bot; devolve [{ type, color }]
+  // Item caído (qualquer tipo) mais próximo de `pos`, ou null (os bots vão buscá-lo)
+  nearestItem(pos, maxDist) {
+    let best = null, bd = maxDist;
+    for (const it of this.items) {
+      if (!it.landed) continue;
+      const d = Math.hypot(it.pos.x - pos.x, it.pos.z - pos.z);
+      if (d < bd) { bd = d; best = it.pos; }
+    }
+    return best;
+  }
+
+  // Apanha os itens (munição, cura, granada, invisibilidade) ao alcance de um bot; devolve [{ type, color, shots }]
   collectNear(pos) {
     const got = [];
     for (let i = this.items.length - 1; i >= 0; i--) {
       const it = this.items[i];
-      if (it.type !== "ammo" || !it.landed || it.age < 0.5) continue;
+      if (!it.landed || it.age < 0.5) continue;
       if (Math.hypot(it.pos.x - pos.x, it.pos.z - pos.z) < CONFIG.pickup.collectDist) {
         this.group.remove(it.model); this.items.splice(i, 1); got.push({ type: it.type, color: it.color, shots: it.shots });
       }

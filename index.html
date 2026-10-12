@@ -81,6 +81,40 @@
   @keyframes shine { to { background-position: 200% 0; } }
 
   #titleScreen { z-index: 10; }
+  /* decoração: escorridos de tinta, bokeh, pistolas, manchas e os heróis */
+  #titleDrips { position: absolute; left: 0; top: 0; width: 100%; height: clamp(70px, 13vh, 130px); filter: drop-shadow(0 6px 0 #0006); }
+  .dr { transform-box: fill-box; transform-origin: 50% 0; animation: dripStretch 4.2s ease-in-out infinite alternate; }
+  .dr.d2 { animation-delay: -1.2s; } .dr.d3 { animation-delay: -2.1s; } .dr.d4 { animation-delay: -.6s; } .dr.d5 { animation-delay: -3s; }
+  @keyframes dripStretch { from { transform: scaleY(.9); } to { transform: scaleY(1.12); } }
+  #titleBokeh { position: absolute; inset: 0; overflow: hidden; }
+  #titleBokeh i { position: absolute; bottom: -8vmin; border-radius: 50%; opacity: 0; animation: bokehUp linear infinite; filter: blur(1px); }
+  @keyframes bokehUp { 0% { transform: translateY(0) scale(.6); opacity: 0; } 12% { opacity: .55; } 100% { transform: translateY(-115vh) scale(1.15); opacity: 0; } }
+  #titleGlow { position: absolute; left: 50%; top: 36%; width: min(70vw, 760px); height: min(70vw, 760px); transform: translate(-50%, -50%); border-radius: 50%;
+               background: conic-gradient(from 0deg, #ff3b4a55, #ffd21f55, #47e06a55, #2f7bff55, #a447ff55, #ff3b4a55); filter: blur(70px); animation: glowSpin 24s linear infinite; opacity: .75; }
+  @keyframes glowSpin { to { transform: translate(-50%, -50%) rotate(360deg); } }
+  #logo { filter: drop-shadow(0 10px 0 #0006) drop-shadow(0 0 28px #ffffff40); }
+  #playBtn { animation: shine 4s linear infinite, playPulse 1.8s ease-in-out infinite; }
+  @keyframes playPulse { 0%, 100% { box-shadow: 0 8px 0 #00000066, 0 0 26px #ffffff44; } 50% { box-shadow: 0 8px 0 #00000066, 0 0 56px #ffd21faa; } }
+  #titleLinks .ghost { backdrop-filter: blur(3px); background: #ffffff14; }
+  #titleDeco { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+  .gun { position: absolute; bottom: 24vh; width: clamp(150px, 24vw, 340px); animation: gunBob 3.4s ease-in-out infinite alternate; }
+  .gun.left { left: 1.5vw; transform: rotate(-9deg); }
+  .gun.right { right: 1.5vw; transform: scaleX(-1) rotate(-9deg); animation-delay: -1.7s; }
+  .gunSvg { width: 100%; display: block; filter: drop-shadow(0 8px 0 #0007); }
+  .gun .jet { position: absolute; left: 88%; top: 18%; width: 90%; overflow: visible; }
+  .gun .jet path { fill: none; stroke: var(--c1); stroke-width: 14; stroke-linecap: round; stroke-dasharray: 1 26; animation: jetFlow 1.1s linear infinite; }
+  @keyframes jetFlow { to { stroke-dashoffset: -54; } }
+  @keyframes gunBob { from { translate: 0 -6px; } to { translate: 0 8px; } }
+  .splat { position: absolute; opacity: .9; filter: drop-shadow(0 4px 0 #0006); animation: splatPulse 3.6s ease-in-out infinite alternate; }
+  .splat.s1 { width: 9vmin; left: 22%; top: 12%; } .splat.s2 { width: 7vmin; right: 24%; top: 16%; animation-delay: -1s; }
+  .splat.s3 { width: 6vmin; left: 12%; bottom: 10%; animation-delay: -2s; } .splat.s4 { width: 8vmin; right: 12%; bottom: 12%; animation-delay: -.5s; }
+  @keyframes splatPulse { from { transform: scale(.88) rotate(-6deg); } to { transform: scale(1.08) rotate(6deg); } }
+  #titleHeroes { position: absolute; left: 0; right: 0; bottom: 1.2vh; display: flex; justify-content: center; gap: clamp(8px, 2vw, 26px); }
+  #titleHeroes img { width: clamp(40px, 6.2vmin, 70px); height: clamp(40px, 6.2vmin, 70px); border-radius: 50%; border: 4px solid #fff; background: #14c9c0; box-shadow: 0 5px 0 #0007; animation: heroBob 1.8s ease-in-out infinite alternate; }
+  #titleHeroes img:nth-child(2n) { animation-delay: -.6s; } #titleHeroes img:nth-child(3n) { animation-delay: -1.2s; }
+  @keyframes heroBob { from { transform: translateY(0); } to { transform: translateY(-12px); } }
+  @media (max-width: 900px) { .gun { opacity: .55; bottom: 30vh; } }
+  @media (max-height: 680px) { #titleHeroes { display: none; } }
   .blobs { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
 
 
@@ -111,6 +145,8 @@
   .keyChip { display: flex; flex-direction: column; align-items: center; gap: 6px; }
   .howCard { background: #0d0b1fcc; border: 3px solid #ffffffaa; border-radius: 20px; padding: 22px 32px 26px; line-height: 1.6; font-size: 21px; }
   #howContent .howCard { text-align: center; }
+  .upList { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 22px; text-align: left; font-size: 16px; line-height: 1.3; }
+  .upList b { display: block; font-weight: 400; color: #ffd21f; font-size: 18px; } .upList small { opacity: .92; }
   .howCard ul { display: inline-block; text-align: left; }
   .colorGrid { justify-items: center; }
   .colorLine { justify-content: center; flex-direction: column; gap: 6px; text-align: center; }
@@ -190,6 +226,10 @@
   .mapCard .icon { font-size: 54px; line-height: 1.1; }
   .mapCard .name { font-size: 22px; font-weight: 900; margin: 6px 0 4px; text-shadow: 0 2px 0 #00000055; }
   .mapCard .desc { font-size: 13px; opacity: .95; text-shadow: 0 1px 0 #00000055; }
+  #matchPick { z-index: 2; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; color: #fff; font-weight: 800; }
+  #matchPick > span { display: inline-flex; gap: 8px; align-items: center; } #matchPick .mpGap { margin-left: 18px; }
+  #diffPick { z-index: 2; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; color: #fff; font-weight: 800; }
+  .chip.d-facil.on { background: #47e06a; color: #0d2a14; } .chip.d-media.on { background: #ffd21f; color: #2a2100; } .chip.d-dificil.on { background: #ff8a1f; color: #2a1400; } .chip.d-impossivel.on { background: #ff3b4a; color: #fff; }
   #weatherPick { z-index: 2; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; color: #fff; font-weight: 800; }
   .chip { cursor: pointer; font: inherit; font-weight: 800; color: #fff; background: #ffffff1f; border: 3px solid #ffffff66; border-radius: 999px; padding: 6px 18px; }
   .chip:hover { background: #ffffff40; }
@@ -218,17 +258,60 @@
   #killsBar.sudden { border-color: #ff3b4a; animation: pulse .5s ease-in-out infinite alternate; } #killsBar.sudden small { color: #ff7b86; opacity: 1; }
   #roundBox { position: absolute; top: 32%; left: 50%; transform: translateX(-50%); display: none; flex-direction: column; align-items: center; gap: 8px; padding: 18px 44px; border-radius: 22px; background: #0d0b1fee; border: 5px solid var(--c, #fff); text-align: center; }
   #roundBox b { font-family: var(--display); font-weight: 400; font-size: 34px; letter-spacing: .04em; } #roundBox span { font-size: 18px; opacity: .92; }
-  #upgradeCards { display: flex; gap: 14px; margin-top: 8px; }
-  .upCard { position: relative; width: 190px; padding: 22px 12px 12px; border-radius: 18px; background: linear-gradient(165deg, #3a2c7a, #1b1445); border: 4px solid #ffd21f; display: flex; flex-direction: column; align-items: center; gap: 4px; box-shadow: 0 5px 0 #0007; }
+  #upgradeCards { display: flex; gap: 14px; margin-top: 8px; pointer-events: auto; }
+  .upCard { cursor: pointer; transition: transform .1s; position: relative; width: 190px; padding: 22px 12px 12px; border-radius: 18px; background: linear-gradient(165deg, #3a2c7a, #1b1445); border: 4px solid #ffd21f; display: flex; flex-direction: column; align-items: center; gap: 4px; box-shadow: 0 5px 0 #0007; }
+  .upCard:hover { transform: translateY(-6px) scale(1.04); border-color: #fff; }
   .upCard kbd { position: absolute; top: -14px; left: 50%; transform: translateX(-50%); background: #ffd21f; color: #1a1033; border-color: #fff; font-size: 18px; padding: 0 12px; }
   .upCard .upIcon { font-size: 40px; line-height: 1.1; } .upCard b { font-size: 19px !important; } .upCard small { font-size: 13px; opacity: .9; line-height: 1.25; }
   #upgradeHint { display: none; font-size: 15px !important; opacity: .9; }
+  #statsScreen { position: fixed; inset: 0; z-index: 30; display: none; align-items: center; justify-content: center; background: #0d0b1f; color: #fff; overflow: auto; }
+  .stBox { position: relative; z-index: 2; width: min(920px, 94vw); padding: 12px 0; display: flex; flex-direction: column; gap: 6px; align-items: center; }
+  .stBox h2 { margin: 0 0 4px; font-size: 44px; letter-spacing: .08em; text-shadow: 0 4px 0 #ff3b4a, 0 8px 0 #2f7bff; }
+  #statsBody { width: 100%; } #statsBody h4 { margin: 10px 0 6px; font-size: 20px; font-weight: 400; color: #ffd21f; letter-spacing: .06em; }
+  .stTabs { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-bottom: 4px; }
+  .stTab { font: inherit; font-size: 17px; color: #fff; cursor: pointer; padding: 6px 18px; border-radius: 999px; background: #ffffff1a; border: 3px solid #ffffff44; }
+  .stTab.on { background: #ffd21f; color: #1a1033; border-color: #fff; } .stTab:hover { border-color: #fff; }
+  .stGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .stCard { display: flex; flex-direction: column; align-items: center; padding: 10px 8px; border-radius: 16px; background: #ffffff14; border: 3px solid #ffffff33; text-align: center; }
+  .stCard b { font-size: 34px; font-weight: 400; line-height: 1.1; } .stCard span { font-size: 14px; opacity: .85; } .stCard small { font-size: 13px; color: #ffd21f; }
+  .stCard.good { border-color: #47e06a88; } .stCard.good b { color: #7dffa0; } .stCard.bad { border-color: #ff6b7888; } .stCard.bad b { color: #ff8a94; }
+  .stCard.big { background: #ffd21f22; border-color: #ffd21f; } .stCard.big b { color: #ffd21f; }
+  .stBtns { display: flex; gap: 16px; align-items: center; margin-top: 12px; }
+  #confirmBox { position: fixed; inset: 0; z-index: 40; display: none; align-items: center; justify-content: center; background: #0d0b1fcc; backdrop-filter: blur(4px); color: #fff; }
+  .cfCard { width: min(520px, 92vw); padding: 24px 30px 26px; border-radius: 26px; background: linear-gradient(165deg, #2a1f5c, #15103a); border: 5px solid #fff; box-shadow: 0 10px 0 #0008, 0 0 50px #ff3b4a55; display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; animation: pauseIn .2s ease-out; }
+  .cfCard .splatLogo { width: 64px; height: 64px; margin-top: -58px; }
+  .cfCard h3 { margin: 0; font-size: 30px; letter-spacing: .06em; text-shadow: 0 3px 0 #ff3b4a; } .cfCard p { margin: 0; font-size: 17px; line-height: 1.35; opacity: .92; } .cfCard p b { color: #ffd21f; }
+  #cfInput { width: 80%; padding: 10px 14px; border-radius: 14px; border: 4px solid #ffffff66; background: #0d0b1f; color: #fff; font: inherit; font-size: 22px; text-align: center; letter-spacing: .12em; text-transform: uppercase; outline: none; }
+  #cfInput:focus { border-color: #ffd21f; } #cfInput.ok { border-color: #47e06a; }
+  .cfBtns { display: flex; gap: 14px; margin-top: 4px; }
+  .ghost.danger { font-size: 20px; padding: 10px 26px; background: #ff3b4a; border-color: #fff; color: #fff; } .ghost.danger:disabled { opacity: .4; background: #5a2a45; }
+  #tutBar { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); display: none; flex-direction: column; align-items: center; gap: 4px; width: min(760px, 62vw); padding: 12px 26px 12px; border-radius: 22px; background: linear-gradient(165deg, #2a1f5ccc, #15103acc); border: 4px solid #ffd21f; box-shadow: 0 6px 0 #0008; text-align: center; }
+  #tutStep { font-size: 13px; color: #ffd21f; letter-spacing: .12em; text-transform: uppercase; }
+  #tutText { font-size: 21px; line-height: 1.3; text-shadow: 0 2px 0 #0007; } #tutText b { color: #ffd21f; font-weight: 400; }
+  #tutHint { font-size: 13px; opacity: .8; min-height: 16px; }
+  #tutDots { display: flex; gap: 6px; } #tutDots i { width: 10px; height: 10px; border-radius: 50%; background: #ffffff33; } #tutDots i.on { background: #47e06a; } #tutDots i.cur { background: #ffd21f; transform: scale(1.3); }
+  body.tut #tutBar { display: flex; } body.tut #topBar, body.tut #killsBar { display: none; }
+  body.tut #targetInfo { top: 168px; }
   #gameOver { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: #0d0b1fcc; pointer-events: auto; }
-  .goCard { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 28px 54px; border-radius: 26px; background: #0d0b1ff2; border: 5px solid #fff; text-align: center; }
-  .goCard h2 { margin: 0; font-size: 64px; letter-spacing: .06em; } .goCard h2.win { color: #47e06a; text-shadow: 0 4px 0 #1a7a35; } .goCard h2.lose { color: #ff6b78; text-shadow: 0 4px 0 #7a1a24; } .goCard h2.draw { color: #ffd21f; }
-  .goCard p { margin: 0; font-size: 22px; }
-  #goStats { display: flex; gap: 28px; } #goStats div { display: flex; flex-direction: column; } #goStats b { font-family: var(--display); font-weight: 400; font-size: 40px; } #goStats small { opacity: .8; }
-  .goBtns { display: flex; gap: 14px; margin-top: 8px; }
+  #gameOver { flex-direction: column; align-items: center; justify-content: center; }
+  #goStage1 { position: relative; width: 100%; height: 100%; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; }
+  #goStage1 .ghost { position: absolute; bottom: 7vh; }
+  #goStage1 .ghost kbd { font-size: 14px; padding: 0 8px; margin-left: 6px; border-bottom-width: 3px; }
+  #goStage2 { display: none; flex-direction: column; align-items: center; gap: 10px; width: min(880px, 94vw); max-height: 92vh; padding: 18px 26px 22px; border-radius: 26px; background: #0d0b1ff2; border: 5px solid #fff; box-shadow: 0 10px 0 #0008; }
+  #goStage2 h3 { margin: 0; font-size: 38px; letter-spacing: .08em; text-shadow: 0 4px 0 #ff3b4a, 0 8px 0 #2f7bff; }
+  #summaryBody { width: 100%; overflow-y: auto; padding-right: 6px; text-align: center; }
+  #summaryBody h4 { text-align: left; }
+  .goBtns { display: flex; gap: 14px; margin-top: 4px; }
+  .goStage2 .goBtns, #goStage2 .goBtns { margin-top: 8px; }
+  #goStage1 h2 { margin: 0; font-size: clamp(64px, 11vw, 124px); line-height: 1.05; letter-spacing: .05em; display: flex; justify-content: center; }
+  #goStage1 h2 span { color: var(--c); text-shadow: 0 5px 0 #0009, 0 0 22px var(--c); -webkit-text-stroke: 3px #fff3; display: inline-block; animation: goBounce 1.1s ease-in-out infinite; animation-delay: var(--d); }
+  #goStage1 h2.lose span { animation: goShake .5s ease-in-out infinite; animation-delay: var(--d); text-shadow: 0 5px 0 #4a0a14, 0 0 22px #ff3b4a99; }
+  #goStage1 p { margin: 0; font-size: 26px; text-shadow: 0 3px 0 #000a; }
+  @keyframes goBounce { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-14px) rotate(3deg); } }
+  @keyframes goShake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
+  .sumTable { width: 100%; border-collapse: collapse; font-size: 16px; margin-bottom: 4px; } .sumTable th { font-weight: 400; opacity: .7; font-size: 13px; text-align: left; padding: 3px 8px; }
+  .sumTable td { padding: 4px 8px; border-top: 2px solid #ffffff1f; text-align: left; } .sumTable tr.won td:nth-child(2) { color: #7dffa0; } .sumTable tr.lost td:nth-child(2) { color: #ff8a94; }
+  .sumUps { display: flex; flex-wrap: wrap; gap: 8px; } .sumUp { padding: 4px 12px; border-radius: 999px; background: #ffd21f22; border: 3px solid #ffd21f; font-size: 15px; } .sumUp.none { opacity: .6; border-color: #ffffff44; background: none; }
   #timerBadge { width: 150px; height: 64px; border-radius: 50%; background: #0d0b1f; border: 4px solid #fff; box-shadow: 0 4px 0 #0007; display: flex; align-items: center; justify-content: center; }
   #timerBadge.warn #hudTimer { color: #ffd21f; }
   #timerBadge.danger #hudTimer { color: #ff3b4a; }
@@ -269,7 +352,7 @@
   .pmBtn:hover { transform: translateX(8px); background: #2b1f66; border-color: #fff; }
   .pmBtn.on { background: #b8ff2c; color: #1a1033; border-color: #fff; box-shadow: 0 0 22px #b8ff2c88, 0 4px 0 #0008; }
   .pmBtn.on:hover { background: #cbff5e; }
-  #pausePanel { position: relative; width: min(740px, 57vw); font-size: 124%; padding: 16px 18px; border-radius: 22px; background: #150f38ee; border: 4px solid #ffffff55; box-shadow: 0 8px 0 #0008; display: flex; flex-direction: column; gap: 10px; animation: pauseIn .25s ease-out; }
+  #pausePanel { position: relative; width: 530px; zoom: 1.4; /* aumenta letras e desenhos em conjunto, sem esticar */ padding: 16px 18px; border-radius: 22px; background: #150f38ee; border: 4px solid #ffffff55; box-shadow: 0 8px 0 #0008; display: flex; flex-direction: column; gap: 10px; animation: pauseIn .25s ease-out; }
   .ppHead { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
   .ppHead small { display: block; font-size: 11px; opacity: .7; letter-spacing: .1em; } .ppHead > div > b { font-size: 26px; font-weight: 400; }
   .ppClock { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 78px; height: 78px; border-radius: 50%; border: 4px solid #fff; background: #0d0b1f; } .ppClock b { font-size: 21px; font-weight: 400; line-height: 1; }
@@ -283,9 +366,16 @@
   .ppRow .kd { margin-left: auto; font-size: 12px; opacity: .85; }
   .ppSection { font-size: 13px; opacity: .85; padding-top: 4px; border-top: 2px solid #ffffff22; }
   .ppKeys { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; } .ppKeys kbd { font-size: 11px; padding: 0 6px; margin-left: 3px; border-width: 2px; border-bottom-width: 3px; }
-  @media (max-width: 1000px) { #pause { flex-direction: column; justify-content: center; gap: 14px; } #pausePanel { width: 92vw; font-size: 100%; } #pauseMenu { width: 92vw; } #pauseMenu h3 { font-size: 36px; } }
+  @media (max-width: 1400px) { #pausePanel { zoom: 1.15; } }
+  @media (max-width: 1000px) { #pause { flex-direction: column; justify-content: center; gap: 14px; } #pausePanel { width: 92vw; zoom: 1; } #pauseMenu { width: 92vw; } #pauseMenu h3 { font-size: 36px; } }
   #crosshair { position: absolute; top: 50%; left: 50%; width: 76px; height: 76px; transform: translate(-50%, -50%); display: flex; align-items: center; justify-content: center; }
   #crosshair svg { position: absolute; inset: 0; transform: rotate(-90deg); }
+  #crosshair svg.xCol, #crosshair svg.xGren { transform: none; fill: none; stroke: var(--xc, #fff); stroke-width: 5; filter: drop-shadow(0 2px 0 #000a); display: none; }
+  #crosshair .xCol .dot { fill: var(--xc, #fff); stroke: none; }
+  #crosshair[data-mode=col] svg.xCol, #crosshair[data-mode=gren] svg.xGren { display: block; }
+  #crosshair[data-mode=none] { display: none; }
+  #crosshair[data-mode=gren] .xBg, #crosshair[data-mode=gren] #xChip { display: none; }
+  #crosshair[data-mode=col] #xChip { transform: translateY(46px) scale(.55); opacity: .95; }
   #crosshair circle { fill: none; stroke-width: 7; }
   #crosshair .xBg { stroke: #ffffff55; stroke-width: 4; }
   #xProg { stroke-linecap: round; stroke-dasharray: 276.5; stroke-dashoffset: 276.5; opacity: 0; }
@@ -301,6 +391,7 @@
   .kfFace img { position: absolute; left: 50%; top: 50%; width: 118%; height: 118%; transform: translate(-50%, -48%); }
   .kfFace.victim { animation: kfHit .6s .25s both; }
   .kfColor .colorChip { border-width: 2px; }
+  .upIconSm { font-size: 26px; line-height: 1; filter: drop-shadow(0 2px 0 #0008); }
   .kfText { font-family: var(--display); font-size: 15px; line-height: 1.2; text-shadow: 0 1px 0 #000a; }
   .kfText small { display: block; font-family: "Titan One", "Fredoka", sans-serif; font-size: 12px; opacity: .9; }
   .killRow.ok small { color: #7dffa0; } .killRow.bad small { color: #ffc27a; }
@@ -308,12 +399,22 @@
   @keyframes kfHit { 0% { transform: scale(1); } 25% { transform: scale(1.25) rotate(-8deg); } 50% { transform: scale(.9) rotate(6deg); } 100% { transform: scale(1); filter: grayscale(1) brightness(1.5); opacity: .7; } }
   #hudFps { display: none; position: absolute; top: 62px; right: 14px; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 10px; background: #0d0b1fb0; }
   #menuBtn { display: none; }
-  #escBtn { position: absolute; top: 20px; left: 22px; pointer-events: auto; cursor: pointer; font: inherit; font-size: 20px; line-height: 1.2; color: #fff; background: #0d0b1fb0; border: 2px solid #ffffff55; border-radius: 12px; padding: 5px 18px; }
-  #escBtn kbd { font-size: 11px; padding: 0 6px; margin-right: 4px; border-bottom-width: 3px; }
-  #escBtn:hover { border-color: #fff; }
-  #loot { position: absolute; top: 70px; left: 22px; }
+  #mmBox { position: absolute; top: 22px; left: 22px; }
+  #minimap { display: block; width: 161px; height: 230px; border-radius: 14px; border: 3px solid #fff; background: #0d0b1f; box-shadow: 0 4px 0 #0008; }
+  #mmTag { position: absolute; left: 50%; bottom: -13px; transform: translateX(-50%); white-space: nowrap; font-size: 13px; padding: 1px 10px 2px; border-radius: 999px; background: #0d0b1fe6; border: 2px solid #fff; }
+  #mmTag kbd { font-size: 11px; padding: 0 6px; margin-right: 3px; border-bottom-width: 3px; }
+  #mmBox.big { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 15; }       /* Tab: o mapa cresce para veres a tinta no chão */
+  #mmBox.big #minimap { height: min(84vh, 800px); width: calc(min(84vh, 800px) * 0.7); border-width: 5px; box-shadow: 0 0 0 100vmax #0d0b1f99; }
+  #mmBox.big #mmTag { display: none; }
+  /* linhas de velocidade à volta do ecrã quando corres */
+  #speedFx { position: absolute; inset: 0; pointer-events: none; opacity: 0; overflow: hidden; }
+  #speedFx i { position: absolute; inset: -20%; background: repeating-conic-gradient(from 0deg, #ffffff00 0deg 5deg, #ffffff66 5deg 5.6deg, #ffffff00 5.6deg 11deg);
+               -webkit-mask-image: radial-gradient(circle at 50% 50%, transparent 38%, #000 82%); mask-image: radial-gradient(circle at 50% 50%, transparent 38%, #000 82%); animation: speedSpin .45s linear infinite; }
+  #speedFx i + i { background: repeating-conic-gradient(from 3deg, #ffffff00 0deg 8deg, #ffffff44 8deg 8.4deg, #ffffff00 8.4deg 17deg); animation-duration: .7s; animation-direction: reverse; }
+  @keyframes speedSpin { from { transform: scale(1.05) rotate(0deg); } 50% { transform: scale(1.18) rotate(2deg); } to { transform: scale(1.05) rotate(0deg); } }
+  #loot { position: absolute; top: 266px; left: 22px; }
   @media (max-width: 1500px) {            /* janelas estreitas: Esc, mensagens e eliminações descem para não tapar as bolinhas das equipas */
-    #escBtn { top: 90px; } #loot { top: 136px; } #killfeed { top: 84px; }
+    #mmBox { top: 84px; } #loot { top: 328px; } #killfeed { top: 84px; }
   }
   #hpBox { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-family: var(--display); }
   .hpHeart { font-size: 20px; filter: drop-shadow(0 2px 0 #0008); }
@@ -332,9 +433,11 @@
   #targetInfo.match { border-color: #47e06a; } #targetInfo.match small { color: #7dffa0; }
   #targetInfo.nomatch { border-color: #ffb347; } #targetInfo.nomatch small { color: #ffd08a; }
   #hurt { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at center, #ff3b4a00 45%, #ff3b4acc 100%); }
-  #deathBox { position: absolute; top: 34%; left: 50%; transform: translateX(-50%); display: none; flex-direction: column; align-items: center; gap: 6px; padding: 14px 34px; border-radius: 20px; background: #0d0b1fe6; border: 4px solid #ff3b4a; text-align: center; }
-  #deathBox b { font-family: var(--display); font-weight: 400; font-size: 34px; color: #ff6b78; }
-  #deathBox span { font-size: 18px; }
+  /* faixa na diagonal ao centro, translúcida (sem caixa branca) */
+  #deathBox { position: absolute; top: 36%; left: -5%; right: -5%; transform: rotate(-6deg); display: none; flex-direction: column; align-items: center; gap: 2px; padding: 14px 0 16px; text-align: center;
+              background: linear-gradient(90deg, #0d0b1f00 0%, #0d0b1f66 18%, #0d0b1f66 82%, #0d0b1f00 100%); text-shadow: 0 3px 0 #000a, 0 0 14px #000a; }
+  #deathBox b { font-family: var(--display); font-weight: 400; font-size: 52px; letter-spacing: .06em; color: #fff; text-shadow: 0 4px 0 #ff3b4a, 0 8px 0 #000a; }
+  #deathBox span { font-size: 20px; }
   .lootRow.empty .qty { color: #ff8a8a; }
   .lootRow .kh { margin-left: 0; font: 400 11px "Titan One", "Fredoka", sans-serif; padding: 0 6px; border: 2px solid #ffffff99; border-bottom-width: 3px; border-radius: 6px; color: #fff; opacity: .85; }
   #hand { position: relative; display: flex; align-items: center; gap: 10px; font-family: var(--display); }
@@ -374,6 +477,48 @@
   <div class="blob r"></div>
   <div class="blob b"></div>
   <div class="blob y"></div>
+  <div id="titleDeco">
+    <svg id="titleDrips" viewBox="0 0 1200 160" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <g class="dr d1"><path fill="#ff3b4a" d="M0 0h260v30c-20 0-30 14-34 34-3 18-16 22-24 6-6-12-8-26-30-26-24 0-26 24-34 46-6 16-20 14-22-4-3-22-6-44-30-44-14 0-20-4-26-14z"/></g>
+      <g class="dr d2"><path fill="#ffd21f" d="M240 0h300v26c-26 2-34 18-38 38-4 20-20 22-26 4-6-16-8-30-30-30-26 0-30 20-34 44-4 18-20 18-24-2-4-22-8-40-34-40-14 0-30-6-38-18z"/></g>
+      <g class="dr d3"><path fill="#2f7bff" d="M520 0h280v34c-22-2-30 12-34 34-3 16-16 20-22 4-6-14-8-30-30-30-24 0-28 24-34 40-6 14-20 12-22-6-2-18-6-36-30-36-12 0-20-6-26-14z"/></g>
+      <g class="dr d4"><path fill="#47e06a" d="M780 0h240v28c-24 0-30 16-34 36-4 16-18 18-24 2-6-14-8-28-30-28-22 0-26 22-30 42-4 16-18 14-22-4-4-20-8-34-30-34-8 0-14-4-20-10z"/></g>
+      <g class="dr d5"><path fill="#a447ff" d="M1000 0h200v40c-22-4-28 10-30 28-2 16-16 20-24 4-6-12-8-28-30-28-24 0-26 22-32 36-6 14-18 12-20-6-2-14-6-26-20-26-8 0-16-6-24-14z"/></g>
+    </svg>
+    <div id="titleBokeh"></div>
+    <div id="titleGlow"></div>
+        <div class="gun left" style="--c1:#ff3b4a;--c2:#ff7b86"><svg viewBox="0 0 320 190" class="gunSvg" xmlns="http://www.w3.org/2000/svg">
+      <g stroke="#1a1033" stroke-width="8" stroke-linejoin="round" stroke-linecap="round">
+        <rect x="165" y="62" width="120" height="30" rx="14" fill="#f4f4ff"/>
+        <rect x="272" y="54" width="30" height="46" rx="10" fill="#ffd21f"/>
+        <path d="M82 112h44l-6 62a14 14 0 0 1-14 12h-12a14 14 0 0 1-14-14z" fill="#2a1f5c"/>
+        <rect x="36" y="48" width="140" height="74" rx="30" fill="var(--c1)"/>
+        <circle cx="96" cy="40" r="36" fill="var(--c2)"/>
+        <rect x="120" y="96" width="24" height="12" rx="6" fill="#fff"/>
+      </g>
+      <ellipse cx="82" cy="28" rx="13" ry="8" fill="#fff" opacity=".8" transform="rotate(-30 82 28)"/>
+      <rect x="56" y="66" width="70" height="10" rx="5" fill="#fff" opacity=".45"/>
+    </svg>
+      <svg class="jet" viewBox="0 0 400 120"><path d="M0 60 C 120 0, 240 0, 400 70" /></svg></div>
+    <div class="gun right" style="--c1:#2f7bff;--c2:#7fb0ff"><svg viewBox="0 0 320 190" class="gunSvg" xmlns="http://www.w3.org/2000/svg">
+      <g stroke="#1a1033" stroke-width="8" stroke-linejoin="round" stroke-linecap="round">
+        <rect x="165" y="62" width="120" height="30" rx="14" fill="#f4f4ff"/>
+        <rect x="272" y="54" width="30" height="46" rx="10" fill="#ffd21f"/>
+        <path d="M82 112h44l-6 62a14 14 0 0 1-14 12h-12a14 14 0 0 1-14-14z" fill="#2a1f5c"/>
+        <rect x="36" y="48" width="140" height="74" rx="30" fill="var(--c1)"/>
+        <circle cx="96" cy="40" r="36" fill="var(--c2)"/>
+        <rect x="120" y="96" width="24" height="12" rx="6" fill="#fff"/>
+      </g>
+      <ellipse cx="82" cy="28" rx="13" ry="8" fill="#fff" opacity=".8" transform="rotate(-30 82 28)"/>
+      <rect x="56" y="66" width="70" height="10" rx="5" fill="#fff" opacity=".45"/>
+    </svg>
+      <svg class="jet" viewBox="0 0 400 120"><path d="M0 60 C 120 0, 240 0, 400 70" /></svg></div>
+    <svg class="splat s1" viewBox="0 0 60 60"><path fill="#ffd21f" d="M30 3c4 6 9 5 13 3 0 7 4 9 10 10-3 5-2 9 3 13-6 2-8 6-6 12-6-1-9 1-11 7-4-4-8-4-12 0-2-6-5-8-11-7 2-6 0-10-6-12 5-4 6-8 3-13 6-1 10-3 10-10 4 2 9 3 13-3z"/></svg>
+    <svg class="splat s2" viewBox="0 0 60 60"><path fill="#2fd15a" d="M30 3c4 6 9 5 13 3 0 7 4 9 10 10-3 5-2 9 3 13-6 2-8 6-6 12-6-1-9 1-11 7-4-4-8-4-12 0-2-6-5-8-11-7 2-6 0-10-6-12 5-4 6-8 3-13 6-1 10-3 10-10 4 2 9 3 13-3z"/></svg>
+    <svg class="splat s3" viewBox="0 0 60 60"><path fill="#a447ff" d="M30 3c4 6 9 5 13 3 0 7 4 9 10 10-3 5-2 9 3 13-6 2-8 6-6 12-6-1-9 1-11 7-4-4-8-4-12 0-2-6-5-8-11-7 2-6 0-10-6-12 5-4 6-8 3-13 6-1 10-3 10-10 4 2 9 3 13-3z"/></svg>
+    <svg class="splat s4" viewBox="0 0 60 60"><path fill="#ff8a1f" d="M30 3c4 6 9 5 13 3 0 7 4 9 10 10-3 5-2 9 3 13-6 2-8 6-6 12-6-1-9 1-11 7-4-4-8-4-12 0-2-6-5-8-11-7 2-6 0-10-6-12 5-4 6-8 3-13 6-1 10-3 10-10 4 2 9 3 13-3z"/></svg>
+    <div id="titleHeroes"></div>
+  </div>
 
   <!-- ===== LOGO SVG ===== -->
   <svg id="logo" viewBox="0 0 800 520" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ColorAttack">
@@ -455,8 +600,9 @@
   <button id="playBtn">JOGAR</button>
   <div id="titleLinks">
     <button id="howBtn" class="ghost">📖 Instruções</button>
+    <button id="statsBtn" class="ghost">🏆 Classificações</button>
     <button id="fsBtn" class="ghost">⛶ Ecrã inteiro</button>
-    <button id="tutorialBtn" class="ghost" disabled title="Vai ser feito quando o jogo estiver pronto">🎓 Tutorial · em breve</button>
+    <button id="tutorialBtn" class="ghost">🎓 Tutorial</button>
   </div>
 </div>
 
@@ -492,8 +638,29 @@
   <div class="blobs"><div class="blob r"></div><div class="blob b"></div><div class="blob y"></div></div>
   <h2>ESCOLHE O MAPA</h2>
   <div id="weatherPick"><span>Clima:</span></div>
+  <div id="diffPick"><span>Dificuldade:</span></div>
+  <div id="matchPick"><span>Primeiro a ganhar:</span><span id="mpWins"></span><span class="mpGap">Duração do round:</span><span id="mpMin"></span></div>
   <div id="mapGrid"></div>
   <button id="backBtn" class="ghost">&larr; Voltar</button>
+</div>
+
+<div id="statsScreen">
+  <div class="blobs"><div class="blob r"></div><div class="blob b"></div><div class="blob y"></div></div>
+  <div class="stBox">
+    <h2>CLASSIFICAÇÕES</h2>
+    <div id="statsBody"></div>
+    <div class="stBtns"><button id="statsClose" class="ghost big">&larr; Voltar</button><button id="statsReset" class="ghost small">Apagar dados</button></div>
+  </div>
+</div>
+
+<div id="confirmBox">
+  <div class="cfCard">
+    <svg viewBox="0 0 60 60" class="splatLogo"><path fill="#ff3b4a" d="M30 3c4 6 9 5 13 3 0 7 4 9 10 10-3 5-2 9 3 13-6 2-8 6-6 12-6-1-9 1-11 7-4-4-8-4-12 0-2-6-5-8-11-7 2-6 0-10-6-12 5-4 6-8 3-13 6-1 10-3 10-10 4 2 9 3 13-3z"/><text x="30" y="40" text-anchor="middle" font-size="30" fill="#fff" font-family="Titan One">!</text></svg>
+    <h3>APAGAR CLASSIFICAÇÕES?</h3>
+    <p>Isto apaga todos os teus jogos, rounds e eliminações e não dá para voltar atrás.<br>Para confirmar escreve <b>CONFIRMAR</b>.</p>
+    <input id="cfInput" type="text" autocomplete="off" spellcheck="false" placeholder="CONFIRMAR">
+    <div class="cfBtns"><button id="cfNo" class="ghost big">Cancelar</button><button id="cfYes" class="ghost danger" disabled>Apagar tudo</button></div>
+  </div>
 </div>
 
 <div id="loading">A carregar o mapa…</div>
@@ -501,7 +668,8 @@
 <!-- ===== HUD DO VISUALIZADOR ===== -->
 <div id="hud">
   <button id="menuBtn" class="ghost">&larr; Mapas</button>
-  <button id="escBtn" title="Pausa">Esc</button>
+  <div id="mmBox"><canvas id="minimap" width="644" height="920"></canvas><div id="mmTag"><kbd>Tab</kbd> Mapa</div></div>
+  <div id="speedFx"><i></i><i></i></div>
   <div id="loot"><div id="effects"></div><div id="feed"></div></div>
   <div id="bottomHud">
    <div id="itemsRow">
@@ -523,6 +691,7 @@
     <div class="scoreBadge" id="scoreB" title="Rounds ganhos pela equipa adversária">0</div>
     <div class="teamPips" id="teamB"></div>
   </div>
+  <div id="tutBar"><span id="tutStep"></span><div id="tutText"></div><small id="tutHint"></small><div id="tutDots"></div></div>
   <div id="killsBar"><b id="killsA">0</b><span>⚔</span><b id="killsB">0</b><small id="killsLabel">Round 1</small></div>
   <div id="pause">
     <div class="blobs"><div class="blob r"></div><div class="blob b"></div><div class="blob y"></div></div>
@@ -531,6 +700,7 @@
       <button id="resumeBtn" class="pmBtn on"><i>&#9654;</i>Continuar</button>
       <button id="pauseQuality" class="pmBtn"><i>&#9881;</i><span>Qualidade: <b id="pqVal"></b></span></button>
       <button id="pauseWeather" class="pmBtn"><i>&#9729;</i><span>Clima: <b id="pwVal"></b></span></button>
+      <button id="pauseStatsBtn" class="pmBtn"><i>&#127942;</i>Classificações</button>
       <button id="pauseFs" class="pmBtn"><i>&#9974;</i><span>Ecrã inteiro</span></button>
       <button id="pauseMapsBtn" class="pmBtn"><i>&#10005;</i>Sair da partida</button>
     </div>
@@ -540,20 +710,29 @@
       <div class="ppTeams"><div id="ppTeamA"></div><div id="ppTeamB"></div></div>
       <div class="ppSection">Melhorias: <span id="ppUpg"></span></div>
       <div class="ppSection">Controlos rápidos</div>
-      <div class="ppKeys"><span>Mover <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span>Disparar <kbd>Clique</kbd></span><span>Correr <kbd>Shift</kbd></span><span>Saltar <kbd>Espaço</kbd></span><span>Cores <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd></span><span>Granada <kbd>G</kbd></span><span>Baú <kbd>E</kbd></span><span>Cura <kbd>H</kbd></span><span>Invisível <kbd>F</kbd></span></div>
+      <div class="ppKeys"><span>Mover <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span>Disparar <kbd>Clique</kbd></span><span>Correr <kbd>Shift</kbd></span><span>Saltar <kbd>Espaço</kbd></span><span>Cores <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd></span><span>Granada <kbd>G</kbd></span><span>Baú <kbd>E</kbd></span><span>Cura <kbd>T</kbd></span><span>Invisível <kbd>F</kbd></span></div>
     </div>
   </div>
   <div id="targetInfo"></div>
-  <div id="roundBox"><b id="roundTitle"></b><span id="roundScore"></span><div id="upgradeCards"></div><span id="upgradeHint">Escolhe uma melhoria: carrega na tecla <kbd>1</kbd>, <kbd>2</kbd> ou <kbd>3</kbd></span></div>
+  <div id="roundBox"><b id="roundTitle"></b><span id="roundScore"></span><div id="upgradeCards"></div><span id="upgradeHint">Escolhe uma melhoria: clica nela ou carrega em <kbd>1</kbd>, <kbd>2</kbd> ou <kbd>3</kbd></span></div>
   <div id="gameOver">
-    <div class="goCard"><h2 id="goTitle"></h2><p id="goSub"></p><div id="goStats"></div>
-      <div class="goBtns"><button id="goAgain" class="ghost big">Jogar de novo</button><button id="goMenu" class="ghost">Voltar ao menu</button></div></div>
+    <div id="goStage1">
+      <h2 id="goTitle"></h2><p id="goSub"></p>
+      <button id="goSummaryBtn" class="ghost big">📊 Resumo <kbd>Esc</kbd></button>
+    </div>
+    <div id="goStage2">
+      <h3>RESUMO DO JOGO</h3>
+      <div id="summaryBody"></div>
+      <div class="goBtns"><button id="goAgain" class="ghost big">Jogar de novo</button><button id="goMenu" class="ghost">Voltar ao menu</button></div>
+    </div>
   </div>
   <div id="hurt"></div>
   <div id="deathBox"><b>Foste eliminado!</b><span id="deathText"></span></div>
   <div id="killfeed"></div>
   <div id="crosshair">
     <svg viewBox="0 0 100 100"><circle class="xBg" cx="50" cy="50" r="44"/><circle id="xProg" cx="50" cy="50" r="44"/></svg>
+    <svg class="xCol" viewBox="0 0 100 100"><g stroke-linecap="round"><path d="M50 4v16M50 80v16M4 50h16M80 50h16"/><circle cx="50" cy="50" r="3.2" class="dot"/></g></svg>
+    <svg class="xGren" viewBox="0 0 100 100"><g stroke-linecap="round"><path d="M16 34V16h18M66 16h18v18M84 66v18H66M34 84H16V66"/><circle cx="50" cy="50" r="26" stroke-dasharray="5 7"/><path d="M50 40v20M40 50h20"/></g></svg>
     <span id="xChip"></span>
   </div>
   <div id="hudFps"></div>

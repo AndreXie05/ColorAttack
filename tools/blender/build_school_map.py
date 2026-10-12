@@ -187,6 +187,7 @@ def build():
         for (x, z) in [(12, -14), (12, 14), (24, -23), (24, 23)]:
             lamp(s * x, z)
     patrol = [(10, -12), (10, 12), (24, 0), (26, -20), (26, 20), (0, -16), (0, 16), (41, -15), (41, 15), (5, 0)]
+    exec(open("/home/andrexie/Documents/ColorAttack/tools/blender/map_extras.py").read(), globals()); decorate(seed=1, wall_h=2.4, patrol=patrol)
     return finish_map("escola", patrol, OUTPUT)
 
 

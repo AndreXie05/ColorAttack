@@ -279,6 +279,7 @@ def build():
     round_tree(0, -28, 1.5); round_tree(0, 28, 1.5)
     ball(0, -16, 2.0, "BallYellow"); ball(0, 16, 2.0, "BallYellow")
 
+    exec(open("/home/andrexie/Documents/ColorAttack/tools/blender/map_extras.py").read(), globals()); decorate(seed=5, wall_h=2.4, patrol=[(16, -20), (16, 20), (26, -8), (26, 8), (0, -24), (0, 24), (18, 0), (36, -12.5), (36, 12.5)])
     old = bpy.data.collections.get(COLLECTION_NAME)
     if old:
         for o in list(old.objects):

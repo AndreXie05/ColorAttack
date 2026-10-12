@@ -183,6 +183,7 @@ def build():
         for (x, z) in [(17, -10), (17, 10), (30, 0), (6, -17), (6, 17)]:
             lamp(s * x, z, 5.6)
     patrol = [(8, -8), (8, 8), (19.5, -12.5), (19.5, 12.5), (32, -5), (32, 5), (0, -24), (0, 24), (40, -15), (40, 15)]
+    exec(open("/home/andrexie/Documents/ColorAttack/tools/blender/map_extras.py").read(), globals()); decorate(seed=3, wall_h=2.6, patrol=patrol)
     return finish_map("fabrica", patrol, OUTPUT)
 
 

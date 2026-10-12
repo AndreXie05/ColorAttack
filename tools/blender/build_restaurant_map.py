@@ -202,6 +202,7 @@ def build():
         for (x, z) in [(16, -4), (16, 4), (38, -30), (38, 30)]:
             lamp(s * x, z, 5.4)
     patrol = [(8, -22), (8, 22), (20, -4), (20, 4), (28, -8), (28, 8), (40, -14), (40, 14), (0, -24), (0, 24)]
+    exec(open("/home/andrexie/Documents/ColorAttack/tools/blender/map_extras.py").read(), globals()); decorate(seed=2, wall_h=2.6, patrol=patrol)
     return finish_map("restaurante", patrol, OUTPUT)
 
 

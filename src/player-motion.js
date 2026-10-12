@@ -12,6 +12,7 @@ export const MOTION = {
   airAccel: 24, airDecel: 4,             // m/s² no ar
   jump: 9, gravityUp: 24, gravityDown: 36, jumpCutGravity: 2.4,
   coyote: 0.1, buffer: 0.12,
+  runJumpBoost: 1.1,                     // saltar a correr leva um pouco mais longe
 };
 
 export function createMotionState() {
@@ -37,16 +38,21 @@ export function stepMotion(m, pos, dir, input, dt, cfg = MOTION) {
   m.coyote = m.onGround ? cfg.coyote : Math.max(0, m.coyote - dt);
   if (m.buffer > 0 && (m.onGround || m.coyote > 0)) {
     m.vy = cfg.jump; m.onGround = false; m.coyote = 0; m.buffer = 0; m.jumping = true; out.jumped = true;
+    if (input.run) { m.vx *= cfg.runJumpBoost || 1; m.vz *= cfg.runJumpBoost || 1; }
   }
 
   // 3) gravidade (solta o espaço a subir = cai mais depressa = salto mais curto)
   let g = m.vy > 0 ? cfg.gravityUp : cfg.gravityDown;
   if (m.vy > 0 && m.jumping && !input.jumpHeld) g *= cfg.jumpCutGravity;
   m.vy -= g * dt;
+  // chão: 0, ou o topo de uma plataforma baixa (input.floor(x, z, y) devolve a altura onde o jogador pode pousar)
+  const nx = pos.x + m.vx * dt, nz = pos.z + m.vz * dt;
+  const floor = input.floor ? input.floor(nx, nz, pos.y) : 0;
+  if (m.onGround && pos.y > floor + 0.02) m.onGround = false;                     // saiu da borda: cai
   pos.y += m.vy * dt;
-  if (pos.y <= 0) {
+  if (pos.y <= floor) {
     if (!m.onGround) { out.landed = true; out.impact = Math.max(0, -m.vy); }
-    pos.y = 0; m.vy = 0; m.onGround = true; m.jumping = false;
+    pos.y = floor; m.vy = 0; m.onGround = true; m.jumping = false;
   }
 
   // 4) deslocamento horizontal

@@ -10,6 +10,13 @@ import { COLORS, PRIMARIES, resolveHit, hitDamage } from "./colors.js";
    - Sem fogo amigo. Quem é eliminado deixa uma poça da sua cor e reaparece 5 s depois, com 2 s de proteção.
    Cada combatente: { id, team, index, isPlayer, pos{x,y,z}, hp, maxHp, colorId, alive, protectUntil, respawnAt, radius, height }
    ============================================================ */
+function grenadeMesh(m1, m2) {
+  if (!m2) return new THREE.Mesh(new THREE.SphereGeometry(0.4, 14, 10), m1);
+  const grp = new THREE.Group(); grp.rotation.y = Math.PI / 2;
+  grp.add(new THREE.Mesh(new THREE.SphereGeometry(0.4, 16, 10, 0, Math.PI), m1), new THREE.Mesh(new THREE.SphereGeometry(0.4, 16, 10, Math.PI, Math.PI), m2));
+  return grp;
+}
+function disposeMesh(o) { o.traverse((c) => { if (c.geometry) c.geometry.dispose(); }); }
 const PROJ = { radius: 0.3, life: 1.6, max: 90 };
 const PART_MAX = 70;
 
@@ -19,7 +26,7 @@ export class CombatWorld {
   constructor({ scene = null, map, paint = null, callbacks = {} }) {
     this.scene = scene; this.map = map; this.paint = paint; this.cb = callbacks;
     this.combatants = []; this.t = 0; this.lastSplat = -1;
-    this.projectiles = []; this.particles = []; this.grenades = []; this.effects = [];
+    this.projectiles = []; this.particles = []; this.grenades = []; this.effects = []; this.puddles = [];
     this.mats = new Map();
     if (scene) {
       this.group = new THREE.Group(); scene.add(this.group);
@@ -119,13 +126,14 @@ export class CombatWorld {
     if (target.hp <= 0) this.eliminate(target, owner, shot, false);
   }
 
-  eliminate(target, killer, shot, byColor) {
+  eliminate(target, killer, shot, byColor, via = "shot") {
     if (!target.alive) return;
-    target.alive = false; target.deaths++; target.respawnAt = this.t + CONFIG.respawn.delay;
+    target.alive = false; target.deadT = 0; target.deaths++; target.respawnAt = this.t + CONFIG.respawn.delay;
     if (killer) killer.kills++;
     this.splat(target.pos.x, target.pos.z, target.colorId, 2.2);                    // poça da cor do eliminado
+    this.puddles.push({ x: target.pos.x, z: target.pos.z, r: 1.8, colorId: target.colorId, t: this.t });   // só estas poças mudam a cor de quem as pisa
     this.burst(target.pos.x, target.pos.y + 1.2, target.pos.z, target.colorId, 16);
-    this.cb.onKill?.(killer, target, shot, byColor);
+    this.cb.onKill?.(killer, target, shot, byColor, via);
   }
 
   // Granada de tinta: voa em arco até ao ponto (limitado ao alcance) e, ao cair, pinta todos os que estiverem na área da cor escolhida (adversários dessa cor são eliminados)
@@ -136,7 +144,7 @@ export class CombatWorld {
     if (d > G.range) { tx = owner.pos.x + (dx / d) * G.range; tz = owner.pos.z + (dz / d) * G.range; }   // alcance máximo
     const gr = { x: o.x, y: o.y, z: o.z, vx: (tx - o.x) / T, vz: (tz - o.z) / T, vy: (0.2 - o.y + 0.5 * G.gravity * T * T) / T, t: 0, owner, colorId, colors: colorId2 && colorId2 !== colorId ? [colorId, colorId2] : [colorId], mesh: null };
     if (this.scene) {
-      gr.mesh = new THREE.Mesh(new THREE.SphereGeometry(0.4, 14, 10), this.mat(colorId));
+      gr.mesh = grenadeMesh(this.mat(colorId), gr.colors.length > 1 ? this.mat(gr.colors[1]) : null);          // 2 cores: metade de cada
       gr.mesh.position.set(gr.x, gr.y, gr.z); this.group.add(gr.mesh);
     }
     this.grenades.push(gr);
@@ -159,7 +167,7 @@ export class CombatWorld {
       if (!c.alive || isProtected(c, this.t)) continue;
       if (Math.hypot(c.pos.x - g.x, c.pos.z - g.z) > R + c.radius * 0.5) continue;
       hit.push(c);
-      if (g.colors.includes(c.colorId) && g.owner && c.team !== g.owner.team) { this.eliminate(c, g.owner, c.colorId, true); continue; }   // adversário já de uma das cores: eliminado
+      if (g.colors.includes(c.colorId) && g.owner && c.team !== g.owner.team) { this.eliminate(c, g.owner, c.colorId, true, "grenade"); continue; }   // adversário já de uma das cores: eliminado
       const nc = g.colors[Math.floor(Math.random() * g.colors.length)];
       if (c.colorId !== nc) { c.colorId = nc; this.cb.onColorChange?.(c, nc); }
     }
@@ -176,8 +184,8 @@ export class CombatWorld {
 
   respawn(c) {
     const list = this.map.spawns[c.team];
-    const s = c.isPlayer && c.spawn ? c.spawn : list[Math.floor(Math.random() * list.length)];
-    c.alive = true; c.hp = c.maxHp; c.colorId = PRIMARIES[Math.floor(Math.random() * PRIMARIES.length)];
+    const s = list[Math.floor(Math.random() * list.length)];                 // reaparece num dos 5 lugares da base
+    c.alive = true; c.deadT = 0; c.hp = c.maxHp; c.colorId = PRIMARIES[Math.floor(Math.random() * PRIMARIES.length)];
     c.pos.x = s.x; c.pos.z = s.z; c.pos.y = 0;
     c.protectUntil = this.t + CONFIG.respawn.protection;
     this.cb.onRespawn?.(c, s);
@@ -185,25 +193,22 @@ export class CombatWorld {
 
   resetAll() {                                                                 // novo round: todos voltam às bases, com vida cheia
     for (const p of this.projectiles) { p.active = false; if (p.mesh) p.mesh.visible = false; }
-    for (const g of this.grenades) if (g.mesh) { this.group.remove(g.mesh); g.mesh.geometry.dispose(); }
-    this.grenades = [];
+    for (const g of this.grenades) if (g.mesh) { this.group.remove(g.mesh); disposeMesh(g.mesh); }
+    this.grenades = []; this.puddles = [];
     for (const c of this.combatants) this.respawn(c);
   }
 
   update(dt, t) {
     this.t = t;
     for (const c of this.combatants) if (!c.alive && t >= c.respawnAt) this.respawn(c);
-    // poças e manchas de tinta no chão: quem as pisa muda de cor pela tabela de misturas (é uma forma de mudares a tua cor)
-    if (this.paint) {
-      for (const c of this.combatants) {
-        if (!c.alive || c.pos.y > 0.2) continue;
-        c.puddleCd = (c.puddleCd || 0) - dt;
-        if (c.puddleCd > 0) continue;
-        const col = this.paint.colorAt(c.pos.x, c.pos.z);
-        if (!col || col === c.colorId) continue;
-        const r = resolveHit(col, c.colorId);
-        if (r.result === "change") { c.colorId = r.newColor; c.puddleCd = 1.6; this.cb.onColorChange?.(c, r.newColor, "puddle"); }
-      }
+    // poças deixadas por jogadores eliminados: quem as pisa fica da cor da poça (as manchas normais dos tiros e granadas não fazem nada)
+    this.puddles = this.puddles.filter((q) => t - q.t < CONFIG.paint.lifeSeconds);
+    for (const c of this.combatants) {
+      if (!c.alive || c.pos.y > 0.2) continue;
+      c.puddleCd = (c.puddleCd || 0) - dt;
+      if (c.puddleCd > 0) continue;
+      const q = this.puddles.find((u) => u.colorId !== c.colorId && Math.hypot(c.pos.x - u.x, c.pos.z - u.z) < u.r);
+      if (q) { c.colorId = q.colorId; c.puddleCd = 1.0; this.cb.onColorChange?.(c, q.colorId, "puddle"); }
     }
     for (const p of this.projectiles) {
       if (!p.active) continue;
@@ -239,7 +244,7 @@ export class CombatWorld {
       if (g.mesh) g.mesh.position.set(g.x, Math.max(g.y, 0.2), g.z);
       if (boom) {
         g.y = 0; this.explodeGrenade(g);
-        if (g.mesh) { this.group.remove(g.mesh); g.mesh.geometry.dispose(); }
+        if (g.mesh) { this.group.remove(g.mesh); disposeMesh(g.mesh); }
         this.grenades.splice(i, 1);
       }
     }

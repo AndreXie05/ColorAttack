@@ -99,6 +99,20 @@ def legs(col, prefix, x0, leg_mat, foot_mat, sole="Sole", accent=None, boot=Fals
     return out
 
 
+def blaster(p):
+    """Pistola de tinta cartoon (toda da cor da munição: GunBody e AmmoTank mudam no jogo; Belt = detalhes brancos)."""
+    p.rbox("GunBody", (0, -0.22, -0.69), (0.19, 0.5, 0.2), radius=0.07, segs=3)                       # corpo arredondado
+    p.cone("GunBody", (0, -0.58, -0.69), 0.055, 0.055, 0.34, rot=(rad(90), 0, 0), segs=16)              # cano
+    p.cone("Belt", (0, -0.76, -0.69), 0.085, 0.085, 0.035, rot=(rad(90), 0, 0), segs=16)                # anel
+    p.cone("Belt", (0, -0.83, -0.69), 0.07, 0.05, 0.11, rot=(rad(90), 0, 0), segs=16)                   # boca
+    p.sphere("AmmoTank", (0, -0.2, -0.5), (0.135, 0.135, 0.135), segs=20, rings=12)                     # depósito em cima
+    p.cone("Belt", (0, -0.2, -0.375), 0.05, 0.05, 0.04, segs=12)                                        # tampa do depósito
+    p.rbox("GunBody", (0, -0.03, -0.82), (0.1, 0.13, 0.22), rot=(rad(-16), 0, 0), radius=0.04, segs=2)   # punho
+    for sxx in (-1, 1):
+        p.rbox("Belt", (sxx * 0.101, -0.24, -0.69), (0.012, 0.34, 0.05), radius=0.005, segs=1)         # faixa lateral
+    p.rbox("Belt", (0, -0.44, -0.57), (0.04, 0.14, 0.05), radius=0.02, segs=2)                          # mira
+
+
 def arms(col, prefix, x0, sleeve, cuff, hand, thick=1.0, bare_skin=None, gun=True, long_sleeve=True):
     out = []
     for name, sx in (("ArmL", -1), ("ArmR", 1)):
@@ -112,11 +126,7 @@ def arms(col, prefix, x0, sleeve, cuff, hand, thick=1.0, bare_skin=None, gun=Tru
         p.sphere(hand, (0, 0, -0.67), (0.085 * t, 0.075 * t, 0.095 * t))
         p.sphere(hand, (sx * -0.05 * t, -0.05, -0.68), (0.035 * t, 0.05, 0.035 * t))
         if gun and sx == 1:
-            p.lathe("GunBody", [(0, -0.3), (0.06, -0.28), (0.075, -0.1), (0.07, 0.3), (0.05, 0.36), (0, 0.38)],
-                    loc=(0, -0.28, -0.69), rot=(rad(90), 0, 0), segs=20)
-            p.sphere("GunBody", (0, 0.0, -0.8), (0.055, 0.075, 0.12))
-            p.sphere("AmmoTank", (0, -0.2, -0.56), (0.085, 0.085, 0.085))
-            p.tube("Belt", [(0, -0.56, -0.69), (0, -0.62, -0.69)], [0.045, 0.03], sides=10, per_seg=4)
+            blaster(p)
         out.append(p.build(col, (x0 + sx * 0.39 * (1.05 if thick > 1 else 1), 0, 1.58)))
     return out
 
