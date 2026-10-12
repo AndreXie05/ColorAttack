@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ColorAttack</title>
+
+<!-- Letras redondas: Titan One (guardada em assets/fonts, funciona sem internet) em todo o texto -->
+<style>@font-face { font-family: "Titan One"; font-weight: 400; font-style: normal; font-display: block; src: url("assets/fonts/TitanOne.ttf") format("truetype"); }</style>
+
+<!-- Three.js por CDN (versão fixa) -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0d0b1f; font-family: "Titan One", "Fredoka", "Trebuchet MS", sans-serif; }
+  button, input, select { font-family: inherit; }
+  * { font-weight: 400 !important; }     /* o Titan One só tem um peso: evita negrito falso */
+  button, input, select, kbd { font-family: inherit; }
+  :root { --display: "Titan One", "Fredoka", "Baloo 2", sans-serif; }
+  h2, h3, #playBtn, .mapCard .name, #hudTimer, #toast, .pauseBox h3, #tagline { font-family: var(--display); font-weight: 400; letter-spacing: .06em; }
+  #playBtn { font-size: clamp(24px, 3.4vw, 36px); }
+
+  /* ===== TELA INICIAL ===== */
+  #titleScreen {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background:
+      radial-gradient(circle at 50% 40%, #2a1f5c 0%, #0d0b1f 70%);
+    overflow: hidden;
+  }
+
+  /* manchas de tinta ao fundo */
+  .blob {
+    position: absolute; border-radius: 50%; filter: blur(60px); opacity: .55;
+    animation: drift 12s ease-in-out infinite alternate;
+  }
+  .blob.r { width: 40vmax; height: 40vmax; background: #ff2d3d; left: -10vmax; top: -8vmax; }
+  .blob.b { width: 45vmax; height: 45vmax; background: #1e6bff; right: -14vmax; top: 10vmax; animation-delay: -4s; }
+  .blob.y { width: 38vmax; height: 38vmax; background: #ffd400; left: 25vw; bottom: -20vmax; animation-delay: -8s; }
+  @keyframes drift {
+    from { transform: translate(0, 0) scale(1); }
+    to   { transform: translate(4vmax, 3vmax) scale(1.15); }
+  }
+
+  #logo { position: relative; width: min(92vw, 820px); height: auto; z-index: 2; overflow: visible; }
+
+  .float   { animation: float 3.2s ease-in-out infinite alternate; transform-origin: center; transform-box: fill-box; }
+  .float2  { animation: float 3.2s ease-in-out -1.1s infinite alternate; transform-box: fill-box; }
+  .float3  { animation: float 3.2s ease-in-out -2.2s infinite alternate; transform-box: fill-box; }
+  @keyframes float { from { transform: translateY(-6px); } to { transform: translateY(8px); } }
+
+  .letter { animation: bounce 2.4s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 100%; }
+  @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-9px); } }
+
+  .spin { animation: spin 14s linear infinite; transform-origin: 400px 190px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  #tagline {
+    z-index: 2; margin: 6px 0 26px; color: #fff; letter-spacing: .35em;
+    font-weight: 700; font-size: clamp(12px, 2vw, 20px); text-transform: uppercase;
+    text-shadow: 0 0 12px #ffffff88;
+  }
+
+  #playBtn {
+    z-index: 2; cursor: pointer; border: 4px solid #fff; border-radius: 999px;
+    padding: 14px 54px; font-size: clamp(20px, 3vw, 30px); font-weight: 900; letter-spacing: .12em;
+    color: #1a1033; background: linear-gradient(90deg, #ff2d3d, #ffd400, #1e6bff);
+    background-size: 200% 100%; animation: shine 4s linear infinite;
+    box-shadow: 0 8px 0 #00000066, 0 0 30px #ffffff55;
+    transition: transform .12s;
+  }
+  #playBtn:hover  { transform: scale(1.08) rotate(-2deg); }
+  #playBtn:active { transform: translateY(6px); box-shadow: 0 2px 0 #00000066; }
+  @keyframes shine { to { background-position: 200% 0; } }
+
+  #titleScreen { z-index: 10; }
+  .blobs { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+
+
+  #logo { max-height: 50vh; }
+  #titleLinks { z-index: 2; display: flex; gap: 14px; margin-top: 22px; flex-wrap: wrap; justify-content: center; }
+  .ghost:disabled { opacity: .55; cursor: not-allowed; }
+  .ghost:disabled:hover { background: transparent; }
+
+  /* ===== INSTRUÇÕES ===== */
+  #howTo {
+    position: fixed; inset: 0; display: none; z-index: 10;
+    flex-direction: column; align-items: center; justify-content: flex-start; gap: 18px; padding: 24px 20px 30px; box-sizing: border-box;
+    background: radial-gradient(circle at 50% 30%, #2a1f5c 0%, #0d0b1f 70%); overflow-x: hidden; overflow-y: auto; color: #fff;
+  }
+  #howTo h2 { z-index: 2; margin: auto 0 0; font-size: clamp(26px, 4vw, 44px); letter-spacing: .08em; text-shadow: 0 4px 0 #ff3b4a, 0 8px 0 #2f7bff; }
+  #howContent { z-index: 2; display: flex; flex-direction: column; gap: 16px; width: min(94vw, 900px); margin-top: 6px; min-height: min(60vh, 560px); }
+  #howTo > * { flex-shrink: 0; }
+  #howContent .howCard:first-child { margin-top: auto; }
+  #howContent .howCard:last-child { margin-bottom: auto; }
+  #howBack { margin-bottom: auto; }
+  #howNav { z-index: 2; display: flex; align-items: center; gap: 22px; }
+  #howDots { display: flex; gap: 10px; }
+  #howNav .ghost { font-size: 20px; padding: 10px 30px; }
+  .dot { width: 14px; height: 14px; border-radius: 50%; background: #ffffff44; }
+  .dot.on { background: #ffd21f; transform: scale(1.25); }
+  .ghost.small { font-size: 13px; padding: 5px 16px; opacity: .8; }
+  .keyRow { display: flex; gap: 22px; margin: 10px 0 14px; }
+  .keyChip { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .howCard { background: #0d0b1fcc; border: 3px solid #ffffffaa; border-radius: 20px; padding: 22px 32px 26px; line-height: 1.6; font-size: 21px; }
+  #howContent .howCard { text-align: center; }
+  .howCard ul { display: inline-block; text-align: left; }
+  .colorGrid { justify-items: center; }
+  .colorLine { justify-content: center; flex-direction: column; gap: 6px; text-align: center; }
+  .eq, .keyRow, .eqGrid { justify-content: center; justify-items: center; }
+  .keys { width: auto; margin: 0 auto; text-align: left; }
+  .howCard h3 { margin: 0 0 10px; font-size: 32px; color: #ffd21f; }
+  .howCard p { margin: 8px 0; }
+  .howCard ul { margin: 8px 0; padding-left: 20px; }
+  .colorChip { display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 3px 0 #00000066; flex: none; }
+  .colorGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 8px auto 14px; max-width: 560px; }   /* 3 colunas iguais: símbolos alinhados em cima e em baixo */
+  .colorLine { display: flex; align-items: center; gap: 10px; }
+  .colorLine small { opacity: .75; display: block; }
+  .colorLine b { display: block; font-size: 22px; }
+  .eqGrid { display: grid; gap: 10px; margin-top: 10px; }
+  .eq { display: flex; align-items: center; gap: 14px; font-size: 30px; font-weight: 900; flex-wrap: wrap; }
+  .eq span { font-size: 22px; }
+  .keys { width: 100%; border-collapse: collapse; }
+  .keys { font-size: 20px; }
+  .keys td { padding: 6px 8px; border-bottom: 1px solid #ffffff22; vertical-align: top; }
+  .keys td:first-child { white-space: nowrap; }
+  kbd { background: #ffffff22; border: 2px solid #ffffff88; border-bottom-width: 4px; border-radius: 8px; padding: 1px 10px; font: inherit; font-weight: 800; }
+
+  @media (max-height: 720px) {                      /* janelas baixas: letra um pouco mais pequena para caber tudo */
+    #howTo { gap: 10px; padding-top: 14px; padding-bottom: 14px; }
+    .howCard { font-size: 17px; padding: 14px 24px 16px; line-height: 1.45; }
+    .howCard h3 { font-size: 26px; margin-bottom: 6px; }
+    .colorChip { transform: scale(.82); margin: -4px; }
+    .eq { font-size: 24px; }
+    #howContent { min-height: 0; }
+    #howNav .ghost { font-size: 17px; padding: 6px 22px; }
+  }
+
+  /* ===== ESCOLHA DE PERSONAGEM ===== */
+  #charGrid { z-index: 2; display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; width: min(96vw, 980px); }
+  .charCard { cursor: pointer; width: 172px; border: 4px solid #ffffff55; border-radius: 22px; padding: 14px 10px 12px; text-align: center; color: #fff; background: #ffffff14; font-family: inherit; transition: transform .12s, border-color .12s, background .12s; }
+  .charCard:hover { transform: translateY(-5px); background: #ffffff26; }
+  .charCard.on { border-color: #ffd21f; background: linear-gradient(160deg, #ffffff30, #ffffff12); box-shadow: 0 0 0 4px #ffd21f55, 0 8px 0 #0006; transform: translateY(-5px) scale(1.04); }
+  .charFace { position: relative; display: block; width: 104px; height: 104px; margin: 0 auto 8px; border-radius: 50%; background: #14c9c0; border: 4px solid #fff; overflow: hidden; }
+  .charFace img { display: none; position: absolute; left: 50%; top: 50%; width: 120%; height: 120%; transform: translate(-50%, -48%); }
+  .charFace i { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-style: normal; font-size: 48px; }
+  .charCard.hasImg .charFace img { display: block; } .charCard.hasImg .charFace i { display: none; }
+  .charCard .cname { display: block; font-family: var(--display); font-size: 24px; letter-spacing: .04em; }
+  .charCard .cdesc { display: block; font-size: 12px; opacity: .85; margin-top: 2px; }
+  #teamPreview { z-index: 2; display: flex; flex-wrap: wrap; gap: 28px; justify-content: center; color: #fff; }
+  .tp { display: flex; flex-direction: column; gap: 6px; align-items: center; }
+  .tp > b { font-family: var(--display); font-weight: 400; letter-spacing: .06em; font-size: 16px; opacity: .9; }
+  .pv { display: flex; gap: 8px; }
+  .pvFace { position: relative; width: 54px; height: 54px; border-radius: 50%; background: var(--c); border: 3px solid #fff; display: flex; align-items: center; justify-content: center; font-size: 22px; }
+  .pvFace img { position: absolute; left: 50%; top: 50%; width: 118%; height: 118%; transform: translate(-50%, -48%); }
+  .pvFace small { position: absolute; bottom: -19px; left: 50%; transform: translateX(-50%); font-size: 10px; white-space: nowrap; text-shadow: 0 1px 2px #000; }
+  .pvFace.you { box-shadow: 0 0 0 4px #ffd21f; }
+  .pv { padding-bottom: 20px; }
+  .navRow { z-index: 2; display: flex; gap: 16px; align-items: center; }
+  .ghost.big { font-size: 22px; padding: 10px 34px; background: linear-gradient(90deg, #ff3b4a, #ffd21f, #2f7bff); color: #1a1033; border-color: #fff; }
+
+  /* ===== ESCOLHA DE MAPA ===== */
+  #mapSelect, #charSelect {
+    position: fixed; inset: 0; display: none; z-index: 10;
+    flex-direction: column; align-items: center; justify-content: center; gap: 22px;
+    background: radial-gradient(circle at 50% 40%, #2a1f5c 0%, #0d0b1f 70%);
+    overflow-x: hidden; overflow-y: auto; padding: 20px; box-sizing: border-box;
+  }
+  #mapSelect h2, #charSelect h2 {
+    z-index: 2; margin: 0; color: #fff; font-size: clamp(26px, 4vw, 44px); letter-spacing: .08em;
+    text-shadow: 0 4px 0 #ff3b4a, 0 8px 0 #2f7bff;
+  }
+  #mapGrid {
+    z-index: 2; display: grid; gap: 18px; width: min(94vw, 980px);
+    grid-template-columns: repeat(3, 1fr);          /* 3 em cima e 3 em baixo (o Aleatório é o primeiro) */
+  }
+  .mapCard {
+    cursor: pointer; border: 4px solid #fff; border-radius: 22px; padding: 16px 14px; text-align: center;
+    color: #fff; background: linear-gradient(160deg, var(--c1), var(--c2));
+    box-shadow: 0 8px 0 #00000066; transition: transform .12s; font-family: inherit;
+  }
+  .mapCard:hover { transform: translateY(-6px) rotate(-1.5deg) scale(1.04); }
+  .mapCard .icon { font-size: 54px; line-height: 1.1; }
+  .mapCard .name { font-size: 22px; font-weight: 900; margin: 6px 0 4px; text-shadow: 0 2px 0 #00000055; }
+  .mapCard .desc { font-size: 13px; opacity: .95; text-shadow: 0 1px 0 #00000055; }
+  #weatherPick { z-index: 2; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; color: #fff; font-weight: 800; }
+  .chip { cursor: pointer; font: inherit; font-weight: 800; color: #fff; background: #ffffff1f; border: 3px solid #ffffff66; border-radius: 999px; padding: 6px 18px; }
+  .chip:hover { background: #ffffff40; }
+  .chip.on { background: linear-gradient(90deg, #ff3b4a, #ffd21f, #2f7bff); color: #1a1033; border-color: #fff; }
+  .ghost {
+    z-index: 2; cursor: pointer; background: transparent; color: #fff; border: 3px solid #fff;
+    border-radius: 999px; padding: 8px 26px; font-size: 16px; font-weight: 700; font-family: inherit;
+  }
+  .ghost:hover { background: #ffffff33; }
+
+  /* ===== VISUALIZADOR DE MAPA (HUD) ===== */
+  #gameCanvas { position: fixed; inset: 0; z-index: 0; display: block; }
+  #hud { position: fixed; inset: 0; z-index: 5; display: none; pointer-events: none; color: #fff; }
+  /* barra do topo: equipa A | relógio em elipse preta | equipa B (cada parte separada) */
+  #topBar { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 22px; }
+  .teamPips { display: flex; gap: 10px; }
+  .pip { position: relative; width: 46px; height: 46px; border-radius: 50%; background: var(--c); border: 3px solid #fff; box-shadow: 0 3px 0 #0007; flex: none; overflow: hidden; transition: filter .35s, opacity .35s; }
+  .pip img { display: none; position: absolute; left: 50%; top: 50%; width: 118%; height: 118%; transform: translate(-50%, -48%); pointer-events: none; }
+  .pip.out { filter: brightness(1.8) saturate(.3); opacity: .55; }       /* eliminado: a mesma cara, mas muito clara */
+  .scoreBadge { width: 46px; height: 46px; border-radius: 50%; border: 3px solid #fff; display: flex; align-items: center; justify-content: center; font-family: var(--display); font-size: 26px; box-shadow: 0 3px 0 #0007; text-shadow: 0 2px 0 #0006; }
+  #scoreA { background: #14c9c0; } #scoreB { background: #ff5fa8; }
+  #killsBar { position: absolute; top: 84px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 3px 16px 4px; border-radius: 999px; background: #0d0b1fd8; border: 2px solid #fff; font-family: var(--display); font-size: 20px; white-space: nowrap; }
+  #killsBar b { font-weight: 400; min-width: 22px; text-align: center; } #killsA { color: #53f0e6; } #killsB { color: #ff8cc0; }
+  #killsBar small { font-family: "Titan One", "Fredoka", sans-serif; font-size: 12px; opacity: .85; margin-left: 4px; }
+  #killsBar.intense { border-color: #ff8a1f; box-shadow: 0 0 14px #ff8a1fcc; } #killsBar.intense small { color: #ffb347; opacity: 1; }
+  #killsBar.sudden { border-color: #ff3b4a; animation: pulse .5s ease-in-out infinite alternate; } #killsBar.sudden small { color: #ff7b86; opacity: 1; }
+  #roundBox { position: absolute; top: 32%; left: 50%; transform: translateX(-50%); display: none; flex-direction: column; align-items: center; gap: 8px; padding: 18px 44px; border-radius: 22px; background: #0d0b1fee; border: 5px solid var(--c, #fff); text-align: center; }
+  #roundBox b { font-family: var(--display); font-weight: 400; font-size: 34px; letter-spacing: .04em; } #roundBox span { font-size: 18px; opacity: .92; }
+  #upgradeCards { display: flex; gap: 14px; margin-top: 8px; }
+  .upCard { position: relative; width: 190px; padding: 22px 12px 12px; border-radius: 18px; background: linear-gradient(165deg, #3a2c7a, #1b1445); border: 4px solid #ffd21f; display: flex; flex-direction: column; align-items: center; gap: 4px; box-shadow: 0 5px 0 #0007; }
+  .upCard kbd { position: absolute; top: -14px; left: 50%; transform: translateX(-50%); background: #ffd21f; color: #1a1033; border-color: #fff; font-size: 18px; padding: 0 12px; }
+  .upCard .upIcon { font-size: 40px; line-height: 1.1; } .upCard b { font-size: 19px !important; } .upCard small { font-size: 13px; opacity: .9; line-height: 1.25; }
+  #upgradeHint { display: none; font-size: 15px !important; opacity: .9; }
+  #gameOver { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: #0d0b1fcc; pointer-events: auto; }
+  .goCard { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 28px 54px; border-radius: 26px; background: #0d0b1ff2; border: 5px solid #fff; text-align: center; }
+  .goCard h2 { margin: 0; font-size: 64px; letter-spacing: .06em; } .goCard h2.win { color: #47e06a; text-shadow: 0 4px 0 #1a7a35; } .goCard h2.lose { color: #ff6b78; text-shadow: 0 4px 0 #7a1a24; } .goCard h2.draw { color: #ffd21f; }
+  .goCard p { margin: 0; font-size: 22px; }
+  #goStats { display: flex; gap: 28px; } #goStats div { display: flex; flex-direction: column; } #goStats b { font-family: var(--display); font-weight: 400; font-size: 40px; } #goStats small { opacity: .8; }
+  .goBtns { display: flex; gap: 14px; margin-top: 8px; }
+  #timerBadge { width: 150px; height: 64px; border-radius: 50%; background: #0d0b1f; border: 4px solid #fff; box-shadow: 0 4px 0 #0007; display: flex; align-items: center; justify-content: center; }
+  #timerBadge.warn #hudTimer { color: #ffd21f; }
+  #timerBadge.danger #hudTimer { color: #ff3b4a; }
+  #timerBadge.pulse { animation: pulse .5s ease-in-out infinite alternate; }
+  @keyframes pulse { to { transform: scale(1.08); } }
+  #hudTimer { font-size: 38px; line-height: 1; color: #fff; }
+  #hudTop {
+    position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 18px; align-items: center; padding: 8px 20px; border-radius: 999px;
+    background: #0d0b1fcc; border: 3px solid #fff; font-weight: 800; letter-spacing: .05em;
+  }
+  #prompt {
+    position: absolute; bottom: 90px; left: 50%; transform: translateX(-50%);
+    padding: 10px 22px; border-radius: 14px; background: #0d0b1fdd; border: 3px solid #ffd21f;
+    font-weight: 800; font-size: 18px; display: none;
+  }
+  #toast {
+    position: absolute; top: 28%; left: 50%; transform: translate(-50%, 0);
+    padding: 14px 30px; border-radius: 18px; font-size: 26px; font-weight: 900; opacity: 0;
+    background: #0d0b1fee; border: 4px solid #fff; text-shadow: 0 2px 0 #000;
+  }
+  #toast.show { animation: toast 2.2s ease-out forwards; }
+  @keyframes toast {
+    0% { opacity: 0; transform: translate(-50%, 20px) scale(.8); }
+    12% { opacity: 1; transform: translate(-50%, 0) scale(1.05); }
+    80% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+    100% { opacity: 0; transform: translate(-50%, -16px) scale(1); }
+  }
+  #pause { position: absolute; inset: 0; display: none; align-items: center; justify-content: space-between; gap: 24px; padding: 0 3vw 0 5.5vw; background: #0d0b1fb0; backdrop-filter: blur(6px); pointer-events: auto; overflow: hidden; }
+  #pause .blob { opacity: .45; }
+  #pauseMenu { position: relative; width: 400px; display: flex; flex-direction: column; gap: 10px; animation: pauseIn .25s ease-out; }
+  @keyframes pauseIn { from { transform: translateX(-30px); opacity: 0; } to { transform: none; opacity: 1; } }
+  #pauseMenu h3 { margin: 0 0 8px; display: flex; align-items: center; gap: 12px; font-size: 68px; line-height: 1; letter-spacing: .08em; text-shadow: 0 4px 0 #ff3b4a, 0 8px 0 #2f7bff; }
+  .splatLogo { width: 52px; height: 52px; flex: none; filter: drop-shadow(0 4px 0 #0008); }
+  .pmBtn { display: flex; align-items: center; gap: 14px; padding: 15px 22px; font: inherit; font-size: 26px; text-align: left; color: #fff; cursor: pointer; background: #1a1240e6; border: 3px solid #ffffff33; border-radius: 16px; box-shadow: 0 4px 0 #0008; transition: transform .1s, background .1s; }
+  .pmBtn i { font-style: normal; width: 26px; text-align: center; opacity: .9; }
+  .pmBtn b { color: #b8ff2c; }
+  .pmBtn:hover { transform: translateX(8px); background: #2b1f66; border-color: #fff; }
+  .pmBtn.on { background: #b8ff2c; color: #1a1033; border-color: #fff; box-shadow: 0 0 22px #b8ff2c88, 0 4px 0 #0008; }
+  .pmBtn.on:hover { background: #cbff5e; }
+  #pausePanel { position: relative; width: min(740px, 57vw); font-size: 124%; padding: 16px 18px; border-radius: 22px; background: #150f38ee; border: 4px solid #ffffff55; box-shadow: 0 8px 0 #0008; display: flex; flex-direction: column; gap: 10px; animation: pauseIn .25s ease-out; }
+  .ppHead { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .ppHead small { display: block; font-size: 11px; opacity: .7; letter-spacing: .1em; } .ppHead > div > b { font-size: 26px; font-weight: 400; }
+  .ppClock { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 78px; height: 78px; border-radius: 50%; border: 4px solid #fff; background: #0d0b1f; } .ppClock b { font-size: 21px; font-weight: 400; line-height: 1; }
+  .ppMine { display: flex; gap: 10px; padding: 8px 10px; border-radius: 14px; background: linear-gradient(90deg, #14c9c033, #14c9c008); border: 2px solid #14c9c066; }
+  .ppMine div { flex: 1; text-align: center; } .ppMine b { display: block; font-size: 24px; font-weight: 400; line-height: 1.1; } .ppMine small { font-size: 11px; opacity: .8; }
+  .ppTeams { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .ppTeams .tName { font-size: 14px; padding: 3px 10px; border-radius: 8px; margin-bottom: 4px; color: #0d0b1f; }
+  .ppRow { display: flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 8px; font-size: 14px; background: #ffffff0f; margin-top: 3px; }
+  .ppRow.me { background: #ffffff2a; box-shadow: inset 3px 0 0 #b8ff2c; } .ppRow.dead { opacity: .45; }
+  .ppRow .dot { width: 9px; height: 9px; border-radius: 50%; background: #47e06a; } .ppRow.dead .dot { background: #ff3b4a; }
+  .ppRow .kd { margin-left: auto; font-size: 12px; opacity: .85; }
+  .ppSection { font-size: 13px; opacity: .85; padding-top: 4px; border-top: 2px solid #ffffff22; }
+  .ppKeys { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; } .ppKeys kbd { font-size: 11px; padding: 0 6px; margin-left: 3px; border-width: 2px; border-bottom-width: 3px; }
+  @media (max-width: 1000px) { #pause { flex-direction: column; justify-content: center; gap: 14px; } #pausePanel { width: 92vw; font-size: 100%; } #pauseMenu { width: 92vw; } #pauseMenu h3 { font-size: 36px; } }
+  #crosshair { position: absolute; top: 50%; left: 50%; width: 76px; height: 76px; transform: translate(-50%, -50%); display: flex; align-items: center; justify-content: center; }
+  #crosshair svg { position: absolute; inset: 0; transform: rotate(-90deg); }
+  #crosshair circle { fill: none; stroke-width: 7; }
+  #crosshair .xBg { stroke: #ffffff55; stroke-width: 4; }
+  #xProg { stroke-linecap: round; stroke-dasharray: 276.5; stroke-dashoffset: 276.5; opacity: 0; }
+  #xChip .colorChip { border-width: 3px; filter: drop-shadow(0 2px 3px #0008); }
+  #loading { position: fixed; inset: 0; z-index: 20; display: none; align-items: center; justify-content: center; background: #0d0b1fcc; color: #fff; font-family: var(--display); font-size: 34px; letter-spacing: .08em; }
+  #killfeed { position: absolute; top: 22px; right: 26px; width: 330px; display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
+  .killRow { display: flex; align-items: center; gap: 10px; padding: 7px 12px 7px 10px; border-radius: 14px; background: #0d0b1fd8; border-right: 6px solid #ffd21f; max-width: 100%; animation: kfIn .42s cubic-bezier(.2, 1.3, .4, 1); }
+  .killRow.ok { border-right-color: #2fd15a; }
+  .killRow.bad { border-right-color: #ff8a1f; }
+  .killRow.out { opacity: 0; transform: translateX(30px); transition: all .5s; }
+  .kfIcons { display: flex; align-items: center; gap: 6px; flex: none; }
+  .kfFace { position: relative; width: 38px; height: 38px; border-radius: 50%; background: var(--c); border: 2px solid #fff; overflow: hidden; flex: none; }
+  .kfFace img { position: absolute; left: 50%; top: 50%; width: 118%; height: 118%; transform: translate(-50%, -48%); }
+  .kfFace.victim { animation: kfHit .6s .25s both; }
+  .kfColor .colorChip { border-width: 2px; }
+  .kfText { font-family: var(--display); font-size: 15px; line-height: 1.2; text-shadow: 0 1px 0 #000a; }
+  .kfText small { display: block; font-family: "Titan One", "Fredoka", sans-serif; font-size: 12px; opacity: .9; }
+  .killRow.ok small { color: #7dffa0; } .killRow.bad small { color: #ffc27a; }
+  @keyframes kfIn { from { opacity: 0; transform: translateX(80px) scale(.85); } to { opacity: 1; transform: none; } }
+  @keyframes kfHit { 0% { transform: scale(1); } 25% { transform: scale(1.25) rotate(-8deg); } 50% { transform: scale(.9) rotate(6deg); } 100% { transform: scale(1); filter: grayscale(1) brightness(1.5); opacity: .7; } }
+  #hudFps { display: none; position: absolute; top: 62px; right: 14px; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 10px; background: #0d0b1fb0; }
+  #menuBtn { display: none; }
+  #escBtn { position: absolute; top: 20px; left: 22px; pointer-events: auto; cursor: pointer; font: inherit; font-size: 20px; line-height: 1.2; color: #fff; background: #0d0b1fb0; border: 2px solid #ffffff55; border-radius: 12px; padding: 5px 18px; }
+  #escBtn kbd { font-size: 11px; padding: 0 6px; margin-right: 4px; border-bottom-width: 3px; }
+  #escBtn:hover { border-color: #fff; }
+  #loot { position: absolute; top: 70px; left: 22px; }
+  @media (max-width: 1500px) {            /* janelas estreitas: Esc, mensagens e eliminações descem para não tapar as bolinhas das equipas */
+    #escBtn { top: 90px; } #loot { top: 136px; } #killfeed { top: 84px; }
+  }
+  #hpBox { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-family: var(--display); }
+  .hpHeart { font-size: 20px; filter: drop-shadow(0 2px 0 #0008); }
+  #hpBar { width: 150px; height: 14px; border-radius: 999px; background: #0d0b1fcc; border: 2px solid #fff; overflow: hidden; box-shadow: 0 2px 0 #0008; }
+  #hpFill { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, #ff3b4a, #ffd21f 45%, #47e06a); background-size: 150px 100%; border-radius: 999px; transition: width .2s; }
+  #hpNum { font-size: 22px; font-weight: 400; min-width: 36px; text-shadow: 0 2px 0 #000b, 0 0 8px #000a; }
+  #myColor .colorChip { border-width: 2px; box-shadow: 0 2px 0 #0008; }
+  #hpBox.low #hpFill { background: #ff3b4a; animation: hpPulse .5s ease-in-out infinite alternate; }
+  @keyframes hpPulse { to { opacity: .45; } }
+  #hpBox.heal { animation: healPop .5s ease-out; }
+  @keyframes healPop { 0% { transform: scale(1.18); filter: drop-shadow(0 0 10px #47e06a); } 100% { transform: scale(1); } }
+  #targetInfo { position: absolute; top: 122px; left: 50%; transform: translateX(-50%) translateY(-6px); display: flex; align-items: center; gap: 10px; padding: 7px 16px 7px 10px; border-radius: 16px; background: #0d0b1fe0; border: 3px solid #fff; opacity: 0; transition: opacity .15s, transform .15s; pointer-events: none; font-family: var(--display); white-space: nowrap; }
+  #targetInfo.show { opacity: 1; transform: translateX(-50%); }
+  #targetInfo b { display: block; font-weight: 400; font-size: 18px; letter-spacing: .03em; }
+  #targetInfo small { display: block; font-family: "Titan One", "Fredoka", sans-serif; font-size: 12px; opacity: .92; }
+  #targetInfo.match { border-color: #47e06a; } #targetInfo.match small { color: #7dffa0; }
+  #targetInfo.nomatch { border-color: #ffb347; } #targetInfo.nomatch small { color: #ffd08a; }
+  #hurt { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at center, #ff3b4a00 45%, #ff3b4acc 100%); }
+  #deathBox { position: absolute; top: 34%; left: 50%; transform: translateX(-50%); display: none; flex-direction: column; align-items: center; gap: 6px; padding: 14px 34px; border-radius: 20px; background: #0d0b1fe6; border: 4px solid #ff3b4a; text-align: center; }
+  #deathBox b { font-family: var(--display); font-weight: 400; font-size: 34px; color: #ff6b78; }
+  #deathBox span { font-size: 18px; }
+  .lootRow.empty .qty { color: #ff8a8a; }
+  .lootRow .kh { margin-left: 0; font: 400 11px "Titan One", "Fredoka", sans-serif; padding: 0 6px; border: 2px solid #ffffff99; border-bottom-width: 3px; border-radius: 6px; color: #fff; opacity: .85; }
+  #hand { position: relative; display: flex; align-items: center; gap: 10px; font-family: var(--display); }
+  #handRing { position: absolute; left: -3px; top: -3px; width: 46px; height: 46px; transform: rotate(-90deg); pointer-events: none; }
+  #handProg { fill: none; stroke-width: 5; stroke-linecap: round; stroke-dasharray: 175.9; stroke-dashoffset: 175.9; opacity: 0; }
+  #handChip { display: flex; gap: 3px; width: 70px; flex: none; }          /* largura fixa: os ícones ao lado não mexem quando a cor muda */
+  #handText { display: flex; flex-direction: column; line-height: 1.1; width: 128px; flex: none; white-space: nowrap; text-shadow: 0 2px 0 #000b, 0 0 8px #000a; }
+  #handText b { font-size: 20px; font-weight: 400; } #handText b.dual { font-size: 14px; }
+  #handText small { font-family: "Titan One", "Fredoka", sans-serif; font-size: 11px; opacity: .85; }
+  #handChip .colorChip { box-shadow: 0 0 0 3px #0008, 0 3px 0 #0008; }
+  .lootRow.active .ammoIcon { transform: scale(1.18); box-shadow: 0 0 0 3px #fff, 0 3px 0 3px #0008; }   /* sem caixa: só a cor escolhida cresce e ganha contorno */
+  .ammoIcon { transition: transform .1s; }
+  #feed { margin-top: 8px; display: flex; flex-direction: column; gap: 5px; width: 250px; }
+  .feedRow { font-family: var(--display); font-size: 15px; letter-spacing: .03em; color: #fff; padding: 5px 10px; border-radius: 10px; border-left: 5px solid #fff; background: #0d0b1fcc; text-shadow: 0 1px 0 #000a; animation: feedIn .25s ease-out; }
+  .feedRow.out { opacity: 0; transform: translateX(-12px); transition: all .5s; }
+  @keyframes feedIn { from { opacity: 0; transform: translateX(-16px); } to { opacity: 1; transform: none; } }
+  #effects { margin-top: 6px; font-family: var(--display); font-size: 22px; color: #cfe0ff; text-shadow: 0 2px 0 #000b, 0 0 8px #000a; min-height: 26px; }
+  #bottomHud { position: absolute; bottom: 14px; left: 14px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+  #itemsRow { display: flex; align-items: flex-end; gap: 6px; }   /* canto inferior esquerdo: cor na mão e depois os itens, juntos */
+  #lootRows { display: flex; gap: 14px; }
+  #hpBox { margin-bottom: 0 !important; }
+  .lootRow { display: flex; flex-direction: column; align-items: center; gap: 2px; font-family: var(--display); letter-spacing: .04em; }
+  .lootMain { display: flex; align-items: center; gap: 8px; }
+  .lootRow .kh:empty { visibility: hidden; }
+  .lootRow .emoji { font-size: 22px; width: 30px; text-align: center; filter: drop-shadow(0 2px 0 #0008); }
+  .lootRow .qty { font-size: 22px; color: #fff; text-shadow: 0 2px 0 #000b, 0 0 8px #000a; min-width: 16px; }
+  .ammoIcon { width: 30px; height: 30px; border-radius: 9px; background: var(--c); border: 2px solid #fff; box-shadow: 0 3px 0 #0008; display: flex; align-items: center; justify-content: center; position: relative; }
+  .ammoIcon::after { content: ""; position: absolute; left: -2px; right: -2px; top: 4px; height: 3px; background: #fff; opacity: .9; }
+  .ammoIcon svg { position: relative; z-index: 1; margin-top: 6px; }
+  .lootRow.flash { animation: lootFlash .7s ease-out; }
+  @keyframes lootFlash { 0% { transform: scale(1.25); } 100% { transform: scale(1); } }
+</style>
+</head>
+<body>
+
+<div id="titleScreen">
+  <div class="blob r"></div>
+  <div class="blob b"></div>
+  <div class="blob y"></div>
+
+  <!-- ===== LOGO SVG ===== -->
+  <svg id="logo" viewBox="0 0 800 520" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ColorAttack">
+    <defs>
+      <!-- círculos usados como recortes para as misturas -->
+      <clipPath id="cR"><circle cx="320" cy="170" r="110"/></clipPath>
+      <clipPath id="cB"><circle cx="480" cy="170" r="110"/></clipPath>
+      <clipPath id="cY"><circle cx="400" cy="300" r="110"/></clipPath>
+
+      <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+        <feGaussianBlur stdDeviation="8" result="b"/>
+        <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+      <filter id="drop" x="-20%" y="-20%" width="140%" height="160%">
+        <feDropShadow dx="0" dy="8" stdDeviation="0" flood-color="#000" flood-opacity=".55"/>
+      </filter>
+    </defs>
+
+    <!-- anel giratório de gotas -->
+    <g class="spin" opacity=".9">
+      <circle cx="400" cy="30"  r="9" fill="#ff2d3d"/>
+      <circle cx="640" cy="130" r="7" fill="#ffd400"/>
+      <circle cx="610" cy="330" r="9" fill="#1e6bff"/>
+      <circle cx="180" cy="330" r="7" fill="#ff2d3d"/>
+      <circle cx="150" cy="120" r="9" fill="#ffd400"/>
+      <circle cx="400" cy="350" r="6" fill="#1e6bff"/>
+    </g>
+
+    <!-- círculos primários -->
+    <g filter="url(#glow)">
+      <g class="float">
+        <circle cx="320" cy="170" r="110" fill="#ff2d3d" stroke="#fff" stroke-width="6"/>
+      </g>
+      <g class="float2">
+        <circle cx="480" cy="170" r="110" fill="#1e6bff" stroke="#fff" stroke-width="6"/>
+      </g>
+      <g class="float3">
+        <circle cx="400" cy="300" r="110" fill="#ffd400" stroke="#fff" stroke-width="6"/>
+      </g>
+    </g>
+
+    <!-- misturas (secundárias) -->
+    <!-- vermelho + azul = roxo -->
+    <g clip-path="url(#cR)"><rect x="200" y="40" width="400" height="340" fill="#9b2dff" clip-path="url(#cB)"/></g>
+    <!-- vermelho + amarelo = laranja -->
+    <g clip-path="url(#cR)"><rect x="200" y="40" width="400" height="400" fill="#ff8a00" clip-path="url(#cY)"/></g>
+    <!-- azul + amarelo = verde -->
+    <g clip-path="url(#cB)"><rect x="200" y="40" width="400" height="400" fill="#16c94a" clip-path="url(#cY)"/></g>
+    <!-- as três juntas = branco (centro da mira) -->
+    <g clip-path="url(#cR)"><g clip-path="url(#cB)"><rect x="200" y="40" width="400" height="400" fill="#fff" clip-path="url(#cY)"/></g></g>
+
+    <!-- mira por cima -->
+    <g stroke="#1a1033" stroke-width="6" stroke-linecap="round" fill="none">
+      <circle cx="400" cy="213" r="30"/>
+      <line x1="400" y1="165" x2="400" y2="185"/>
+      <line x1="400" y1="241" x2="400" y2="261"/>
+      <line x1="352" y1="213" x2="372" y2="213"/>
+      <line x1="428" y1="213" x2="448" y2="213"/>
+    </g>
+    <circle cx="400" cy="213" r="5" fill="#1a1033"/>
+
+    <!-- símbolos de acessibilidade: círculo (vermelho), triângulo (azul), quadrado (amarelo) -->
+    <g fill="#fff" stroke="#1a1033" stroke-width="4" stroke-linejoin="round">
+      <circle cx="268" cy="120" r="16"/>
+      <polygon points="532,102 550,136 514,136"/>
+      <rect x="436" y="338" width="30" height="30" rx="3" transform="translate(-33 0)"/>
+    </g>
+
+    <!-- nome do jogo -->
+    <g font-family="'Titan One', 'Fredoka', 'Arial Rounded MT Bold', sans-serif" font-weight="400" font-size="108"
+       text-anchor="middle" filter="url(#drop)" stroke="#1a1033" stroke-width="10" paint-order="stroke" stroke-linejoin="round">
+      <text x="400" y="470">
+        <tspan class="letter" fill="#ff2d3d" style="animation-delay:0s">C</tspan><tspan class="letter" fill="#ffd400" style="animation-delay:.1s">o</tspan><tspan class="letter" fill="#1e6bff" style="animation-delay:.2s">l</tspan><tspan class="letter" fill="#ff2d3d" style="animation-delay:.3s">o</tspan><tspan class="letter" fill="#ffd400" style="animation-delay:.4s">r</tspan><tspan class="letter" fill="#1e6bff" style="animation-delay:.5s">A</tspan><tspan class="letter" fill="#ff2d3d" style="animation-delay:.6s">t</tspan><tspan class="letter" fill="#ffd400" style="animation-delay:.7s">t</tspan><tspan class="letter" fill="#1e6bff" style="animation-delay:.8s">a</tspan><tspan class="letter" fill="#ff2d3d" style="animation-delay:.9s">c</tspan><tspan class="letter" fill="#ffd400" style="animation-delay:1s">k</tspan>
+      </text>
+    </g>
+  </svg>
+
+  <div id="tagline">Mistura &middot; Mira &middot; Pinta</div>
+  <button id="playBtn">JOGAR</button>
+  <div id="titleLinks">
+    <button id="howBtn" class="ghost">📖 Instruções</button>
+    <button id="fsBtn" class="ghost">⛶ Ecrã inteiro</button>
+    <button id="tutorialBtn" class="ghost" disabled title="Vai ser feito quando o jogo estiver pronto">🎓 Tutorial · em breve</button>
+  </div>
+</div>
+
+<!-- ===== INSTRUÇÕES ===== -->
+<div id="howTo">
+  <div class="blobs"><div class="blob r"></div><div class="blob b"></div><div class="blob y"></div></div>
+  <h2>COMO JOGAR</h2>
+  <div id="howContent"></div>
+  <div id="howNav">
+    <button id="howPrev" class="ghost">&larr; Anterior</button>
+    <span id="howDots"></span>
+    <button id="howNext" class="ghost">Seguinte &rarr;</button>
+  </div>
+  <button id="howBack" class="ghost small">Sair das instruções</button>
+</div>
+
+<!-- ===== ESCOLHA DE PERSONAGEM ===== -->
+<div id="charSelect">
+  <h2>ESCOLHE O TEU PERSONAGEM</h2>
+  <div id="charGrid"></div>
+  <div id="teamPreview">
+    <div class="tp"><b>A tua equipa</b><div id="previewA" class="pv"></div></div>
+    <div class="tp"><b>Equipa adversária</b><div id="previewB" class="pv"></div></div>
+  </div>
+  <div class="navRow">
+    <button id="charBack" class="ghost">&larr; Voltar</button>
+    <button id="charNext" class="ghost big">Escolher o mapa &rarr;</button>
+  </div>
+</div>
+
+<!-- ===== ESCOLHA DE MAPA ===== -->
+<div id="mapSelect">
+  <div class="blobs"><div class="blob r"></div><div class="blob b"></div><div class="blob y"></div></div>
+  <h2>ESCOLHE O MAPA</h2>
+  <div id="weatherPick"><span>Clima:</span></div>
+  <div id="mapGrid"></div>
+  <button id="backBtn" class="ghost">&larr; Voltar</button>
+</div>
+
+<div id="loading">A carregar o mapa…</div>
+
+<!-- ===== HUD DO VISUALIZADOR ===== -->
+<div id="hud">
+  <button id="menuBtn" class="ghost">&larr; Mapas</button>
+  <button id="escBtn" title="Pausa">Esc</button>
+  <div id="loot"><div id="effects"></div><div id="feed"></div></div>
+  <div id="bottomHud">
+   <div id="itemsRow">
+    <div id="hand">
+      <div id="handChip"></div>
+      <svg id="handRing" viewBox="0 0 60 60"><circle id="handProg" cx="30" cy="30" r="28"/></svg>
+      <div id="handText"><b id="handName"></b><small id="handHint"></small></div>
+    </div>
+    <div id="lootRows"></div>
+   </div>
+    <div id="hpBox"><span class="hpHeart">❤️</span><div id="hpBar"><i id="hpFill"></i></div><b id="hpNum">100</b><span id="myColor" title="A tua cor: é a que os adversários têm de acertar"></span></div>
+  </div>
+  <div id="topBar">
+    <div class="teamPips" id="teamA"></div>
+    <div class="scoreBadge" id="scoreA" title="Rounds ganhos pela tua equipa">0</div>
+    <div id="timerBadge">
+      <span id="hudTimer">3:00</span>
+    </div>
+    <div class="scoreBadge" id="scoreB" title="Rounds ganhos pela equipa adversária">0</div>
+    <div class="teamPips" id="teamB"></div>
+  </div>
+  <div id="killsBar"><b id="killsA">0</b><span>⚔</span><b id="killsB">0</b><small id="killsLabel">Round 1</small></div>
+  <div id="pause">
+    <div class="blobs"><div class="blob r"></div><div class="blob b"></div><div class="blob y"></div></div>
+    <div id="pauseMenu">
+      <h3><svg viewBox="0 0 60 60" class="splatLogo"><path fill="#b8ff2c" d="M30 3c4 6 9 5 13 3 0 7 4 9 10 10-3 5-2 9 3 13-6 2-8 6-6 12-6-1-9 1-11 7-4-4-8-4-12 0-2-6-5-8-11-7 2-6 0-10-6-12 5-4 6-8 3-13 6-1 10-3 10-10 4 2 9 3 13-3z"/><circle cx="30" cy="31" r="7" fill="#1a1033"/></svg>PAUSA</h3>
+      <button id="resumeBtn" class="pmBtn on"><i>&#9654;</i>Continuar</button>
+      <button id="pauseQuality" class="pmBtn"><i>&#9881;</i><span>Qualidade: <b id="pqVal"></b></span></button>
+      <button id="pauseWeather" class="pmBtn"><i>&#9729;</i><span>Clima: <b id="pwVal"></b></span></button>
+      <button id="pauseFs" class="pmBtn"><i>&#9974;</i><span>Ecrã inteiro</span></button>
+      <button id="pauseMapsBtn" class="pmBtn"><i>&#10005;</i>Sair da partida</button>
+    </div>
+    <div id="pausePanel">
+      <div class="ppHead"><div><small id="ppMode">3 MINUTOS · PRIMEIRO A 7 ROUNDS</small><b id="ppMap"></b></div><div class="ppClock"><b id="ppTime">3:00</b><small>restante</small></div></div>
+      <div class="ppMine" id="ppMine"></div>
+      <div class="ppTeams"><div id="ppTeamA"></div><div id="ppTeamB"></div></div>
+      <div class="ppSection">Melhorias: <span id="ppUpg"></span></div>
+      <div class="ppSection">Controlos rápidos</div>
+      <div class="ppKeys"><span>Mover <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span>Disparar <kbd>Clique</kbd></span><span>Correr <kbd>Shift</kbd></span><span>Saltar <kbd>Espaço</kbd></span><span>Cores <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd></span><span>Granada <kbd>G</kbd></span><span>Baú <kbd>E</kbd></span><span>Cura <kbd>H</kbd></span><span>Invisível <kbd>F</kbd></span></div>
+    </div>
+  </div>
+  <div id="targetInfo"></div>
+  <div id="roundBox"><b id="roundTitle"></b><span id="roundScore"></span><div id="upgradeCards"></div><span id="upgradeHint">Escolhe uma melhoria: carrega na tecla <kbd>1</kbd>, <kbd>2</kbd> ou <kbd>3</kbd></span></div>
+  <div id="gameOver">
+    <div class="goCard"><h2 id="goTitle"></h2><p id="goSub"></p><div id="goStats"></div>
+      <div class="goBtns"><button id="goAgain" class="ghost big">Jogar de novo</button><button id="goMenu" class="ghost">Voltar ao menu</button></div></div>
+  </div>
+  <div id="hurt"></div>
+  <div id="deathBox"><b>Foste eliminado!</b><span id="deathText"></span></div>
+  <div id="killfeed"></div>
+  <div id="crosshair">
+    <svg viewBox="0 0 100 100"><circle class="xBg" cx="50" cy="50" r="44"/><circle id="xProg" cx="50" cy="50" r="44"/></svg>
+    <span id="xChip"></span>
+  </div>
+  <div id="hudFps"></div>
+  <div id="prompt"></div>
+  <div id="toast"></div>
+</div>
+
+<script type="module" src="src/map-viewer.js"></script>
+</body>
+</html>
