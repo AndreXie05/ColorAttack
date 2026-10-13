@@ -1,4 +1,4 @@
-import { mixColors } from "./colors.js";
+import { mixColors, COLOR_RULES, TERTIARY } from "./colors.js";
 
 /* ============================================================
    ESCOLHA E MISTURA DE COR (lógica pura, sem DOM)
@@ -6,6 +6,7 @@ import { mixColors } from "./colors.js";
    - Manter duas teclas ao mesmo tempo mistura: ao fim de `mixSeconds` fica a secundária.
    - Largar uma tecla antes do fim cancela a mistura e a cor atual mantém-se.
    - mixSeconds = 0 -> mistura instantânea (melhoria do jogo).
+   - Modo Paleta Completa: três teclas ao mesmo tempo dão castanho.
    ============================================================ */
 export class ColorSelector {
   constructor({ mixSeconds = 0.3, start = "vermelho" } = {}) {
@@ -22,14 +23,17 @@ export class ColorSelector {
     if (this.held.length === 2) {
       const result = mixColors(this.held[0], this.held[1]);
       if (!result) return;
-      this.mix = { a: this.held[0], b: this.held[1], result, t: 0 };
+      this.mix = { a: this.held[0], b: this.held[1], result, t: 0, need: 2 };
+      if (this.mixSeconds <= 0) this._finish();
+    } else if (this.held.length === 3 && COLOR_RULES.triple) {
+      this.mix = { a: this.held[0], b: this.held[1], result: TERTIARY, t: 0, need: 3 };
       if (this.mixSeconds <= 0) this._finish();
     }
   }
 
   release(primary) {
     this.held = this.held.filter((p) => p !== primary);
-    if (this.mix && this.held.length < 2) this.mix = null;       // cancelou
+    if (this.mix && this.held.length < this.mix.need) this.mix = null;       // cancelou
   }
 
   update(dt) {

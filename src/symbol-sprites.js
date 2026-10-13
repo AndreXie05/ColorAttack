@@ -19,7 +19,8 @@ function drawShape(ctx, shape, cx, cy, r) {
     const pts = [];
     for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + (i * Math.PI) / 5, k = i % 2 ? 0.4 : 1; pts.push([Math.cos(a) * k, Math.sin(a) * k]); }
     poly(pts); ctx.closePath();
-  } else { poly([[0, -0.95], [0.82, -0.47], [0.82, 0.47], [0, 0.95], [-0.82, 0.47], [-0.82, -0.47]]); ctx.closePath(); }   // hexágono
+  } else if (shape === "cruz") { poly([[-0.3, -0.9], [0.3, -0.9], [0.3, -0.3], [0.9, -0.3], [0.9, 0.3], [0.3, 0.3], [0.3, 0.9], [-0.3, 0.9], [-0.3, 0.3], [-0.9, 0.3], [-0.9, -0.3], [-0.3, -0.3]]); ctx.closePath(); }
+  else { poly([[0, -0.95], [0.82, -0.47], [0.82, 0.47], [0, 0.95], [-0.82, 0.47], [-0.82, -0.47]]); ctx.closePath(); }   // hexágono
   ctx.fillStyle = "#fff"; ctx.fill();
   ctx.lineWidth = r * 0.14; ctx.strokeStyle = "#1a1033"; ctx.lineJoin = "round"; ctx.stroke();
 }

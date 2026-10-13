@@ -3,6 +3,7 @@ ColorAttack - constrói o boneco original no Blender (corre dentro do Blender: e
 Utilitários (formas suaves, materiais) em common.py. Convenções para o jogo: ver common.py / build_titans.py.
 """
 import os
+DECIMATE = 0.35                                    # fração de triângulos que fica ao exportar (o jogo fica mais leve)
 OUTPUT = globals().get("OUTPUT")   # defina antes de executar para exportar o .glb, ex.: OUTPUT = "/caminho/assets/character.glb"
 COLLECTION = "Character"
 exec(open("/home/andrexie/Documents/ColorAttack/tools/blender/common.py").read())
@@ -123,6 +124,8 @@ if OUTPUT:
     for o in objs:
         o.select_set(True)
     bpy.context.view_layer.objects.active = objs[0]
+    for o in objs:                                   # mais leve no jogo: ~1/3 dos triângulos (aplicado ao exportar)
+        dm = o.modifiers.new("Leve", "DECIMATE"); dm.ratio = DECIMATE
     bpy.ops.export_scene.gltf(filepath=OUTPUT, export_format="GLB", use_selection=True,
                               export_apply=True, export_yup=True, export_materials="EXPORT")
     print("Exportado para", OUTPUT)

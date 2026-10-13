@@ -1,4 +1,5 @@
 import { COLORS, PRIMARIES, SECONDARIES, chipHTML, resolveHit } from "./colors.js";
+import { WEATHERS, WEATHER_IDS } from "./weather.js";
 import { CONFIG } from "./game-config.js";
 import { UPGRADES } from "./upgrades.js";
 
@@ -22,6 +23,7 @@ const OTHER_KEYS = [
   ["G", "Granada de tinta: segura para apontar, roda do rato (ou 1, 2, 3) muda a cor, larga para lançar"],
   ["T", "Usar uma Cura (+40 de vida)"],
   ["F", "Usar a Invisibilidade (5 s)"],
+  ["C", "Pousar uma Armadilha de tinta com a cor da mão"],
   ["V", "Vista aérea do mapa"],
   ["B · Q", "Mudar o clima · mudar a qualidade gráfica"],
   ["Esc", "Pausa"],
@@ -74,17 +76,45 @@ function buildPages() {
       </ul>
       <div class="eq">${chipHTML("vermelho", 56)}<span>acerta em</span>${chipHTML("amarelo", 56)}<span>→</span>${chipHTML(example.newColor, 56)}</div>
       <p><b>Como sei a cor deles?</b> O boneco fica <b>todo da cor</b> que tem. Nomes <b>azuis</b> = aliados, <b>vermelhos</b> = adversários.</p>
-      <p>Quem é eliminado volta 5 s depois, num dos 5 lugares da base, com 2 s de proteção. No canto direito vês quem eliminou quem.</p>`),
+      <p>Quem é eliminado volta 5 s depois, num dos 5 lugares da base, com 2 s de proteção. Durante a proteção fica <b>branco</b>: ninguém sabe a cor dele até a proteção acabar. No canto direito vês quem eliminou quem.</p>
+      <p><b>Série:</b> ${CONFIG.streak.kills} eliminações seguidas sem morrer dão um radar de ${CONFIG.streak.radarSeconds} s e +${CONFIG.streak.grenades} granada.</p>`),
 
     card("🟣 Poças de tinta", `
       <p>Cada eliminação deixa uma <b>poça da cor</b> do jogador eliminado, que dura ${CONFIG.paint.lifeSeconds} segundos.
       Quem passar por cima dela <b>fica dessa cor</b>, por isso cuidado por onde andas, ou usa-as para mudares a tua cor!</p>
-      <p>Só estas poças mudam a cor de quem as pisa. A tinta dos tiros e das granadas que pinta o chão é só decoração e <b>não faz nada</b> a quem passa por cima.</p>`),
+      <p>As poças também mudam a <b>velocidade</b> durante uns segundos: cores quentes (vermelho, laranja, amarelo) deixam-te <b>mais rápido</b> ⚡ e cores frias (azul, roxo, verde) <b>mais lento</b> 🐌.</p>
+      <p>Só estas poças e as das <b>armadilhas</b> mudam a cor de quem as pisa. A tinta dos tiros e das granadas que pinta o chão é só decoração e <b>não faz nada</b> a quem passa por cima.</p>`),
 
     card("🎁 Baús", `
-      <p>Espalhados pelo mapa. Chega-te perto e carrega em <b>E</b>. Em 80% das vezes sai um item: munição (70%), granada de tinta (15%), cura (12%) ou, muito raramente, invisibilidade (3%). Em 20% está vazio. A <b>Invisibilidade</b> 👻 fica guardada na lista e, com <b>F</b>, ficas invisível durante 5 segundos, ideal para aparecer atrás de alguém. Cada caixa de munição dá ${CONFIG.ammoBox.shots} balas de uma cor, e um baú pode dar de 1 a 3 caixas.</p>
+      <p>Espalhados pelo mapa. Chega-te perto e carrega em <b>E</b>. Em 80% das vezes sai um item: munição (64%), granada de tinta (14%), cura (12%), armadilha de tinta (7%) ou, muito raramente, invisibilidade (3%). Em 20% está vazio. A <b>Invisibilidade</b> 👻 fica guardada na lista e, com <b>F</b>, ficas invisível durante 5 segundos, ideal para aparecer atrás de alguém. Cada caixa de munição dá ${CONFIG.ammoBox.shots} balas de uma cor, e um baú pode dar de 1 a 3 caixas.</p>
       <p><b>Granada de tinta:</b> segura <b>G</b> para ver o círculo onde vai cair (tem alcance limitado), escolhe a cor com a <b>roda do rato</b> (as 3 primárias e as 3 secundárias) ou com as teclas <b>1, 2, 3</b> (juntando duas, misturas) e larga <b>G</b> para lançar. Os adversários na área que já tenham essa cor são <b>eliminados</b>; os outros ficam dessa cor. Os teus colegas de equipa também ficam dessa cor, mas nunca são eliminados.</p>
+      <p><b>Armadilha de tinta</b> 🪤: carrega em <b>C</b> para a pousar no chão com a cor que tens na mão. Fica ativa ao fim de ${CONFIG.trap.arm} s. Quando um adversário passa a menos de ${CONFIG.trap.trigger} m, ela aparece a piscar e explode ${String(CONFIG.trap.fuse).replace(".", ",")} s depois (área de ${String(CONFIG.trap.radius).replace(".", ",")} m), por isso quem reagir logo ainda foge: se ele já tiver essa cor é eliminado, senão fica dessa cor. Deixa uma <b>poça</b> da sua cor que, tal como a dos eliminados, muda a cor (e a velocidade) de quem a pisa, incluindo tu e os teus colegas. As armadilhas dos adversários são <b>invisíveis</b>: só dás por elas quando explodem!</p>
+      <p><b>Baú dourado</b> 🌟: a meio de cada round um baú fica dourado, com um feixe de luz e uma estrela no minimapa. Quem o abrir ganha <b>${CONFIG.golden.grenades} granadas</b> ou <b>${CONFIG.golden.invisibleSeconds} s de invisibilidade</b>. Os bots também correm para lá!</p>
       <p>Cada baú volta a abrir ao fim de <b>1 minuto</b> e pode ser aberto <b>3 vezes por round</b>. Passa por cima dos itens para os apanhares.</p>`),
+
+    card("🎮 Modos de jogo", `
+      <p>Escolhes o modo no ecrã dos mapas, ao lado do clima.</p>
+      <ul>
+        <li><b>🎨 Normal</b>: as regras de sempre.</li>
+        <li><b>🕵️ Cores Secretas</b>: os adversários ficam <b>cinzentos</b> e não sabes a cor deles. Cada tiro dá uma pista no painel do alvo (aparece quando apontas):
+          <b>−8</b> = a cor dele <b>leva</b> essa tinta (é uma mistura com ela); <b>−4</b> = <b>não leva</b>; <b>"e mudou de cor!"</b> = era primário e o teu tiro transformou-o numa mistura.
+          As poças dos eliminados mostram a cor verdadeira. Os bots também têm mais dificuldade em acertar a cor.<br>
+          <i>Exemplo (ele é verde em segredo):</i> vermelho → −4, não leva vermelho · azul → −8, leva azul · amarelo → −8, leva amarelo · azul + amarelo = <b>verde</b> → dispara verde e está eliminado!<br>
+          <i>Exemplo (ele é vermelho em segredo):</i> azul → −4 e mudou de cor (agora é roxo ou verde) · vermelho → −8, leva vermelho, por isso é <b>roxo</b> → dispara roxo!</li>
+        <li><b>🟤 Paleta Completa</b>: há uma 7.ª cor, o <b>castanho</b>, feita com as 3 primárias (<b>1 + 2 + 3</b> ao mesmo tempo, gasta uma bala de cada tanque). Se um tiro juntar as 3 primárias (ex.: verde num vermelho, ou vermelho num verde), o alvo fica castanho. Um castanho só se elimina com castanho.</li>
+      </ul>
+      <div class="eq">${chipHTML("vermelho", 52)}<span>+</span>${chipHTML("azul", 52)}<span>+</span>${chipHTML("amarelo", 52)}<span>=</span>${chipHTML("castanho", 52)}</div>`),
+
+    card("🗺️ Surpresas dos mapas", `
+      <ul>
+        <li><b>⛲ Fonte de tinta</b> (Parque e Fábrica de Tintas): de 20 em 20 s a fonte do centro avisa com um <b>anel a piscar</b> no chão, da cor que vai lançar. Depois atira tinta: quem estiver na praça <b>fica dessa cor</b> (colegas e adversários). Foge, ou aproveita para mudar de cor!</li>
+        <li><b>🌉 Pontes com interruptor</b> (Castelo): junto ao rio há <b>placas coloridas</b>. Acerta numa com a <b>mesma cor</b> e uma ponte <b>sobe do fundo do rio</b> durante 25 s. É um <b>atalho pelos lados</b>, junto às muralhas, para apanhar os adversários por um flanco. Quando a placa começa a <b>piscar</b> e a ponte a <b>tremer</b>, faltam 4 s: depois a ponte <b>afunda-se</b> e <b>quem ainda estiver em cima vai ao fundo com ela e é eliminado</b>! Depois a placa muda de cor.</li>
+      </ul>`),
+
+    card("🌦️ O clima conta", `
+      <p>O clima não é só para ver: muda o jogo.</p>
+      <ul>${WEATHER_IDS.map((id) => `<li><b>${WEATHERS[id].icon} ${WEATHERS[id].name}</b>: ${WEATHERS[id].play.desc || "tudo normal"}.</li>`).join("")}</ul>
+      <p>Cada round começa com uma contagem <b>3, 2, 1, PINTA!</b>, e no fim do jogo há <b>destaques</b> para os melhores de cada coisa.</p>`),
 
     card("⬆️ Melhorias", `
       <p><b>Só a equipa que ganha o round recebe uma melhoria.</b> Se ganhares, aparecem <b>3 à sorte</b> e escolhes uma com o clique ou carregando em <b>1</b>, <b>2</b> ou <b>3</b>; os bots da tua equipa também recebem uma. Se perderes, quem recebe são os bots adversários. Quanto mais ganhas, mais fortes ficas!

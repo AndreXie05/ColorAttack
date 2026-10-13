@@ -258,6 +258,7 @@
   #matchPick > span { display: inline-flex; gap: 8px; align-items: center; } #matchPick .mpGap { margin-left: 18px; }
   #diffPick { z-index: 2; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; color: #fff; font-weight: 800; }
   .chip.d-facil.on { background: #47e06a; color: #0d2a14; } .chip.d-media.on { background: #ffd21f; color: #2a2100; } .chip.d-dificil.on { background: #ff8a1f; color: #2a1400; } .chip.d-impossivel.on { background: #ff3b4a; color: #fff; }
+  #modePick { z-index: 2; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; color: #fff; font-weight: 800; }
   #weatherPick { z-index: 2; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; color: #fff; font-weight: 800; }
   .chip { cursor: pointer; font: inherit; font-weight: 800; color: #fff; background: #ffffff1f; border: 3px solid #ffffff66; border-radius: 999px; padding: 6px 18px; }
   .chip:hover { background: #ffffff40; }
@@ -291,6 +292,25 @@
   .upCard:hover { transform: translateY(-6px) scale(1.04); border-color: #fff; }
   .upCard kbd { position: absolute; top: -14px; left: 50%; transform: translateX(-50%); background: #ffd21f; color: #1a1033; border-color: #fff; font-size: 18px; padding: 0 12px; }
   .upCard .upIcon { font-size: 40px; line-height: 1.1; } .upCard b { font-size: 19px !important; } .upCard small { font-size: 13px; opacity: .9; line-height: 1.25; }
+  #mixHint { position: absolute; top: calc(50% + 52px); left: 50%; transform: translate(-50%, 6px); display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; background: #0d0b1fcc; opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; }
+  #mixHint.show { opacity: 1; transform: translate(-50%, 0); }
+  #mixHint i { font-style: normal; font-size: 20px; opacity: .85; } #mixHint span { font-size: 16px; margin-left: 4px; }
+  #mixHint .colorChip { border-width: 2px; }
+  #countdown { position: absolute; top: 34%; left: 0; right: 0; display: flex; justify-content: center; gap: 4px; pointer-events: none; }
+  #countdown b { font-family: var(--display); font-weight: 400; font-size: 140px; line-height: 1; color: var(--c); text-shadow: 0 6px 0 #0d0b1f, 0 12px 18px #000a; -webkit-text-stroke: 4px #0d0b1f; }
+  #countdown.pop b { animation: cdPop .55s cubic-bezier(.2, 1.6, .4, 1) var(--d, 0s) both; }
+  @keyframes cdPop { from { transform: scale(2.2) rotate(-8deg); opacity: 0; } to { transform: none; opacity: 1; } }
+  .awGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }      /* destaques do fim do jogo */
+  .awCard { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 10px 8px; border-radius: 16px; background: #ffffff14; border: 3px solid var(--c); text-align: center; }
+  .awCard.me { background: #ffd21f22; } .awCard .awIcon { font-size: 30px; } .awCard b { font-size: 17px; font-weight: 400; color: #ffd21f; }
+  .awCard .awWho { display: flex; align-items: center; gap: 6px; font-size: 16px; } .awCard .awWho img { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--c); }
+  .awCard small { font-size: 13px; opacity: .85; }
+  .rsWrap { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }       /* estatísticas do round: uma tabela por equipa */
+  .rsTable { border-collapse: collapse; font-size: 15px; min-width: 300px; }
+  .rsTable th { font-weight: 400; font-size: 12px; opacity: .75; padding: 2px 6px; text-align: center; } .rsTable th:first-child { text-align: left; color: var(--c); font-size: 15px; opacity: 1; }
+  .rsTable td { padding: 3px 6px; border-top: 2px solid #ffffff1f; text-align: center; } .rsTable td:first-child { text-align: left; }
+  .rsTable .colorChip { vertical-align: middle; border-width: 2px; box-shadow: none; }
+  .rsTable tr.me td { font-weight: 700; } .rsTable tr.mvp td { color: #ffd21f; }
   #upgradeHint { display: none; font-size: 15px !important; opacity: .9; }
   #statsScreen { position: fixed; inset: 0; z-index: 30; display: none; align-items: center; justify-content: center; background: #0d0b1f; color: #fff; overflow: auto; }
   .stBox { position: relative; z-index: 2; width: min(920px, 94vw); padding: 12px 0; display: flex; flex-direction: column; gap: 6px; align-items: center; }
@@ -667,6 +687,7 @@
 <div id="mapSelect">
   <div class="blobs"><div class="blob r"></div><div class="blob b"></div><div class="blob y"></div></div>
   <h2>ESCOLHE O MAPA</h2>
+  <div id="modePick"><span>Modo:</span></div>
   <div id="weatherPick"><span>Clima:</span></div>
   <div id="diffPick"><span>Dificuldade:</span></div>
   <div id="matchPick"><span>Primeiro a ganhar:</span><span id="mpWins"></span><span class="mpGap">Duração do round:</span><span id="mpMin"></span></div>
@@ -744,7 +765,7 @@
     </div>
   </div>
   <div id="targetInfo"></div>
-  <div id="roundBox"><b id="roundTitle"></b><span id="roundScore"></span><div id="upgradeCards"></div><span id="upgradeHint">Escolhe uma melhoria: clica nela ou carrega em <kbd>1</kbd>, <kbd>2</kbd> ou <kbd>3</kbd></span></div>
+  <div id="roundBox"><b id="roundTitle"></b><span id="roundScore"></span><div id="roundStats" class="rsWrap"></div><div id="upgradeCards"></div><span id="upgradeHint">Escolhe uma melhoria: clica nela ou carrega em <kbd>1</kbd>, <kbd>2</kbd> ou <kbd>3</kbd></span></div>
   <div id="gameOver">
     <div id="goStage1">
       <h2 id="goTitle"></h2><p id="goSub"></p>
@@ -765,6 +786,8 @@
     <svg class="xGren" viewBox="0 0 100 100"><g stroke-linecap="round"><path d="M16 34V16h18M66 16h18v18M84 66v18H66M34 84H16V66"/><circle cx="50" cy="50" r="26" stroke-dasharray="5 7"/><path d="M50 40v20M40 50h20"/></g></svg>
     <span id="xChip"></span>
   </div>
+  <div id="mixHint"></div>
+  <div id="countdown"></div>
   <div id="hudFps"></div>
   <div id="prompt"></div>
   <div id="toast"></div>

@@ -16,7 +16,13 @@ export function rollChest(sudden = false) {
   for (const r of CONFIG.rewards) { x -= r.weight; if (x <= 0) return r; }
   return CONFIG.rewards[0];
 }
+const GOLDEN = { id: "golden", icon: "🌟", label: "Baú dourado" };
 export function openChest(c, sudden = false) {
+  if (c.golden) {                                                       // baú dourado: abre sempre e dá o prémio forte
+    c.golden = false; c.openTimer = 1.8; c.lidTarget = 1;
+    if (c.state === "ready") { c.state = "cooldown"; c.cooldown = CONFIG.chest.reopenSeconds; }
+    return { ok: true, reward: GOLDEN };
+  }
   if (c.state !== "ready") return { ok: false };
   c.opens++;
   c.openTimer = 1.8; c.lidTarget = 1;
@@ -33,15 +39,23 @@ export function updateChests(chests, dt, t) {
     if (c.openTimer > 0) { c.openTimer -= dt; if (c.openTimer <= 0) c.lidTarget = 0; }
     c.lid += (c.lidTarget - c.lid) * Math.min(1, dt * 8);
     c.pivot.rotation.x = -c.lid * 1.9;
-    c.gem.visible = c.state === "ready";
-    c.gem.rotation.y = t * 2;
+    c.gem.visible = c.state === "ready" || !!c.golden;
+    c.gem.scale.setScalar(c.golden ? 2 + Math.sin(t * 6) * 0.25 : 1);
+    c.gem.rotation.y = t * (c.golden ? 5 : 2);
     c.gem.position.y = 2.4 + Math.sin(t * 3 + c.id) * 0.2;
-    c.body.material = c.state === "exhausted" ? mat(0x6b6b6b) : c.bodyMat;
+    c.body.material = c.golden ? mat(0xffc61a, { emissive: 0x7a5200 }) : c.state === "exhausted" ? mat(0x6b6b6b) : c.bodyMat;
   }
+}
+// Baú dourado: um dos baús (à sorte) fica dourado; pode ser aberto mesmo que esteja a reabastecer ou esgotado
+export function makeGolden(chests) {
+  if (!chests.length || chests.some((c) => c.golden)) return null;
+  const c = chests[Math.floor(Math.random() * chests.length)];
+  c.golden = true;
+  return c;
 }
 export function resetChests(chests) {
   for (const c of chests) {
-    c.opens = 0; c.state = "ready"; c.cooldown = 0; c.openTimer = 0; c.lidTarget = 0; c.lid = 0;
+    c.opens = 0; c.state = "ready"; c.cooldown = 0; c.openTimer = 0; c.lidTarget = 0; c.lid = 0; c.golden = false;
   }
 }
 

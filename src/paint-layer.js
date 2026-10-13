@@ -8,7 +8,7 @@ import { topAt } from "./surfaces.js";
    Uma textura transparente por cima do chão onde se "carimbam" manchas com bordas irregulares, gotas e escorridos.
    Cada mancha tem vida: ao fim de CONFIG.paint.lifeSeconds (15 s) desaparece, esbatendo-se nos últimos segundos.
    Cada mancha é desenhada com uma semente, por isso pode ser redesenhada igual quando outras desaparecem.
-   `colorAt(x, z)` diz que cor de tinta está num ponto (as poças mudam a cor de quem as pisa).
+   A tinta é só visual: só as poças dos eliminados e das armadilhas (em combat.js) mudam a cor de quem as pisa.
    Os topos das plataformas (obstáculos com `paint` e as rampas) mostram a mesma textura, por isso a tinta que cai
    em cima de uma plataforma aparece lá em cima (a textura é a vista de cima do mapa: cada ponto x, z só tem uma cor).
    ============================================================ */
@@ -115,21 +115,10 @@ export class PaintLayer {
     this.dirty = true;
   }
 
-  // Cor da tinta (ainda visível) num ponto, ou null. A mais recente ganha.
-  colorAt(x, z) {
-    const life = CONFIG.paint.lifeSeconds;
-    for (let i = this.records.length - 1; i >= 0; i--) {
-      const r = this.records[i];
-      if (this.t - r.t0 > life - 0.6) continue;
-      if (Math.hypot(x - r.x, z - r.z) < r.radius * 0.8) return r.colorId;
-    }
-    return null;
-  }
-
   // Avança o relógio da tinta; redesenha quando alguma mancha desaparece ou está a esbater-se
   update(dt) {
     this.t += dt;
-    const life = CONFIG.paint.lifeSeconds, fade = CONFIG.paint.fadeSeconds;
+    const life = CONFIG.paint.lifeSeconds * (this.lifeMul ?? 1), fade = Math.min(CONFIG.paint.fadeSeconds, life * 0.3);   // lifeMul: a chuva lava a tinta mais depressa
     const before = this.records.length;
     this.records = this.records.filter((r) => this.t - r.t0 < life);
     const fading = this.records.some((r) => this.t - r.t0 > life - fade);
@@ -144,7 +133,11 @@ export class PaintLayer {
     }
   }
 
-  flush() { if (this.dirty) { this.tex.needsUpdate = true; this.dirty = false; } }
+  // Envia a textura para a placa gráfica no máximo ~12 vezes por segundo (é grande: enviá-la em todos os frames pesa muito)
+  flush() {
+    const now = performance.now();
+    if (this.dirty && now - (this.sentAt || 0) > 80) { this.tex.needsUpdate = true; this.dirty = false; this.sentAt = now; }
+  }
 
   clear() { this.records = []; this.ctx.clearRect(0, 0, this.w, this.h); this.dirty = true; }
 

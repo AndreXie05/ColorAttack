@@ -19,11 +19,18 @@ export const CONFIG = {
   suddenDeath: { emptyChance: 0.5, shots: [1, 5] },   // morte súbita: baús vazios 50%, prémios todos iguais, a caixa de munição traz de 1 a 5 balas da mesma cor
   killRefund: { primary: 3, secondaryEach: 2 },   // bónus da cor certa (tiro): balas devolvidas (primária: +3; secundária: +2 de cada ingrediente)
   fallDeath: 6,                          // m: cair desta altura ou mais (desde o ponto mais alto) elimina logo (os trampolins não contam)
+  streak: { kills: 3, radarSeconds: 12, grenades: 1 },   // série: 3 eliminações seguidas sem morrer = radar mais longo + 1 granada (a cada 3)
+  puddleFx: { seconds: 2.5,              // poças dos eliminados: quem as pisa fica mais rápido (cores quentes) ou mais lento (cores frias) durante uns segundos
+              speed: { vermelho: 1.3, laranja: 1.3, amarelo: 1.3, azul: 0.7, roxo: 0.7, verde: 0.7, castanho: 0.85 } },
+  trap: { radius: 3.5, trigger: 2, fuse: 0.5, arm: 1.0, life: 60, maxPerOwner: 2 },   // armadilha de tinta: área da explosão, distância que a aciona, tempo entre acionar e explodir (aviso), tempo até ficar ativa, duração (s), máximo por jogador
+  golden: { at: 0.5, grenades: 3, invisibleSeconds: 12 },   // baú dourado: aparece a meio do round (fração do tempo); dá 3 granadas ou invisibilidade longa
+  countdown: 3,                          // contagem "3, 2, 1, PINTA!" no início de cada round (s)
   radarSeconds: 5,                       // bónus de eliminar com a cor certa: vês os adversários no minimapa durante estes segundos
   ammoBox: { shots: 7 },                 // uma caixa de munição = 7 tiros de UMA cor primária
   rewards: [                             // 80% dos baús dão um destes prémios; weight = % entre os prémios (soma 100)
-    { id: "ammo",      icon: "📦", label: "Caixa de munição", weight: 70, drops: [1, 3] },   // 1 a 3 caixas, cada uma de uma cor à sorte
-    { id: "grenade",   icon: "💣", label: "Granada de tinta", weight: 15, drops: [1, 1] },
+    { id: "ammo",      icon: "📦", label: "Caixa de munição", weight: 64, drops: [1, 3] },   // 1 a 3 caixas, cada uma de uma cor à sorte
+    { id: "grenade",   icon: "💣", label: "Granada de tinta", weight: 14, drops: [1, 1] },
+    { id: "trap",      icon: "🪤", label: "Armadilha de tinta", weight: 7, drops: [1, 1] },   // C: pousa no chão com a cor da mão; explode quando um adversário passa por cima
     { id: "health",    icon: "💊", label: "Cura",             weight: 12, drops: [1, 1] },
     { id: "invisible", icon: "👻", label: "Invisibilidade",   weight: 3,  drops: [1, 1], duration: 5 },   // raro: 5 s invisível
   ],
@@ -61,6 +68,18 @@ export function setMatchOptions({ toWin = CONFIG.match.toWin, minutes = Math.rou
   try { localStorage.setItem("colorattack.match", JSON.stringify({ toWin, minutes })); } catch { /* ignora */ }
 }
 try { setMatchOptions(JSON.parse(localStorage.getItem("colorattack.match")) || {}); } catch { /* usa os valores por defeito */ }
+// Modos de jogo (menu dos mapas); ficam guardados
+export const MODES = {
+  normal:  { id: "normal",  icon: "🎨", name: "Normal",          desc: "As regras de sempre" },
+  secreto: { id: "secreto", icon: "🕵️", name: "Cores Secretas",  desc: "Os adversários ficam cinzentos: descobre a cor deles pelo efeito dos teus tiros" },
+  paleta:  { id: "paleta",  icon: "🟤", name: "Paleta Completa", desc: "Há uma 7.ª cor, o castanho (1 + 2 + 3), e quase tudo pode acabar castanho" },
+};
+CONFIG.mode = (() => { try { const m = localStorage.getItem("colorattack.mode"); return MODES[m] ? m : "normal"; } catch { return "normal"; } })();
+export function setGameMode(id) {
+  if (!MODES[id]) return;
+  CONFIG.mode = id;
+  try { localStorage.setItem("colorattack.mode", id); } catch { /* ignora */ }
+}
 export const DIFFICULTIES = ["facil", "media", "dificil", "impossivel"];
 CONFIG.botDifficulty = (() => { try { const d = localStorage.getItem("colorattack.difficulty"); return BOT_PRESETS[d] ? d : "media"; } catch { return "media"; } })();
 export function setDifficulty(id) {

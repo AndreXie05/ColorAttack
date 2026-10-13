@@ -3,7 +3,7 @@ import { resolveCollisions } from "./collisions.js";
 import { floorAt, ceilingAt, jumpableAhead, ladderState, ladderAt, hugLadder, surfaceEffects, inside, topAt, standingOn, inWater } from "./surfaces.js";
 import { animateCharacter, visualY } from "./character-animator.js";
 import { CONFIG, BOT_PRESETS, aimY, eyeY, muzzleY, BODY_H } from "./game-config.js";
-import { COLORS, PRIMARIES, SECONDARIES, ingredients } from "./colors.js";
+import { COLORS, PRIMARIES, ingredients, paletteColors } from "./colors.js";
 
 /* ============================================================
    BOTS
@@ -11,7 +11,8 @@ import { COLORS, PRIMARIES, SECONDARIES, ingredients } from "./colors.js";
    (linha de visão livre) depois do tempo de reação viram-se para ele, mantêm a distância, andam de lado e
    disparam com imprecisão. Escolhem a cor certa para o alvo (às vezes enganam-se, conforme a dificuldade em
    o preset da dificuldade em BOT_PRESETS). Desviam-se uns dos outros e destravam sozinhos se ficarem presos.
-   Também apanham itens e usam cura, granadas e invisibilidade conforme a dificuldade (ver BOT_PRESETS).
+   Também apanham itens e usam cura, granadas, invisibilidade e armadilhas conforme a dificuldade (ver BOT_PRESETS),
+   e correm para o baú dourado quando aparece.
    Cada bot é também um "combatente" (hp, cor, vivo/morto...) para o CombatWorld.
    ============================================================ */
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -38,7 +39,7 @@ export class Bot {
     // munição própria: tanques por cor primária, que recarregam devagar e se enchem com as caixas que apanham
     this.ammo = { vermelho: CONFIG.ammo.start, azul: CONFIG.ammo.start, amarelo: CONFIG.ammo.start };
     this.openCd = 0;
-    this.items = { health: 0, grenade: 0, invisible: 0 }; this.invisibleT = 0; this.itemCd = rand(0.5, 1.5); this.grenadeCd = 0;
+    this.items = { health: 0, grenade: 0, invisible: 0, trap: 0 }; this.invisibleT = 0; this.itemCd = rand(0.5, 1.5); this.grenadeCd = 0;
     this._ePrev = null; this._vel = { x: 0, z: 0 };
   }
 
@@ -54,7 +55,7 @@ export class Bot {
     this.damageMul = lv.damage ? 2 : 1;
   }
   _speedCfg() {
-    const k = this.speedMul || 1;
+    const k = (this.speedMul || 1) * (this.puddleMul || 1);                    // poça pisada: mais rápido ou mais lento
     if (k === 1 && !this.crouching) return MOTION;
     this._sc = this._sc || { ...MOTION };
     this._sc.walk = (this.crouching ? CONFIG.player.crouchWalk : MOTION.walk) * k; this._sc.run = (this.crouching ? CONFIG.player.crouchWalk : MOTION.run) * k;
@@ -127,7 +128,7 @@ export class Bot {
     let best = null, bs = -1e9;
     for (const e of world.enemiesOf(this)) {
       const d = Math.hypot(e.pos.x - p.x, e.pos.z - p.z);
-      if (d >= cfg.sight) continue;
+      if (d >= cfg.sight * (world.sightMul || 1)) continue;                 // nevoeiro: veem menos longe
       if (e.hidden && d > 4) continue;                          // invisível: só o veem de muito perto
       if (!world.los(p.x, p.z, e.pos.x, e.pos.z, BODY_H * 0.7, p.y, e.pos.y, aimY(e) - e.pos.y)) continue;
       let score = -d;
@@ -166,13 +167,24 @@ export class Bot {
         : okRange && !!seen && !this._allyNear(world, e);
       if (use) this._throwGrenade(world, e, mode);
     }
+    if (this.items.trap > 0 && !e) {                              // armadilha: pousa-a enquanto patrulha (os espertos com a cor mais comum dos adversários)
+      const use = mode === "random" ? Math.random() < 0.05 : mode === "some" ? Math.random() < 0.1 : Math.random() < 0.2;
+      if (use) {
+        let col = PRIMARIES[Math.floor(Math.random() * PRIMARIES.length)];
+        if (mode === "smart" || mode === "perfect") {
+          const n = {}; for (const q of world.enemiesOf(this)) n[q.colorId] = (n[q.colorId] || 0) + 1;
+          const top = Object.entries(n).sort((a, b) => b[1] - a[1])[0]; if (top) col = top[0];
+        }
+        world.placeTrap(this, p.x, p.y, p.z, col); this.items.trap--;
+      }
+    }
   }
   _allyNear(world, e) {
     const r = CONFIG.grenade.radius;
     return world.combatants.some((c) => c.team === this.team && c !== this && c.alive && Math.hypot(c.pos.x - e.pos.x, c.pos.z - e.pos.z) < r);
   }
   _throwGrenade(world, e, mode) {
-    const p = this.pos, all = [...PRIMARIES, ...SECONDARIES], T = CONFIG.grenade.flight;
+    const p = this.pos, all = paletteColors(), T = CONFIG.grenade.flight;
     let col = e.colorId, col2 = null, spread = 1.2, lead = 0;
     if (mode === "random") { col = all[Math.floor(Math.random() * all.length)]; spread = 6; }
     else if (mode === "some") { if (Math.random() > 0.4) col = all[Math.floor(Math.random() * all.length)]; spread = 3; }
@@ -195,7 +207,7 @@ export class Bot {
     const o = { x: p.x + Math.sin(this.facing) * 0.75, y: muzzleY(this), z: p.z + Math.cos(this.facing) * 0.75 };
     if (this.shotFor !== e.colorId || !this.shotColor) {         // escolhe a cor: certa com a probabilidade da dificuldade
       this.shotFor = e.colorId;
-      const chance = PRIMARIES.includes(e.colorId) ? cfg.correctColorChance : cfg.correctSecondaryChance;      // cor misturada é mais difícil de adivinhar
+      const chance = (PRIMARIES.includes(e.colorId) ? cfg.correctColorChance : cfg.correctSecondaryChance) * (world.secret ? 0.5 : 1);   // cor misturada é mais difícil de adivinhar; Cores Secretas: metade
       const wrong = PRIMARIES.filter((c) => c !== e.colorId);                                          // um palpite errado nunca é, sem querer, a cor certa
       this.shotColor = Math.random() < chance ? e.colorId : wrong[Math.floor(Math.random() * wrong.length)];
     }
@@ -246,7 +258,8 @@ export class Bot {
         this.seen += dt;
         const stealth = this.invisibleT > 0 && cfg.smart >= 2;       // invisível: aproxima-se para surpreender
         if (stealth && ed > 6) { dx = nx; dz = nz; }
-        else if (ed > cfg.range + 4) { dx = nx; dz = nz; } else if (ed < cfg.range - 5) { dx = -nx; dz = -nz; }
+        const range = Math.min(cfg.range, CONFIG.weapon.range * (world.rangeMul || 1) - 1.5);   // nevoeiro: o alcance é menor, aproximam-se mais
+        if (stealth && ed > 6) { /* já vai em frente */ } else if (ed > range + 4) { dx = nx; dz = nz; } else if (ed < range - 5) { dx = -nx; dz = -nz; }
         this.strafeT -= dt;
         if (this.strafeT <= 0) { this.strafe = -this.strafe; this.strafeT = cfg.smart >= 3 ? rand(0.3, 1.0) : cfg.smart >= 2 ? rand(0.5, 1.4) : rand(0.8, 2.0); }
         dx += -nz * this.strafe * 0.8 * cfg.strafeMul; dz += nx * this.strafe * 0.8 * cfg.strafeMul;
@@ -270,7 +283,11 @@ export class Bot {
         this.stuck = 0;
         if (arrived) this.wait = rand(0.2, 1.4);
       }
-      if (world && this.lowAmmo && this._resupply(map, world)) this.wait = Math.min(this.wait, 0);   // pouca munição: vai buscar mais
+      const gold = world && world.services && cfg.smart >= 1 ? map.chests.find((c) => c.golden && Math.hypot(c.x - p.x, c.z - p.z) < 45) : null;
+      if (gold) {                                                                     // baú dourado: corre para lá e abre-o
+        this.target = { x: gold.x, z: gold.z }; this.wait = 0; this.running = true;
+        if (Math.hypot(gold.x - p.x, gold.z - p.z) < 3 && this.openCd <= 0) { world.services.openChest(this, gold); this.openCd = 2; }
+      } else if (world && this.lowAmmo && this._resupply(map, world)) this.wait = Math.min(this.wait, 0);   // pouca munição: vai buscar mais
       else if (world && world.services) {                                   // itens caídos por perto
         const it = world.services.pickups.nearestItem?.(p, cfg.itemSeek);
         if (it) { this.target = { x: it.x, z: it.z }; this.wait = Math.min(this.wait, 0); }
@@ -284,6 +301,13 @@ export class Bot {
         if (q.colorId === this.colorId) continue;
         const ox = p.x - q.x, oz = p.z - q.z, d = Math.hypot(ox, oz);
         if (d < q.r + 1.6 && d > 0.01) { dx += (ox / d) * 1.4; dz += (oz / d) * 1.4; }
+      }
+    }
+    if (world && !this.passive && world.traps) {                               // armadilha acionada perto: foge dela
+      for (const tr of world.traps) {
+        if (!tr.fuseAt || tr.owner.team === this.team) continue;
+        const ox = p.x - tr.x, oz = p.z - tr.z, d = Math.hypot(ox, oz);
+        if (d < CONFIG.trap.radius + 1 && d > 0.01) { dx += (ox / d) * 3; dz += (oz / d) * 3; this.running = true; }
       }
     }
     // afasta-se dos outros

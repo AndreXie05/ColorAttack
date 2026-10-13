@@ -29,6 +29,9 @@ function buildItemModel(type, color) {
     const gm = new THREE.MeshStandardMaterial({ color: 0xdfe8ff, emissive: 0x8aa0ff, emissiveIntensity: 0.55, transparent: true, opacity: 0.7, roughness: 0.3 });
     const body = new THREE.Mesh(G.sphere(0.5), gm); body.scale.y = 1.15; g.add(body);
     for (const sx of [-1, 1]) add(G.sphere(0.09), 0x1a1033, sx * 0.17, 0.12, 0.44, [1, 1.3, 0.6]);
+  } else if (type === "trap") {                            // armadilha: disco achatado com tinta e um botão branco
+    add(G.cyl(0.55, 0.6, 0.18), PAL.purple, 0, 0, 0, { emissive: 0x3a1166 });
+    add(G.cyl(0.2, 0.2, 0.16), 0xffffff, 0, 0.14, 0);
   } else {                                                 // granada de tinta
     add(G.sphere(0.5), PAL.green, 0, 0, 0, { emissive: 0x0a4d1c });
     add(G.cyl(0.18, 0.18, 0.3), 0x333333, 0, 0.55, 0);

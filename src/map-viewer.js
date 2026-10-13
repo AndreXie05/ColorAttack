@@ -1,9 +1,9 @@
 import * as THREE from "three";
-import { aimY, eyeY, muzzleY, CONFIG, TEAM, ARENA, BOT_PRESETS, DIFFICULTIES, setDifficulty, MATCH_TO_WIN, ROUND_MINUTES, setMatchOptions } from "./game-config.js";
+import { aimY, eyeY, muzzleY, CONFIG, TEAM, ARENA, BOT_PRESETS, DIFFICULTIES, setDifficulty, MATCH_TO_WIN, ROUND_MINUTES, setMatchOptions, MODES, setGameMode } from "./game-config.js";
 import { MAPS } from "./map-definitions.js";
 import { resolveCollisions } from "./collisions.js";
 import { floorAt, topAt, ceilingAt, ladderState, ladderAt, hugLadder, surfaceEffects, inWater } from "./surfaces.js";
-import { openChest, updateChests, resetChests } from "./chests-and-loot.js";
+import { openChest, updateChests, resetChests, makeGolden } from "./chests-and-loot.js";
 import { createDummy, setDummyAmmo, setDummyGhost, setDummyColor } from "./test-dummy.js";
 import { ColorSelector } from "./color-selector.js";
 import { loadCharacter, cloneCharacter, setCharacterPaint, addHeldItems, setHeld } from "./character-model.js";
@@ -18,10 +18,11 @@ import { PickupManager } from "./pickups.js";
 import { createInstructions } from "./instructions-screen.js";
 import { WeatherSystem, WEATHERS, WEATHER_IDS } from "./weather.js";
 import { PaintLayer } from "./paint-layer.js";
+import { setupMapFeatures } from "./map-features.js";
 import { UPGRADES, offerUpgrades, fx } from "./upgrades.js";
 import * as Stats from "./stats.js";
 import { Tutorial, STEPS as TUT_STEPS } from "./tutorial.js";
-import { COLORS, PRIMARIES, SECONDARIES, symbolSVG, chipHTML, ingredients } from "./colors.js";
+import { COLORS, PRIMARIES, symbolSVG, chipHTML, ingredients, mixColors, COLOR_RULES, TERTIARY, paletteColors, hitDamage } from "./colors.js";
 // import { PointerLockControls } from "three/addons/controls/PointerLockControls.js"; // fase da câmara em 1.ª pessoa
 
 /* ============================================================
@@ -34,6 +35,7 @@ const state = {
   quality: "media", fpsAcc: 0, fpsFrames: 0, fpsTime: 0, lowFpsTime: 0, grace: 0,
   roundTime: CONFIG.roundSeconds, opened: 0, empty: 0, lastUiTimer: "",
   invisible: 0, round: null, upg: {}, botUpg: {}, feedQueue: [], tutorial: null, tutorialMode: false, startTutorial: false, upgradeChoices: null, intermission: 0, over: false, bots: [], world: null, me: null, ammo: { vermelho: 0, azul: 0, amarelo: 0 }, playerColor: "vermelho", dead: false, deathInfo: null, firing: false, fireCd: 0, noAmmoMsg: 0, aimingGrenade: false, grenadeColor: "vermelho", grenadeColor2: null, grenadeSlot: 0, intenseT: 5, radarT: 0, ads: false, healingT: 0, tracked: [], aimRing: null, gameTime: 0, targetT: 0, targetKey: "", hpShown: -1, hurtT: 0, starting: false, shownCrossColor: "", characterId: "robin", rosters: null, pickups: null, pips: { A: [], B: [] }, loot: {}, paused: false, weather: null, paint: null, colors: null, shownColor: "", weatherId: "sol", weatherChoice: "random",
+  countdown: 0, goT: 0, mixHintT: 0, mixHintKey: "", gameStats: {}, goldenDone: false, mode: "normal", secret: false, clues: {},
 };
 const keys = new Set();
 
@@ -73,7 +75,7 @@ async function setCharacter(id) {
 // Qualidade gráfica: resolução, sombras e chuva. Q muda; se os FPS ficarem baixos, desce sozinha.
 const QUALITY = {
   alta:  { label: "Alta",  pixelRatio: 2,   shadows: true,  shadowMap: 2048, rain: 1 },
-  media: { label: "Média", pixelRatio: 1.5, shadows: true,  shadowMap: 1024, rain: 0.6 },
+  media: { label: "Média", pixelRatio: 1.25, shadows: true,  shadowMap: 1024, rain: 0.6 },
   baixa: { label: "Baixa", pixelRatio: 1,   shadows: false, shadowMap: 512,  rain: 0.3 },
 };
 const QUALITY_IDS = Object.keys(QUALITY);
@@ -84,6 +86,8 @@ function applyQuality(id) {
   renderer.setSize(window.innerWidth, window.innerHeight);
   const shadowsChanged = renderer.shadowMap.enabled !== q.shadows;
   renderer.shadowMap.enabled = q.shadows;
+  const soft = id === "alta" ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;    // sombras suaves só na Alta (são mais caras)
+  if (renderer.shadowMap.type !== soft) { renderer.shadowMap.type = soft; renderer.shadowMap.needsUpdate = true; if (!shadowsChanged) scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; }); }
   if (state.map) {
     for (const l of state.map.lights) {
       if (!l.isDirectionalLight) continue;
@@ -176,7 +180,7 @@ function buildLootPanel() {
     state.loot[key] = 0;
     const row = document.createElement("div");
     row.className = "lootRow"; row.id = "loot-" + key.replace(":", "-");
-    const hint = key === "health" ? "T" : key === "invisible" ? "F" : key === "grenade" ? "G" : key.startsWith("ammo:") ? COLORS[key.slice(5)].key : "";
+    const hint = key === "health" ? "T" : key === "invisible" ? "F" : key === "grenade" ? "G" : key === "trap" ? "C" : key.startsWith("ammo:") ? COLORS[key.slice(5)].key : "";
     row.innerHTML = `<kbd class="kh">${hint}</kbd><div class="lootMain">${lootIcon(key)}<span class="qty">0</span></div>`;
     panel.appendChild(row);
   }
@@ -355,8 +359,18 @@ function updateInvisibility(dt) {
     setDummyGhost(dummy, state.invisible > 0);
   } else setDummyGhost(dummy, false);
   if (state.radarT > 0) state.radarT = Math.max(0, state.radarT - dt);
-  const txt = [state.invisible > 0 ? `👻 ${state.invisible.toFixed(1)} s` : "", state.radarT > 0 ? `📡 ${state.radarT.toFixed(1)} s` : ""].filter(Boolean).join("   ");
+  const me = state.me, pl = me && me.puddleMul !== 1 && state.world ? Math.max(0, me.puddleUntil - state.world.t) : 0;   // efeito da poça
+  const txt = [state.invisible > 0 ? `👻 ${state.invisible.toFixed(1)} s` : "", state.radarT > 0 ? `📡 ${state.radarT.toFixed(1)} s` : "",
+               pl > 0 ? `${me.puddleMul > 1 ? "⚡" : "🐌"} ${pl.toFixed(1)} s` : "", me?.streak >= 2 ? `🔥 ×${me.streak}` : ""].filter(Boolean).join("   ");
   if (fx.textContent !== txt) fx.textContent = txt;
+}
+
+// Efeito do clima no jogo (ver `play` em weather.js): duração da tinta e das poças, alcance dos tiros e visão dos bots
+function applyWeatherPlay(announce) {
+  const w = WEATHERS[state.weatherId], P = w.play;
+  if (state.world) Object.assign(state.world, { rangeMul: P.range, sightMul: P.sight, paintLifeMul: P.paintLife });
+  if (state.paint) state.paint.lifeMul = P.paintLife;
+  if (announce) showToast(`${w.icon} ${w.name}${P.desc ? ": " + P.desc : ""}`, "#9be7ff");
 }
 
 function updateTimerStyle() {
@@ -372,6 +386,9 @@ function updateTimerStyle() {
 function unloadMap() {
   const m = state.map;
   if (!m) return;
+  clearGoldenBeams();
+  if (state.features) { state.features.dispose(); state.features = null; }
+  showCountdown(""); state.countdown = 0; state.goT = 0;
   if (state.pickups) { state.pickups.dispose(); state.pickups = null; }
   if (state.weather) { state.weather.dispose(); state.weather = null; }
   if (state.paint) { state.paint.dispose(); state.paint = null; }
@@ -392,6 +409,8 @@ async function startMap(def, keepMatch = false) {
   state.tutorial = null; document.body.classList.toggle("tut", state.tutorialMode);
   $("pauseMapsBtn").innerHTML = state.tutorialMode ? "<i>&#10005;</i>Sair do tutorial" : "<i>&#10005;</i>Sair da partida";
   const kept = keepMatch ? { loot: { ...state.loot } } : null;         // próximo round: o jogo continua (rounds, melhorias e itens ficam)
+  if (!kept) state.mode = state.tutorialMode ? "normal" : CONFIG.mode;  // o modo fica igual até ao fim do jogo (o tutorial é sempre normal)
+  COLOR_RULES.triple = state.mode === "paleta"; state.secret = state.mode === "secreto"; state.clues = {};
   lockMouse();                                            // tem de ser já, dentro do clique do utilizador
   unloadMap();
   let map;
@@ -429,6 +448,13 @@ async function startMap(def, keepMatch = false) {
   state.player.motion = createMotionState(); state.player.facing = sp.ry;
   await spawnBots(map);
   setupCombat(map);
+  applyWeatherPlay(false);
+  state.features = state.tutorialMode ? null : setupMapFeatures(def.id, {              // fontes de tinta, pontes com interruptor... (só em alguns mapas)
+    scene, world: state.world, map, colliders: map.colliders, playerPos: () => state.player.pos, toast: showToast,
+    onColor: (c, col) => state.world.cb.onColorChange?.(c, col, "fountain"),
+  });
+  state.goldenDone = false;
+  state.countdown = state.tutorialMode ? 0 : CONFIG.countdown; state.goT = 0;
   state.cam.ready = false;
   state.cam.yaw = -Math.PI / 2; state.cam.pitch = 0.2; state.cam.dist = 8; state.cam.aerial = false;
   state.roundTime = CONFIG.roundSeconds; state.opened = 0; state.empty = 0;
@@ -440,7 +466,12 @@ async function startMap(def, keepMatch = false) {
     updateScoreUi();
     showToast(`🏁 Round ${state.round.n} — ${def.name}`, "#ffd21f");
     flushUpgradeFeed();
-  } else newMatch();
+  } else {
+    newMatch();
+    if (state.mode !== "normal") showToast(`${MODES[state.mode].icon} ${MODES[state.mode].name}: ${MODES[state.mode].desc}`, "#ffd21f");
+  }
+  const wp = WEATHERS[state.weatherId].play;
+  if (wp.desc && !state.tutorialMode) showToast(`${WEATHERS[state.weatherId].icon} ${WEATHERS[state.weatherId].name}: ${wp.desc}`, "#9be7ff");
   if (state.tutorialMode) startTutorialWorld();
   $("prompt").style.display = "none";
   keys.clear();
@@ -461,7 +492,7 @@ function leaveViewer() {
 // Cada round dura 3 min; vence o round a equipa com mais eliminações. Empate = morte súbita (a próxima eliminação decide).
 // Vence o jogo a primeira equipa a ganhar 5 rounds (máx. 9 rounds).
 function newMatch() {
-  state.upg = {}; state.botUpg = {}; state.upgradeChoices = null; state.tracked = []; applyUpgrades(); Stats.startMatch(CONFIG.botDifficulty);
+  state.upg = {}; state.botUpg = {}; state.upgradeChoices = null; state.tracked = []; state.gameStats = {}; applyUpgrades(); Stats.startMatch(CONFIG.botDifficulty);
   state.round = { n: 1, kills: { A: 0, B: 0 }, wins: { A: 0, B: 0 }, sudden: false };
   state.intermission = 0; state.over = false;
   $("roundBox").style.display = "none"; $("gameOver").style.display = "none";
@@ -565,6 +596,7 @@ function endRound(winner) {
   if (state.intermission > 0 || state.over) return;
   r.wins[winner]++;
   Stats.recordRound(winner === "A", r.n);
+  addRoundToGameStats();
   r.sudden = false;
   updateScoreUi();
   const decided = r.wins[winner] >= CONFIG.match.toWin || r.n >= CONFIG.match.maxRounds;
@@ -580,6 +612,7 @@ function endRound(winner) {
   box.style.setProperty("--c", hex6(TEAM[winner].color));
   $("roundTitle").textContent = `${TEAM[winner].name} venceu o round ${r.n}!`;
   $("roundScore").textContent = `Eliminações: ${r.kills.A} – ${r.kills.B}   ·   Rounds: ${r.wins.A} – ${r.wins.B}`;
+  $("roundStats").innerHTML = roundStatsHTML();
   box.style.display = "flex";
   state.intermission = CONFIG.match.intermission;
   // só a equipa que ganhou o round recebe melhoria: tu escolhes (1 de 3) se ganhaste; senão só os bots vencedores a recebem
@@ -594,6 +627,55 @@ function startNextRound() {
   const others = MAPS.filter((m) => m.id !== state.def.id);
   startMap(others[Math.floor(Math.random() * others.length)], true);
 }
+// ---------- ESTATÍSTICAS DO ROUND (cada equipa, com o MVP) ----------
+// MVP = mais eliminações; empate: menos mortes, depois melhor precisão
+const mvpScore = (c) => c.rs.kills * 1000 - c.rs.deaths * 10 + (c.rs.shots ? c.rs.hits / c.rs.shots : 0);
+function roundStatsHTML() {
+  if (!state.world) return "";
+  const team = (t) => {
+    const list = state.world.combatants.filter((c) => c.team === t).sort((a, b) => mvpScore(b) - mvpScore(a));
+    const mvp = list[0] && list[0].rs.kills > 0 ? list[0] : null;                  // sem eliminações não há MVP
+    const rows = list.map((c) => {
+      const r = c.rs, fav = Object.entries(r.colors).sort((a, b) => b[1] - a[1])[0];
+      return `<tr class="${c.isPlayer ? "me" : ""}${c === mvp ? " mvp" : ""}"><td>${c === mvp ? "⭐ " : ""}${c.isPlayer ? "Tu" : nameOf(c)}</td><td>${r.kills}</td><td>${r.deaths}</td>
+        <td>${r.shots ? Math.round((r.hits / r.shots) * 100) + "%" : "–"}</td><td>${fav ? chipHTML(fav[0], 20) : "–"}</td></tr>`;
+    }).join("");
+    return `<table class="rsTable" style="--c:${hex6(TEAM[t].color)}"><tr><th>${TEAM[t].name}</th><th>Elim.</th><th>Mortes</th><th>Precisão</th><th>Cor</th></tr>${rows}</table>`;
+  };
+  return team("A") + team("B");
+}
+
+// ---------- DESTAQUES DO JOGO: soma o round de cada jogador e, no fim, dá prémios aos melhores ----------
+function addRoundToGameStats() {
+  if (!state.world || state.tutorial) return;
+  for (const c of state.world.combatants) {
+    const g = state.gameStats[c.id] ||= { team: c.team, index: c.index, isPlayer: c.isPlayer, kills: 0, deaths: 0, killsSame: 0, grenadeKills: 0, grenades: 0, traps: 0, shots: 0, hits: 0, dist: 0, bestStreak: 0 };
+    for (const k of ["kills", "deaths", "killsSame", "grenadeKills", "grenades", "traps", "shots", "hits", "dist"]) g[k] += c.rs[k];
+    g.bestStreak = Math.max(g.bestStreak, c.rs.bestStreak);
+  }
+}
+const AWARDS = [
+  { icon: "🎯", title: "Mestre das cores", desc: "mais eliminações com a cor certa", val: (g) => g.killsSame, fmt: (v) => `${v} com a cor certa` },
+  { icon: "💣", title: "Rei das granadas", desc: "mais eliminações com granadas e armadilhas", val: (g) => g.grenadeKills * 100 + g.grenades + g.traps, fmt: (v, g) => `${g.grenadeKills} eliminações · ${g.grenades} granadas` },
+  { icon: "🔥", title: "Imparável", desc: "maior série sem morrer", val: (g) => g.bestStreak, fmt: (v) => `série de ${v}` },
+  { icon: "🏹", title: "Pontaria afinada", desc: "melhor precisão (mín. 20 tiros)", val: (g) => (g.shots >= 20 ? g.hits / g.shots : 0), fmt: (v) => `${Math.round(v * 100)}% de acertos` },
+  { icon: "🏃", title: "Maratonista", desc: "mais distância percorrida", val: (g) => g.dist, fmt: (v) => `${Math.round(v)} m` },
+  { icon: "🛡️", title: "Sobrevivente", desc: "menos mortes (com pelo menos 1 eliminação)", val: (g) => (g.kills > 0 ? 1000 - g.deaths : 0), fmt: (v, g) => `${g.deaths} ${g.deaths === 1 ? "morte" : "mortes"}` },
+];
+function awardsHTML() {
+  const all = Object.values(state.gameStats);
+  if (!all.length) return "";
+  const cards = AWARDS.map((a) => {
+    const best = all.reduce((b, g) => (a.val(g) > a.val(b) ? g : b), all[0]), v = a.val(best);
+    if (!(v > 0)) return "";
+    const url = portraitUrl(state.rosters[best.team][best.index], TEAM[best.team].color);
+    return `<div class="awCard${best.isPlayer ? " me" : ""}" style="--c:${hex6(TEAM[best.team].color)}" title="${a.desc}">
+      <span class="awIcon">${a.icon}</span><b>${a.title}</b>
+      <span class="awWho">${url ? `<img src="${url}" alt="">` : ""}${best.isPlayer ? "Tu" : nameOf(best)}</span><small>${a.fmt(v, best)}</small></div>`;
+  }).join("");
+  return cards ? `<h4>Destaques</h4><div class="awGrid">${cards}</div>` : "";
+}
+
 // ---------- RESUMO DO JOGO ----------
 function showSummary() {
   $("goStage1").style.display = "none"; $("goStage2").style.display = "flex";
@@ -608,6 +690,9 @@ function summaryHTML(final) {
   return `
     <h4>Resultado</h4>
     <div class="stGrid">${card(final === "A" ? "Vitória" : "Derrota", `${r.wins.A} – ${r.wins.B}`, `${c.rounds} ${c.rounds === 1 ? "round" : "rounds"} · ${BOT_PRESETS[c.diff].name}`, final === "A" ? "good" : "bad")}</div>
+    ${awardsHTML()}
+    <h4>Último round</h4>
+    <div class="rsWrap">${roundStatsHTML()}</div>
     <h4>Eliminações</h4>
     <div class="stGrid">
       ${card("Eliminações no jogo", c.kills)}
@@ -630,6 +715,7 @@ function summaryHTML(final) {
       ${itemRow("💣", "Granadas", c.got.grenade, c.used.grenade)}
       ${itemRow("💊", "Curas", c.got.health, c.used.health)}
       ${itemRow("👻", "Invisibilidade", c.got.invisible, c.used.invisible)}
+      ${itemRow("🪤", "Armadilhas", c.got.trap, c.used.trap)}
     </table>`;
 }
 function showGameOver(final) {
@@ -665,7 +751,7 @@ function tickIntense(dt) {
   state.intenseT -= dt;
   if (state.intenseT <= 0) {
     state.intenseT = CONFIG.match.intenseEvery;
-    const all = [...PRIMARIES, ...SECONDARIES];
+    const all = paletteColors();
     for (const c of state.world.combatants) {
       if (!c.alive) continue;
       const opts = all.filter((x) => x !== c.colorId);
@@ -686,7 +772,8 @@ function newRound(announce = true) {
   if (state.world) { const s0 = CONFIG.ammo.start; state.world.resetAll(); state.ammo = { vermelho: s0, azul: s0, amarelo: s0 }; }
   $("killfeed").innerHTML = "";
   state.roundTime = CONFIG.roundSeconds;
-  if (announce) { state.round.kills = { A: 0, B: 0 }; state.round.sudden = false; updateScoreUi(); showToast("Round reiniciado! Baús reabastecidos", "#ffd21f"); }
+  state.goldenDone = false;
+  if (announce) { state.round.kills = { A: 0, B: 0 }; state.round.sudden = false; state.countdown = CONFIG.countdown; state.goT = 0; updateScoreUi(); showToast("Round reiniciado! Baús reabastecidos", "#ffd21f"); }
 }
 
 /* ============================================================
@@ -705,9 +792,11 @@ function nearestChest() {
 function tryOpenChest() {
   const c = nearestChest();
   if (!c) return;
+  if (state.countdown > 0) return;
   const res = openChest(c, !!state.round?.sudden);
   if (!res.ok) return;
   if (!state.tutorial) Stats.current.chests++;
+  if (res.reward?.id === "golden") { goldenReward(state.me); return; }
   if (state.tutorial) { res.reward = { ...CONFIG.rewards[0], drops: [2, 2] }; state.tutorial.event("chest"); }       // no tutorial o baú dá sempre munição
   if (res.reward) {
     const r = res.reward, [lo, hi] = r.drops;
@@ -750,6 +839,7 @@ window.addEventListener("keydown", (e) => {
   else if (e.code === "KeyF") useInvisibility();
   else if (e.code === "KeyT") useCure();
   else if (e.code === "KeyG") startGrenadeAim();
+  else if (e.code === "KeyC") placeTrap();
   else if (e.code === "KeyJ") {                                   // teste: simula uma eliminação (quem eliminou quem, cor e se foi com a cor certa)
     const kt = Math.random() < 0.5 ? "A" : "B", vt = kt === "A" ? "B" : "A", rnd = () => Math.floor(Math.random() * 5);
     const ids = Object.keys(COLORS);
@@ -766,7 +856,7 @@ window.addEventListener("keydown", (e) => {
   else if (e.code === "KeyB") {                                   // muda o clima (para ver os efeitos)
     state.weatherId = WEATHER_IDS[(WEATHER_IDS.indexOf(state.weatherId) + 1) % WEATHER_IDS.length];
     state.weather.setMode(state.weatherId);
-    showToast(`${WEATHERS[state.weatherId].icon} ${WEATHERS[state.weatherId].name}`, "#9be7ff");
+    applyWeatherPlay(true);
   }
 });
 window.addEventListener("keyup", (e) => {
@@ -791,6 +881,7 @@ function setPaused(p) {
   state.paused = p;
   if (p) setAds(false);
   if (p) { $("mmBox").classList.remove("big"); $("crosshair").dataset.mode = "none"; }       // na pausa não há mira
+  $("deathBox").style.display = !p && state.dead && state.deathInfo ? "flex" : "none";       // "Foste eliminado!" some na pausa e volta ao continuar
   if (p) state.tutorial?.event("paused");
   if (p) { state.firing = false; cancelGrenadeAim(); keys.clear(); if (state.colors) { state.colors.held = []; state.colors.mix = null; } }
   $("pause").style.display = p && state.screen === "viewer" ? "flex" : "none";
@@ -800,7 +891,7 @@ function setPaused(p) {
 function renderPausePanel() {
   const r = state.round, w = state.world;
   $("ppMap").textContent = `${state.def?.name || ""} · Round ${r.n}`;
-  $("ppMode").textContent = `${Math.round(CONFIG.roundSeconds / 60)} MINUTOS · PRIMEIRO A ${CONFIG.match.toWin} ROUNDS · ${r.wins.A} – ${r.wins.B}`;
+  $("ppMode").textContent = `${state.mode !== "normal" ? MODES[state.mode].name.toUpperCase() + " · " : ""}${Math.round(CONFIG.roundSeconds / 60)} MINUTOS · PRIMEIRO A ${CONFIG.match.toWin} ROUNDS · ${r.wins.A} – ${r.wins.B}`;
   const tt = Math.max(0, Math.ceil(state.roundTime)); $("ppTime").textContent = r.sudden ? "⚡" : `${Math.floor(tt / 60)}:${String(tt % 60).padStart(2, "0")}`;
   $("ppMine").innerHTML = `<div><b>${Stats.current.kills}</b><small>eliminações</small></div><div><b>${Stats.current.deaths}</b><small>mortes</small></div><div><b>${state.loot.grenade || 0}</b><small>granadas</small></div><div><b>${state.loot.health || 0}</b><small>curas</small></div>`;
   for (const team of ["A", "B"]) {
@@ -888,7 +979,7 @@ $("fsBtn")?.addEventListener("click", toggleFullscreen);
 $("pauseQuality").addEventListener("click", () => { applyQuality(QUALITY_IDS[(QUALITY_IDS.indexOf(state.quality) + 1) % QUALITY_IDS.length]); renderPausePanel(); });
 $("pauseWeather").addEventListener("click", () => {
   state.weatherId = WEATHER_IDS[(WEATHER_IDS.indexOf(state.weatherId) + 1) % WEATHER_IDS.length];
-  state.weather.setMode(state.weatherId); renderPausePanel();
+  state.weather.setMode(state.weatherId); applyWeatherPlay(false); renderPausePanel();
 });
 renderer.domElement.addEventListener("wheel", (e) => {
   e.preventDefault();
@@ -960,6 +1051,16 @@ function buildWeatherChips() {
     box.appendChild(b);
   }
 }
+function buildModeChips() {                                                         // modo de jogo: Normal, Cores Secretas ou Paleta Completa
+  const box = $("modePick");
+  for (const m of Object.values(MODES)) {
+    const b = document.createElement("button");
+    b.className = "chip" + (m.id === CONFIG.mode ? " on" : ""); b.textContent = `${m.icon} ${m.name}`; b.title = m.desc;
+    b.addEventListener("click", () => { setGameMode(m.id); box.querySelectorAll(".chip").forEach((c) => c.classList.toggle("on", c === b)); });
+    box.appendChild(b);
+  }
+}
+buildModeChips();
 buildWeatherChips();
 buildDifficultyChips();
 buildMatchChips();
@@ -1057,25 +1158,48 @@ const hexOf = (id) => COLORS[id].hex;
 const nameOf = (c) => (CHARACTERS.find((x) => x.id === state.rosters[c.team][c.index]) || { name: "?" }).name;
 
 // Cor do boneco do jogador (a que os adversários têm de acertar) — separada da cor da munição
+// Enquanto está protegido (acabou de reaparecer) o boneco fica branco: os adversários não sabem a cor
+const NEUTRAL_HEX = 0xf4f4f4;
 function paintPlayer(colorId) {
   state.playerColor = colorId;
-  if (dummy.userData.paintMat) { setCharacterPaint(dummy, hexOf(colorId)); setSymbol(dummy, colorId); } else setDummyColor(dummy, colorId);
+  const neutral = !!state.me?.neutral;
+  if (dummy.userData.paintMat) { setCharacterPaint(dummy, neutral ? NEUTRAL_HEX : hexOf(colorId)); setSymbol(dummy, colorId, neutral); } else setDummyColor(dummy, colorId);
   $("myColor").innerHTML = chipHTML(colorId, 24);
 }
-function setSymbol(model, colorId) {                                           // símbolo da cor por cima da cabeça
+function setSymbol(model, colorId, hidden = false) {                          // símbolo da cor por cima da cabeça
   const sym = model.userData.sym, sm = symbolMaterial(colorId);
-  if (sym && sm) { sym.material = sm; sym.visible = CONFIG.ui.symbolAboveHead; }
+  if (sym && sm) { sym.material = sm; sym.visible = CONFIG.ui.symbolAboveHead && !hidden; }
 }
-function paintBot(bot) { if (bot.model) { setCharacterPaint(bot.model, hexOf(bot.colorId)); setSymbol(bot.model, bot.colorId); } }
+// Cores Secretas: os adversários ficam cinzentos (a cor verdadeira continua a contar, só não se vê)
+const SECRET_HEX = 0x8a8f9c;
+function paintBot(bot) {
+  if (!bot.model) return;
+  const secret = state.secret && bot.team === "B";
+  setCharacterPaint(bot.model, bot.neutral ? NEUTRAL_HEX : secret ? SECRET_HEX : hexOf(bot.colorId));
+  setSymbol(bot.model, bot.colorId, bot.neutral || secret);
+}
 
 // Um bot abre um baú: as caixas caem no chão (cores à sorte) e qualquer um pode apanhá-las
 function botOpenChest(bot, c) {
   const res = openChest(c, !!state.round?.sudden);
   if (!res.ok || !res.reward) return;
+  if (res.reward.id === "golden") { goldenReward(bot); return; }
   const r = res.reward, [lo, hi] = r.drops;
   const n = lo + Math.floor(Math.random() * (hi - lo + 1));
   if (r.id === "ammo") { const cols = Array.from({ length: n }, () => PRIMARIES[Math.floor(Math.random() * PRIMARIES.length)]); state.pickups.spawn("ammo", n, c.x, c.z, cols, cols.map(boxShots)); }
   else state.pickups.spawn(r.id, n, c.x, c.z);
+}
+
+// Prémio do baú dourado: 3 granadas ou invisibilidade longa (já ativa)
+function goldenReward(c) {
+  const G = CONFIG.golden, grenades = Math.random() < 0.5;
+  if (c.isPlayer) {
+    if (grenades) { addLoot("grenade", G.grenades); Stats.current.got.grenade += G.grenades; showToast(`🌟 Baú dourado: +${G.grenades} granadas!`, "#ffd21f"); }
+    else { state.invisible = G.invisibleSeconds; showToast(`🌟 Baú dourado: invisível durante ${G.invisibleSeconds} s!`, "#ffd21f"); }
+  } else {
+    if (grenades) c.items.grenade += G.grenades; else c.invisibleT = G.invisibleSeconds;
+    showToast(`🌟 ${nameOf(c)} (${c.team === "A" ? "colega" : "adversário"}) abriu o baú dourado`, c.team === "A" ? "#4da8ff" : "#ff4455");
+  }
 }
 
 function setupCombat(map) {
@@ -1085,18 +1209,38 @@ function setupCombat(map) {
   const world = new CombatWorld({
     scene, map, paint: state.paint,
     callbacks: {
-      onDamage: (v, dmg, owner) => { if (v.isPlayer) state.hurtT = 0.5; else if (owner && owner.isPlayer && !state.tutorial) Stats.current.damage += Math.max(0, Math.min(dmg, v.hp + dmg)); },
+      onDamage: (v, dmg, owner, shot) => {
+        if (v.isPlayer) state.hurtT = 0.5; else if (owner && owner.isPlayer && !state.tutorial) Stats.current.damage += Math.max(0, Math.min(dmg, v.hp + dmg));
+        if (state.secret && owner?.isPlayer && v.team === "B")                        // pista: −8 = a cor dele leva esta; −4 = não leva
+          state.clues[v.id] = { shot, part: hitDamage(shot, v.colorId) === CONFIG.health.partialHit, changed: false, t: state.gameTime };
+      },
       onColorChange: (v, c, why) => {
+        const cl = state.clues[v.id];
+        if (cl) { if (!why && cl.t === state.gameTime) cl.changed = true; else delete state.clues[v.id]; }   // mudou com o teu tiro / mudou por outra razão (a pista já não vale)
         state.tutorial?.event("recolor", { isPlayer: v.isPlayer, why });
         if (v.isPlayer) { paintPlayer(c); showToast(`🎨 A tua cor mudou para ${COLORS[c].name}!`, "#" + hex6(hexOf(c)).slice(1)); }
         else paintBot(v);
       },
-      onGrenade: (k, x, z, colorId, hit) => {
+      onPuddleFx: (c, colorId, mul) => {
+        if (c.isPlayer) showToast(mul > 1 ? `⚡ Poça ${COLORS[colorId].name}: mais rápido!` : `🐌 Poça ${COLORS[colorId].name}: mais lento!`, hex6(hexOf(colorId)));
+      },
+      onTrapTriggered: (tr, v) => {
+        if (v.isPlayer) showToast("⚠️ Armadilha! Foge!", "#ff3b4a");
+        else if (tr.owner.isPlayer) showToast(`🪤 ${nameOf(v)} acionou a tua armadilha!`, hex6(hexOf(tr.colorId)));
+      },
+      onReveal: (c) => { if (c.isPlayer) paintPlayer(c.colorId); else paintBot(c); },
+      onGrenade: (k, x, z, colorId, hit, via) => {
+        if (via === "trap") {
+          if (k.isPlayer) showToast(`🪤 A tua armadilha ${COLORS[colorId].name} apanhou ${hit.map(nameOf).join(", ") || "alguém"}!`, hex6(hexOf(colorId)));
+          else if (hit.includes(state.me)) showToast("🪤 Pisaste uma armadilha!", "#ff8a1f");
+          return;
+        }
         if (k.isPlayer) showToast(hit.length ? `💣 ${hit.length} ${hit.length === 1 ? "jogador ficou" : "jogadores ficaram"} ${COLORS[colorId].name}` : "💣 A granada não apanhou ninguém", hit.length ? hex6(hexOf(colorId)) : "#ffd21f");
         else if (hit.includes(state.me)) showToast("💣 Uma granada mudou a tua cor!", "#ff8a1f");
       },
       onKill: (k, v, shot, byColor, via) => {
         if (!k) {                                                                         // caiu de muito alto ou ao rio: o ponto vai para a outra equipa
+          if (via === "water") state.world.burst(v.pos.x, 0.3, v.pos.z, "azul", 18);        // salpico na água
           reportFall(v, via);
           if (v.isPlayer) { setAds(false); if (!state.tutorial) { Stats.recordDeath(); rerollTracked(); } state.dead = true; state.firing = false; state.deathInfo = { by: via === "water" ? "O rio" : "A queda", byColor: false }; }
           const other = v.team === "A" ? "B" : "A";
@@ -1107,7 +1251,12 @@ function setupCombat(map) {
         if (k.isPlayer && k.team !== v.team) {
           if (!state.tutorial) { Stats.recordKill(!!byColor); if (byColor) Stats.current.damage += Math.max(0, v.hp); }       // eliminação com a cor certa conta a vida que o adversário ainda tinha
           if (byColor && via !== "grenade") refundAmmo(shot);
-          if (byColor) { state.radarT = CONFIG.radarSeconds; showToast(`📡 Radar: vês os adversários no minimapa durante ${CONFIG.radarSeconds} s`, "#9be7ff"); }   // bónus da cor certa
+          if (byColor) { state.radarT = Math.max(state.radarT, CONFIG.radarSeconds); showToast(`📡 Radar: vês os adversários no minimapa durante ${CONFIG.radarSeconds} s`, "#9be7ff"); }   // bónus da cor certa
+          const S = CONFIG.streak;
+          if (!state.tutorial && k.streak > 0 && k.streak % S.kills === 0) {             // série: a cada 3 eliminações seguidas sem morrer
+            state.radarT = Math.max(state.radarT, S.radarSeconds); addLoot("grenade", S.grenades); Stats.current.got.grenade += S.grenades;
+            showToast(`🔥 Série de ${k.streak}! Radar ${S.radarSeconds} s + ${S.grenades} granada`, "#ff8a1f");
+          }
         }
         if (v.isPlayer) setAds(false);
         if (v.isPlayer && !state.tutorial) { Stats.recordDeath(); rerollTracked(); }
@@ -1118,6 +1267,7 @@ function setupCombat(map) {
       },
       onRespawn: (c, s) => {
         setPlayerOut(c.team, c.index, false);
+        delete state.clues[c.id];
         if (c.isPlayer) {
           state.dead = false; state.player.motion = createMotionState(); state.player.facing = s.ry; state.cam.ready = false;
           paintPlayer(c.colorId);
@@ -1130,6 +1280,7 @@ function setupCombat(map) {
   world.add(me);
   for (const b of state.bots) { world.add(b); paintBot(b); }
   world.services = { pickups: state.pickups, openChest: botOpenChest };
+  world.secret = state.secret;
   state.world = world; state.me = me;
   applyUpgrades();
   paintPlayer(me.colorId);
@@ -1191,17 +1342,16 @@ function grenadeTarget() {
 }
 function startGrenadeAim() {
   if (state.healingT > 0) return;
-  if (state.dead || state.cam.aerial) return;
+  if (state.dead || state.cam.aerial || state.countdown > 0) return;
   if (!state.loot.grenade) { showToast("💣 Não tens granadas", "#ffd21f"); return; }
   state.grenadeColor = state.colors.current; state.aimLastCol = state.colors.current;   // começa com a cor da mão; a roda do rato ou as teclas 1, 2, 3 mudam
   state.grenadeColor2 = FX().dualGrenade ? state.grenadeColor : null; state.grenadeSlot = 0;
   state.aimingGrenade = true; state.aimRing.visible = true;
 }
-const GRENADE_COLORS = [...PRIMARIES, ...SECONDARIES];
 function cycleGrenadeColor(dir) {
-  const key = state.grenadeSlot === 1 && state.grenadeColor2 ? "grenadeColor2" : "grenadeColor";
-  const i = GRENADE_COLORS.indexOf(state[key]);
-  state[key] = GRENADE_COLORS[(i + dir + GRENADE_COLORS.length) % GRENADE_COLORS.length];
+  const key = state.grenadeSlot === 1 && state.grenadeColor2 ? "grenadeColor2" : "grenadeColor", all = paletteColors();   // (com o castanho na Paleta Completa)
+  const i = all.indexOf(state[key]);
+  state[key] = all[(i + dir + all.length) % all.length];
 }
 function cancelGrenadeAim() { state.aimingGrenade = false; if (state.aimRing) state.aimRing.visible = false; }
 function releaseGrenade() {
@@ -1219,12 +1369,23 @@ function releaseGrenade() {
   if (state.invisible > 0) state.invisible = 0;
 }
 
+// ---------- armadilha de tinta (C): fica no chão com a cor da mão e explode quando um adversário passa por cima ----------
+function placeTrap() {
+  if (state.dead || state.cam.aerial || state.countdown > 0 || !state.world) return;
+  if (!state.loot.trap) { showToast("🪤 Não tens armadilhas", "#ffd21f"); return; }
+  if (!state.player.motion.onGround) { showToast("🪤 Só podes pousar a armadilha no chão", "#ffd21f"); return; }
+  const p = state.player.pos, col = state.colors.current;
+  state.world.placeTrap(state.me, p.x, p.y, p.z, col);
+  addLoot("trap", -1); Stats.current.used.trap++;
+  showToast(`🪤 Armadilha ${COLORS[col].name} pousada (ativa daqui a ${CONFIG.trap.arm} s)`, hex6(hexOf(col)));
+}
+
 // Chão onde os pés pousam: o topo de qualquer objeto ao alcance (degraus sobem-se a andar, o resto a saltar; ver surfaces.js)
 const platformFloor = (x, z, y) => floorAt(state.map.colliders, x, z, y);
 const platformCeil = (x, z, y) => ceilingAt(state.map.colliders, x, z, y);
 const _speedCfg = { ...MOTION };
 function speedCfg() {                                                                // melhoria: mais velocidade; agachado anda devagar
-  const k = FX().speedMul, crouch = state.me && state.me.crouching;
+  const k = FX().speedMul * (state.me?.puddleMul || 1), crouch = state.me && state.me.crouching;   // poça pisada: mais rápido ou mais lento
   if (k === 1 && !crouch) return MOTION;
   _speedCfg.walk = crouch ? CONFIG.player.crouchWalk * k : MOTION.walk * k; _speedCfg.run = crouch ? CONFIG.player.crouchWalk * k : MOTION.run * k;
   return _speedCfg;
@@ -1326,6 +1487,13 @@ function updateMinimap(now) {
       g.fillStyle = "#ffd21f"; g.strokeStyle = "#1a1033"; g.lineWidth = 3; g.beginPath(); g.rect(x - 7, y - 7, 14, 14); g.fill(); g.stroke();
     }
   }
+  for (const c of state.map.chests) {                                               // baú dourado: estrela a pulsar
+    if (!c.golden) continue;
+    const x = X(c.z), y = Y(c.x), r = 13 * (1 + 0.2 * Math.sin(now / 120));
+    g.beginPath();
+    for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + (i * Math.PI) / 5, rr = i % 2 ? r * 0.45 : r; g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); }
+    g.closePath(); g.fillStyle = "#ffd21f"; g.fill(); g.lineWidth = 3; g.strokeStyle = "#1a1033"; g.stroke();
+  }
   const p = state.player, f = p.facing, x = X(p.pos.z), y = Y(p.pos.x);              // tu: seta amarela a apontar para onde olhas
   g.save(); g.translate(x, y); g.rotate(Math.PI / 2 - f);
   g.beginPath(); g.moveTo(0, -17); g.lineTo(12, 12); g.lineTo(0, 6); g.lineTo(-12, 12); g.closePath();
@@ -1356,7 +1524,25 @@ function updateCombatUi(dt, t) {
     camera.getWorldDirection(_aimDir);
     tgt = aimAssist({ x: camera.position.x, y: camera.position.y, z: camera.position.z }, _aimDir, 0.16);
   }
-  if (tgt) {
+  if (tgt && tgt.neutral) {                                                         // acabou de reaparecer: cor escondida
+    state.targetT = 0.4;
+    const key = tgt.id + "neutral";
+    if (key !== state.targetKey) {
+      state.targetKey = key;
+      info.innerHTML = `<span class="colorChip" style="width:32px;height:32px;background:#f4f4f4"></span><div><b>${nameOf(tgt)}: protegido</b><small>A cor aparece quando acabar a proteção</small></div>`;
+      info.className = "show nomatch";
+    }
+  } else if (tgt && state.secret) {                                                 // Cores Secretas: só a pista do teu último tiro
+    state.targetT = 0.4;
+    const cl = state.clues[tgt.id], key = tgt.id + "secret" + (cl ? cl.shot + cl.part + cl.changed : "");
+    if (key !== state.targetKey) {
+      state.targetKey = key;
+      const clue = !cl ? "Dispara para descobrires: −8 = a cor dele leva essa tinta; −4 = não leva"
+        : `Último tiro ${COLORS[cl.shot].name}: ${cl.part ? "−8, a cor dele leva " + COLORS[cl.shot].name : "−4, não é nem leva " + COLORS[cl.shot].name}${cl.changed ? " · e mudou de cor!" : ""}`;
+      info.innerHTML = `<span class="colorChip" style="width:32px;height:32px;background:#8a8f9c;font-size:20px">❓</span><div><b>${nameOf(tgt)}: cor secreta</b><small>${clue}</small></div>`;
+      info.className = "show nomatch";
+    }
+  } else if (tgt) {
     state.targetT = 0.4;
     const c = COLORS[tgt.colorId], match = state.colors.current === tgt.colorId;
     const key = tgt.id + tgt.colorId + match;
@@ -1482,6 +1668,76 @@ function lerpAngle(a, b, k) {
   return a + d * k;
 }
 
+// Contagem no início do round: 3, 2, 1 (cada número com a cor de uma primária) e depois "PINTA!" com as 6 cores
+const CD_COLORS = ["#ffd21f", "#2f7bff", "#ff3b4a"], RAINBOW = ["#ff3b4a", "#ffd21f", "#47e06a", "#2f7bff", "#a447ff", "#ff8a1f"];
+function showCountdown(text, color) {
+  const el = $("countdown");
+  if (el.dataset.t === text) return;
+  el.dataset.t = text;
+  el.innerHTML = text ? (color ? `<b style="--c:${color}">${text}</b>` : [...text].map((ch, i) => `<b style="--c:${RAINBOW[i % 6]};--d:${i * 0.05}s">${ch}</b>`).join("")) : "";
+  el.classList.remove("pop"); void el.offsetWidth; if (text) el.classList.add("pop");
+}
+function tickCountdown(dt) {
+  if (state.countdown > 0) {
+    state.countdown -= dt;
+    if (state.countdown <= 0) { state.countdown = 0; state.goT = 0.9; showCountdown("PINTA!"); return; }
+    const n = Math.ceil(state.countdown);
+    showCountdown(String(n), CD_COLORS[(n - 1) % 3]);
+  } else if (state.goT > 0) { state.goT -= dt; if (state.goT <= 0) showCountdown(""); }
+  else if ($("countdown").dataset.t) showCountdown("");
+}
+
+// Baú dourado: aparece uma vez por round, a meio do tempo (não no tutorial nem na morte súbita); tem um feixe de luz por cima
+function tickGolden() {
+  const st = state;
+  if (!st.goldenDone && !st.tutorial && st.round && !st.round.sudden && st.roundTime <= CONFIG.roundSeconds * CONFIG.golden.at) {
+    st.goldenDone = true;
+    if (makeGolden(st.map.chests)) showToast("🌟 Apareceu um baú dourado! Procura a estrela no minimapa", "#ffd21f");
+  }
+  for (const c of st.map.chests) {
+    if (c.golden && !c.beam) {
+      c.beam = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 60, 14, 1, true), new THREE.MeshBasicMaterial({ color: 0xffd21f, transparent: true, opacity: 0.32, depthWrite: false, side: THREE.DoubleSide }));
+      c.beam.position.set(c.x, 30, c.z); scene.add(c.beam);
+    } else if (!c.golden && c.beam) { scene.remove(c.beam); c.beam.geometry.dispose(); c.beam.material.dispose(); c.beam = null; }
+  }
+}
+function clearGoldenBeams() {
+  for (const c of state.map?.chests || []) if (c.beam) { scene.remove(c.beam); c.beam.geometry.dispose(); c.beam.material.dispose(); c.beam = null; }
+}
+
+// Armadilhas: as da tua equipa veem-se; as dos adversários são invisíveis até serem acionadas (aí piscam e crescem até explodir)
+function updateTraps() {
+  const now = performance.now(), T = CONFIG.trap;
+  for (const tr of state.world.traps) {
+    if (!tr.mesh) continue;
+    if (tr.fuseAt) {
+      const k = 1 - Math.max(0, tr.fuseAt - state.world.t) / T.fuse;
+      tr.mesh.visible = Math.floor(now / 70) % 2 === 0;
+      tr.mesh.scale.set(1 + k * 2.5, 1, 1 + k * 2.5);
+      continue;
+    }
+    tr.mesh.visible = tr.owner.team === "A";
+    const armed = state.world.t - tr.t >= T.arm;
+    tr.mesh.scale.setScalar(armed ? 1 + 0.08 * Math.sin(now / 150) : 0.6);
+  }
+}
+
+// Ao segurar duas teclas de cor aparece por baixo da mira o diagrama da mistura (ex.: vermelho + azul = roxo)
+function updateMixHint(dt) {
+  const cs = state.colors, el = $("mixHint");
+  const n = cs.held.length, r = n === 2 ? mixColors(cs.held[0], cs.held[1]) : n === 3 && COLOR_RULES.triple ? TERTIARY : null;
+  if (r) {
+    state.mixHintT = 1.2;
+    const key = cs.held.join("");
+    if (key !== state.mixHintKey) {
+      state.mixHintKey = key;
+      el.innerHTML = `${cs.held.map((h) => chipHTML(h, 26)).join("<i>+</i>")}<i>=</i>${chipHTML(r, 32)}<span>${COLORS[r].name}</span>`;
+    }
+  } else if (state.mixHintT > 0) state.mixHintT -= dt;
+  const show = state.mixHintT > 0 && !state.paused;
+  if (el.classList.contains("show") !== show) { el.classList.toggle("show", show); if (!show) state.mixHintKey = ""; }
+}
+
 function update(dt, t) {
   const st = state, p = st.player, map = st.map, cam = st.cam;
   if (st.over) return;                                                   // jogo terminado: tudo parado atrás do ecrã final
@@ -1492,6 +1748,9 @@ function update(dt, t) {
     return;
   }
 
+  const frozen = st.countdown > 0;                                         // contagem "3, 2, 1, PINTA!": ninguém se mexe nem dispara
+  tickCountdown(dt);
+
   // movimento relativo à câmara, com inércia, controlo no ar e salto variável (ver player-motion.js)
   const ix = (keys.has("KeyD") ? 1 : 0) - (keys.has("KeyA") ? 1 : 0);
   const iz = (keys.has("KeyW") ? 1 : 0) - (keys.has("KeyS") ? 1 : 0);
@@ -1500,8 +1759,8 @@ function update(dt, t) {
   let mx = fx * iz + rx * ix, mz = fz * iz + rz * ix;
   const len = Math.hypot(mx, mz);
   if (len > 0) { mx /= len; mz /= len; }
-  if (st.dead) { mx = 0; mz = 0; }                                  // eliminado: não se mexe até reaparecer
-  const jumpHeld = keys.has("Space") && !st.dead, jumpPressed = jumpHeld && !p.jumpWasHeld;
+  if (st.dead || frozen) { mx = 0; mz = 0; }                        // eliminado (ou à espera da contagem): não se mexe
+  const jumpHeld = keys.has("Space") && !st.dead && !frozen, jumpPressed = jumpHeld && !p.jumpWasHeld;
   p.jumpWasHeld = jumpHeld;
   const before = { x: p.pos.x, z: p.pos.z };
   if (st.dead || jumpPressed || p.motion.climbing || st.cam.aerial) st.crouch = false;   // saltar, escada de mão, morrer: levanta-se
@@ -1536,6 +1795,7 @@ function update(dt, t) {
   // bots
   const agents = [{ pos: p.pos }, ...st.bots];
   for (const b of st.bots) {
+    if (frozen) continue;
     b.update(dt, t, map, agents, st.world);
     if (b.team !== "A") { const tag = b.model.getObjectByName("nameTag"); if (tag) tag.visible = Math.hypot(b.pos.x - p.pos.x, b.pos.z - p.pos.z) <= CONFIG.ui.enemyNameDist; }   // nomes dos adversários só de perto
     if (b.alive) for (const g of st.pickups.collectNear(b.pos)) {
@@ -1547,9 +1807,9 @@ function update(dt, t) {
   // tiros, munição, combate e vida
   for (const c of PRIMARIES) st.ammo[c] = Math.min(CONFIG.ammo.max, st.ammo[c] + CONFIG.ammo.regen * dt);   // os tanques recarregam devagar
   st.fireCd -= dt;
-  if (st.firing && !st.dead && !cam.aerial && st.fireCd <= 0) tryFire();
-  st.gameTime += dt;
-  st.world.update(dt, st.gameTime);
+  if (st.firing && !st.dead && !cam.aerial && st.fireCd <= 0 && !frozen) tryFire();
+  if (!frozen) { st.gameTime += dt; st.world.update(dt, st.gameTime); st.features?.update(dt, performance.now()); }
+  updateTraps();
   updateAmmoUi();
   updateCombatUi(dt, t);
   updateMinimap(performance.now());
@@ -1557,7 +1817,9 @@ function update(dt, t) {
   // animações do mapa e baús
   for (const u of map.updaters) u(dt, t);
   updateChests(map.chests, dt, t);
+  tickGolden();
   st.colors.update(dt);
+  updateMixHint(dt);
   updateInvisibility(dt);
   updateCrosshair();
   st.paint.update(dt);
@@ -1582,8 +1844,7 @@ function update(dt, t) {
   }
 
   // round
-  tickRound(dt);
-  tickIntense(dt);
+  if (!frozen) { tickRound(dt); tickIntense(dt); }
   if (st.tutorial) {                                                              // tutorial: munição de sobra e passos
     for (const c of PRIMARIES) st.ammo[c] = Math.max(st.ammo[c], 40);
     st.tutorial.update(dt);

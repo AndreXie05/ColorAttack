@@ -11,6 +11,7 @@ material "Paint" = cor do jogador (peça grande em cada personagem); "AmmoTank" 
 """
 import math
 import os
+DECIMATE = 0.35                                    # fração de triângulos que fica ao exportar (o jogo fica mais leve)
 COMMON = "/home/andrexie/Documents/ColorAttack/tools/blender/common.py"
 exec(open(COMMON).read())
 
@@ -298,6 +299,8 @@ if EXPORT_DIR:
         bpy.context.view_layer.objects.active = objs[0]
         names = sorted(o.name for o in objs)
         assert names == ["ArmL", "ArmR", "Body", "LegL", "LegR", "ShinL", "ShinR"], "Nomes inesperados: %s" % names
+        for o in objs:                                   # mais leve no jogo: ~1/3 dos triângulos (aplicado ao exportar)
+            dm = o.modifiers.new("Leve", "DECIMATE"); dm.ratio = DECIMATE
         path = os.path.join(EXPORT_DIR, key + ".glb")
         bpy.ops.export_scene.gltf(filepath=path, export_format="GLB", use_selection=True, export_apply=True, export_yup=True, export_materials="EXPORT")
         for o in objs:

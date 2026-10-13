@@ -23,7 +23,7 @@ export function startMatch(diff) {
   Object.assign(current, {
     diff: DIFFICULTIES.includes(diff) ? diff : "media",
     kills: 0, deaths: 0, rounds: 0, killsSame: 0, killsOther: 0, damage: 0, distance: 0, chests: 0, shots: 0,
-    got: { ammo: 0, bullets: 0, grenade: 0, health: 0, invisible: 0 }, used: { grenade: 0, health: 0, invisible: 0 },
+    got: { ammo: 0, bullets: 0, grenade: 0, health: 0, invisible: 0, trap: 0 }, used: { grenade: 0, health: 0, invisible: 0, trap: 0 },
     rows: [], rk: 0, rd: 0,                                       // rows = resumo por round; rk/rd = eliminações/mortes do round em curso
   });
 }

@@ -2,14 +2,20 @@ import * as THREE from "three";
 import { G } from "./materials-and-geometry.js";
 
 /* ============================================================
-   CLIMA: sol, chuva e trovoada
+   CLIMA: sol, chuva, trovoada e nevoeiro
    Para acrescentar um clima novo basta uma entrada em WEATHERS.
    O clima muda a luz, o céu, o nevoeiro, as nuvens, a chuva e (na trovoada) os relâmpagos.
+   `play` = efeito no jogo: paintLife (duração da tinta e das poças), range (alcance dos tiros), sight (até onde os bots veem).
    ============================================================ */
 export const WEATHERS = {
-  sol:      { id: "sol",      icon: "☀️",  name: "Sol",      sky: 0x8fd3ff, top: null, skyMix: 0,    fogNear: 150, fogFar: 420, hemi: 1,    sun: 1,    rain: 0,    wind: 0, cloud: 0xffffff, lightning: false },
-  chuva:    { id: "chuva",    icon: "🌧️", name: "Chuva",    sky: 0x7d8ea3, top: 0x55657a, skyMix: 0.7,  fogNear: 70,  fogFar: 280, hemi: 0.62, sun: 0.25, rain: 2800, wind: 2, cloud: 0x8f99a8, lightning: false },
-  trovoada: { id: "trovoada", icon: "⛈️", name: "Trovoada", sky: 0x2b3340, top: 0x1c222c, skyMix: 0.85, fogNear: 50,  fogFar: 220, hemi: 0.4,  sun: 0.1,  rain: 6000, wind: 7, cloud: 0x4a5261, lightning: true },
+  sol:      { id: "sol",      icon: "☀️",  name: "Sol",      sky: 0x8fd3ff, top: null, skyMix: 0,    fogNear: 150, fogFar: 420, hemi: 1,    sun: 1,    rain: 0,    wind: 0, cloud: 0xffffff, lightning: false,
+              play: { paintLife: 1, range: 1, sight: 1, desc: "" } },
+  chuva:    { id: "chuva",    icon: "🌧️", name: "Chuva",    sky: 0x7d8ea3, top: 0x55657a, skyMix: 0.7,  fogNear: 70,  fogFar: 280, hemi: 0.62, sun: 0.25, rain: 2800, wind: 2, cloud: 0x8f99a8, lightning: false,
+              play: { paintLife: 0.6, range: 1, sight: 1, desc: "a chuva lava a tinta: as poças duram menos" } },
+  trovoada: { id: "trovoada", icon: "⛈️", name: "Trovoada", sky: 0x2b3340, top: 0x1c222c, skyMix: 0.85, fogNear: 50,  fogFar: 220, hemi: 0.4,  sun: 0.1,  rain: 6000, wind: 7, cloud: 0x4a5261, lightning: true,
+              play: { paintLife: 0.45, range: 1, sight: 0.85, desc: "chuva forte: as poças duram muito pouco" } },
+  nevoeiro: { id: "nevoeiro", icon: "🌫️", name: "Nevoeiro", sky: 0xc9d2da, top: 0xaab4bf, skyMix: 0.9,  fogNear: 8,   fogFar: 62,  hemi: 0.75, sun: 0.3,  rain: 0,    wind: 0.5, cloud: 0xd8dde2, lightning: false,
+              play: { paintLife: 1, range: 0.75, sight: 0.55, desc: "os tiros chegam menos longe e ninguém vê ao longe" } },
 };
 export const WEATHER_IDS = Object.keys(WEATHERS);
 
