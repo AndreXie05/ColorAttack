@@ -13,16 +13,17 @@ export const MOTION = {
   jump: 9, gravityUp: 24, gravityDown: 36, jumpCutGravity: 2.4,
   coyote: 0.1, buffer: 0.12,
   runJumpBoost: 1.1,                     // saltar a correr leva um pouco mais longe
+  climb: 4.5, slide: 2.5,                // escadas de mão: sobe a 4,5 m/s (a andar contra a escada), escorrega a 2,5 m/s se largares
 };
 
 export function createMotionState() {
-  return { vx: 0, vz: 0, vy: 0, onGround: true, coyote: 0, buffer: 0, jumping: false };
+  return { vx: 0, vz: 0, vy: 0, onGround: true, coyote: 0, buffer: 0, jumping: false, peakY: 0, bounced: false, climbing: false };
 }
 
-// dir = {x, z} (já normalizado ou zero); input = { run, jumpPressed, jumpHeld }.
-// pos é um THREE.Vector3 (ou {x,y,z}). Devolve eventos: { jumped, landed, impact }.
+// dir = {x, z} (já normalizado ou zero); input = { run, jumpPressed, jumpHeld, floor(x,z,y), ceil(x,z,y), ladder (1 = sobe, -1 = escorrega, 0 = não) }.
+// pos é um THREE.Vector3 (ou {x,y,z}). Devolve eventos: { jumped, landed, impact, fall } (fall = metros caídos ao aterrar).
 export function stepMotion(m, pos, dir, input, dt, cfg = MOTION) {
-  const out = { jumped: false, landed: false, impact: 0 };
+  const out = { jumped: false, landed: false, impact: 0, fall: 0 };
   if (!(dt > 0)) return out;                              // dt inválido (0, negativo ou NaN): não faz nada
   const hasInput = dir.x !== 0 || dir.z !== 0;
   const speed = input.run ? cfg.run : cfg.walk;
@@ -41,18 +42,31 @@ export function stepMotion(m, pos, dir, input, dt, cfg = MOTION) {
     if (input.run) { m.vx *= cfg.runJumpBoost || 1; m.vz *= cfg.runJumpBoost || 1; }
   }
 
-  // 3) gravidade (solta o espaço a subir = cai mais depressa = salto mais curto)
-  let g = m.vy > 0 ? cfg.gravityUp : cfg.gravityDown;
-  if (m.vy > 0 && m.jumping && !input.jumpHeld) g *= cfg.jumpCutGravity;
-  m.vy -= g * dt;
+  // 3) gravidade (solta o espaço a subir = cai mais depressa = salto mais curto); na escada de mão sobe ou escorrega devagar
+  m.climbing = !!input.ladder && !out.jumped;
+  if (m.climbing) {
+    m.vy = input.ladder > 0 ? cfg.climb || 4.5 : -(cfg.slide || 2.5); m.jumping = false; m.peakY = pos.y;
+  } else {
+    let g = m.vy > 0 ? cfg.gravityUp : cfg.gravityDown;
+    if (m.vy > 0 && m.jumping && !input.jumpHeld) g *= cfg.jumpCutGravity;
+    m.vy -= g * dt;
+  }
   // chão: 0, ou o topo de uma plataforma baixa (input.floor(x, z, y) devolve a altura onde o jogador pode pousar)
   const nx = pos.x + m.vx * dt, nz = pos.z + m.vz * dt;
   const floor = input.floor ? input.floor(nx, nz, pos.y) : 0;
-  if (m.onGround && pos.y > floor + 0.02) m.onGround = false;                     // saiu da borda: cai
+  if (m.onGround && m.vy <= 0 && pos.y > floor && pos.y - floor < 0.46) pos.y = floor;   // a descer uma rampa / degrau (até 0,45 m): fica colado ao chão
+  if (m.onGround && pos.y > floor + 0.02) { m.onGround = false; m.peakY = pos.y; }   // saiu da borda: cai
+  if (m.onGround) m.peakY = pos.y;
   pos.y += m.vy * dt;
+  if (!m.onGround) m.peakY = Math.max(m.peakY ?? pos.y, pos.y);
+  const ceil = input.ceil ? input.ceil(nx, nz, pos.y) : Infinity;                // ponte por cima: bate com a cabeça
+  if (pos.y + 2.0 > ceil && pos.y < ceil) { pos.y = Math.max(floor, ceil - 2.0); if (m.vy > 0) m.vy = 0; }
   if (pos.y <= floor) {
-    if (!m.onGround) { out.landed = true; out.impact = Math.max(0, -m.vy); }
-    pos.y = floor; m.vy = 0; m.onGround = true; m.jumping = false;
+    if (!m.onGround) {
+      out.landed = true; out.impact = Math.max(0, -m.vy);
+      if (!m.bounced) out.fall = Math.max(0, (m.peakY ?? floor) - floor);           // os saltos de trampolim não contam como queda
+    }
+    pos.y = floor; m.vy = 0; m.onGround = true; m.jumping = false; m.bounced = false; m.peakY = floor;
   }
 
   // 4) deslocamento horizontal

@@ -14,6 +14,7 @@ const MOVE_KEYS = [
   ["1 · 2 · 3", "Escolher vermelho · azul · amarelo"],
   ["Duas teclas juntas", "Misturar (ex.: 1 + 2 = roxo), demora 0,1 s"],
   ["Clique esquerdo", "Disparar tinta com a cor que tens na mão (segura para continuar)"],
+  ["Clique direito", "Mirar: segura para passares à vista em 1.ª pessoa, a partir da mira"],
 ];
 const OTHER_KEYS = [
   ["E", "Abrir um baú"],
@@ -88,6 +89,15 @@ function buildPages() {
       <p><b>Só a equipa que ganha o round recebe uma melhoria.</b> Se ganhares, aparecem <b>3 à sorte</b> e escolhes uma com o clique ou carregando em <b>1</b>, <b>2</b> ou <b>3</b>; os bots da tua equipa também recebem uma. Se perderes, quem recebe são os bots adversários. Quanto mais ganhas, mais fortes ficas!
       Duram até ao fim do jogo e podem acumular (as marcadas com ★ só se escolhem uma vez).</p>
       <div class="upList">${UPGRADES.map((u) => `<div><b>${u.icon} ${u.name}${u.once ? " ★" : ""}</b><small>${u.desc}</small></div>`).join("")}</div>`),
+
+    card("🧗 Subir e cair", `
+      <ul>
+        <li><b>Degraus</b> baixos sobem-se a andar; o que for mais baixo do que o boneco (até ~2 m) sobe-se a <b>saltar</b>. Muros altos não.</li>
+        <li><b>Rampas e escadas</b> levam aos sítios altos: lá de cima vês e disparas por cima das coberturas, e há <b>esconderijos</b> com fresta.</li>
+        <li><b>Escadas de mão</b>: anda contra a escada para subir; se a largares no ar, escorregas devagar.</li>
+        <li><b>Tapetes rolantes</b> empurram-te, os <b>carrosséis</b> rodam contigo e os <b>trampolins</b> atiram-te ao ar.</li>
+        <li>⚠️ Cair de <b>${CONFIG.fallDeath} m ou mais</b> elimina logo (o ponto vai para a outra equipa). Os saltos de trampolim não contam.</li>
+      </ul>`),
 
     card("🕹️ Movimento e tiro", keyTable(MOVE_KEYS)),
 

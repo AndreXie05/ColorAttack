@@ -1,6 +1,9 @@
 """
-ColorAttack - mapa RESTAURANTE feito no Blender: cozinha ao centro (forno de pizza gigante, tachos com tinta,
-fogões) e salas de jantar dos lados com mesas e chapéus-de-sol, caixas de pizza, latas e pimenteiros gigantes.
+ColorAttack - mapa RESTAURANTE (vários níveis): cozinha ao centro (forno de pizza gigante, tachos, fogões) e salas
+de jantar dos lados. Ideias de altura deste mapa:
+  - PONTE a 3,4 m que atravessa a cozinha pelas portas das paredes (passa-se por baixo); vê-se tudo, mas fica-se exposto.
+  - ESTANTES DA DESPENSA em ziguezague (1,2 / 2,4 / 3,6 / 4,8 / 6,0 m), de prateleira em prateleira, com latas
+    gigantes lá em cima para te esconderes. Cair lá de cima (6 m) é eliminação.
 Corre dentro do Blender:  OUTPUT = "/caminho/assets/maps/restaurante.glb"; exec(open(este_ficheiro).read())
 """
 import math
@@ -18,6 +21,7 @@ MATERIALS.update({
     "Car2": 0x4D8CFF, "Car3": 0xFFD84A, "Car4": 0x47CC63,
 })
 ROUGH.update({"OvenBrick": 0.8, "Fire": 0.4})
+MATERIALS.update({"PlatTop": 0xFFF3E0, "PlatSide": 0xE7B9A0, "Accent": 0xFF6F6F, "RampTop": 0xF7E6D6, "RampGrip": 0xD9AE95})
 EMISSIVE.update({"Fire": (0xFF9A20, 1.5)})
 TABLE_MATS = ["TableTeal", "TableOrange", "TablePink", "TableYellow", "TableBlue"]
 PARASOLS = ["Parasol1", "Parasol2", "Parasol3"]
@@ -105,13 +109,13 @@ def pizza_boxes(x, z, yaw=0.0):
     col_box(x, z, 4.8 if abs(math.cos(yaw)) > 0.7 else 5.2, 4.8 if abs(math.cos(yaw)) > 0.7 else 5.2, 2.4)
 
 
-def tomato_can(x, z):
+def tomato_can(x, z, z0=0.0, k=1.0):
     px, py = B(x, z)
-    P.cone("Steel", (px, py, 1.6), 1.6, 1.6, 3.2, segs=32)
-    P.cone("Tomato", (px, py, 1.6), 1.64, 1.64, 1.9, segs=32)
-    P.cone("Label", (px, py, 1.6), 1.66, 1.66, 0.7, segs=32)
-    P.sphere("Tomato", (px, py - 1.45, 1.6), (0.5, 0.06, 0.5), segs=14, rings=8)
-    col_cyl(x, z, 1.65, 3.2)
+    P.cone("Steel", (px, py, z0 + 1.6 * k), 1.6 * k, 1.6 * k, 3.2 * k, segs=32)
+    P.cone("Tomato", (px, py, z0 + 1.6 * k), 1.64 * k, 1.64 * k, 1.9 * k, segs=32)
+    P.cone("Label", (px, py, z0 + 1.6 * k), 1.66 * k, 1.66 * k, 0.7 * k, segs=32)
+    P.sphere("Tomato", (px, py - 1.45 * k, z0 + 1.6 * k), (0.5 * k, 0.06, 0.5 * k), segs=14, rings=8)
+    col_cyl(x, z, 1.65 * k, z0 + 3.2 * k)
 
 
 def shaker(x, z, mat):
@@ -184,24 +188,39 @@ def scenery():
             P.cone("Pepperoni", (px + dx, 18 - 0.55, 17.5 + dz), 1.1, 1.1, 0.3, rot=(rad(90), 0, 0), segs=16)
 
 
+def pantry(s):
+    """Estantes da despensa em ziguezague (do lado -z), da cozinha para a base: cada uma 1,2 m mais alta do que a anterior."""
+    for k, (x, z) in enumerate([(18, -30), (21, -27.4), (24, -30), (27, -27.4), (30, -30)]):
+        shelves(s * x, z, 2.4, 3.0, k + 1, goods=("Tomato", "Cheese", "Label", "Pepperoni"), face=-s)
+    tomato_can(s * 29.6, -31, z0=6.0, k=0.5)                                       # esconderijo lá em cima: latas gigantes
+    tomato_can(s * 30.6, -29.2, z0=6.0, k=0.45)
+
+
 def build():
     floors(); walls(mat="Cream", cap="Red", h=2.6); divider_walls(); scenery()
     pizza_oven(0, 0)
     pot(0, -13, "Red"); pot(0, 13, "Blue")
+    bridge(0, 24, 52, 3, 3.4)                                                     # ponte por cima da cozinha (passa pelas portas)
     for s in (1, -1):
         pot(s * 8, -6, "Yellow"); pot(s * 8, 6, "Green")
-        counter(s * 5.5, -19, 2.4, 9); counter(s * 5.5, 19, 2.4, 9)
+        counter(s * 6, -17.5, 2.4, 7); counter(s * 6, 17.5, 2.4, 7)
         stove(s * 12.2, -8); stove(s * 12.2, 8)
         fridge(s * 12.2, -31); fridge(s * 12.2, 31, "Sky")
-        for k, (x, z) in enumerate([(24, -12), (24, 12), (24, -28), (24, 28), (32, -20), (32, 20), (32, 0)]):
+        # pontas da ponte: patamar a 3,4 m e escada para a sala de jantar
+        platform(s * 28, 24, 4, 5, 3.4)
+        stairs(s * 33, 24, 6, 3.5, "x", 3.4, up=-s)
+        pantry(s)
+        for k, (x, z) in enumerate([(20, 10), (30, 12), (24, -12), (33, -18), (26, 4)]):
             table(s * x, z, k + (0 if s > 0 else 2))
-        booth(s * 22, -33.3, +1); booth(s * 22, 33.3, -1)
-        pizza_boxes(s * 19, -22 + 8, rad(15) * s); pizza_boxes(s * 19, 22 - 8, -rad(15) * s)
-        tomato_can(s * 8, -28); tomato_can(s * 8, 28)
+        booth(s * 22, 33.3, -1)
+        pizza_boxes(s * 21, 16, -rad(15) * s); pizza_boxes(s * 19, -20, rad(10) * s)
+        tomato_can(s * 8, 28)
         shaker(s * 40, -22, "Pepper"); shaker(s * 40, 22, "Salt")
+        low_wall(s * 31, 0, 1.0, 6.0)
+        crate(s * 35, -12, 1.6)
         for (x, z) in [(16, -4), (16, 4), (38, -30), (38, 30)]:
             lamp(s * x, z, 5.4)
-    patrol = [(8, -22), (8, 22), (20, -4), (20, 4), (28, -8), (28, 8), (40, -14), (40, 14), (0, -24), (0, 24)]
+    patrol = [(8, -22), (8, 22), (20, -4), (20, 4), (28, -8), (28, 8), (40, -14), (40, 14), (0, -24), (0, 22), (16, -24), (36, 28), (26, 30)]
     exec(open("/home/andrexie/Documents/ColorAttack/tools/blender/map_extras.py").read(), globals()); decorate(seed=2, wall_h=2.6, patrol=patrol)
     return finish_map("restaurante", patrol, OUTPUT)
 

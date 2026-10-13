@@ -375,9 +375,9 @@
   #crosshair[data-mode=col] svg.xCol, #crosshair[data-mode=gren] svg.xGren { display: block; }
   #crosshair[data-mode=none] { display: none; }
   #crosshair[data-mode=gren] .xBg, #crosshair[data-mode=gren] #xChip { display: none; }
-  #crosshair[data-mode=col] #xChip { transform: translateY(46px) scale(.55); opacity: .95; }
+  #crosshair #xChip { display: none; }                                  /* sem bolinha por baixo da mira: a cor da arma já se vê na mira e no painel da mão */
   #crosshair circle { fill: none; stroke-width: 7; }
-  #crosshair .xBg { stroke: #ffffff55; stroke-width: 4; }
+  #crosshair .xBg { stroke: var(--xc, #fff); opacity: .5; stroke-width: 4; }
   #xProg { stroke-linecap: round; stroke-dasharray: 276.5; stroke-dashoffset: 276.5; opacity: 0; }
   #xChip .colorChip { border-width: 3px; filter: drop-shadow(0 2px 3px #0008); }
   #loading { position: fixed; inset: 0; z-index: 20; display: none; align-items: center; justify-content: center; background: #0d0b1fcc; color: #fff; font-family: var(--display); font-size: 34px; letter-spacing: .08em; }
@@ -397,6 +397,8 @@
   .killRow.ok small { color: #7dffa0; } .killRow.bad small { color: #ffc27a; }
   @keyframes kfIn { from { opacity: 0; transform: translateX(80px) scale(.85); } to { opacity: 1; transform: none; } }
   @keyframes kfHit { 0% { transform: scale(1); } 25% { transform: scale(1.25) rotate(-8deg); } 50% { transform: scale(.9) rotate(6deg); } 100% { transform: scale(1); filter: grayscale(1) brightness(1.5); opacity: .7; } }
+  /* mirar (1.ª pessoa): cantos escurecidos */
+  #hud.ads::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(circle at 50% 50%, transparent 55%, #0d0b1f99 100%); }
   #hudFps { display: none; position: absolute; top: 62px; right: 14px; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 10px; background: #0d0b1fb0; }
   #menuBtn { display: none; }
   #mmBox { position: absolute; top: 22px; left: 22px; }

@@ -1,7 +1,9 @@
 """
-ColorAttack - mapa FÁBRICA DE TINTAS feito no Blender, num cais industrial junto ao mar: depósitos gigantes de tinta
-(vermelho, azul, amarelo), cubas com pás que giram, tapetes rolantes com latas em movimento, pilhas de latas,
-barris, empilhadora, canos coloridos e, ao fundo, guindastes, contentores, um navio e chaminés.
+ColorAttack - mapa FÁBRICA DE TINTAS (vários níveis), num cais industrial junto ao mar. Ideias de altura deste mapa:
+  - DEPÓSITOS DE TINTA com o topo plano a 6 m e ESCADAS DE MÃO: o sítio mais alto do mapa, mas sem onde te esconderes.
+  - PASSADIÇOS DE METAL a 6 m que ligam os 4 depósitos num anel por cima do mapa (passa-se por baixo deles).
+    Cair lá de cima (6 m) é eliminação: as grades protegem os lados, mas os topos dos depósitos não têm grades.
+  - TAPETES ROLANTES que te empurram (para fugir depressa ou chegar mais depressa ao centro).
 Corre dentro do Blender:  OUTPUT = "/caminho/assets/maps/fabrica.glb"; exec(open(este_ficheiro).read())
 Animações (lidas pelo jogo): Anim_Paddle_n (gira), Anim_Can_n (anda ao longo do tapete).
 """
@@ -18,6 +20,7 @@ MATERIALS.update({
     "Container4": 0x47CC63, "Container5": 0xA06BFF, "Smoke": 0xE6EAF2, "Crane": 0xFFB020, "Hill": 0x8FB3D9, "Silo": 0xDCE3F0,
 })
 ROUGH.update({"Vat": 0.35, "Pipe": 0.3})
+MATERIALS.update({"PlatTop": 0xD9DEE6, "PlatSide": 0x8C96A6, "Accent": 0xFFD84A, "RampTop": 0xC9D1DE, "RampGrip": 0x6B7690})
 
 
 def tank(x, z, color):
@@ -35,19 +38,35 @@ def tank(x, z, color):
     col_cyl(x, z, 3.35, 8)
 
 
-def vat(x, z, liquid, k, r=2.7):
+def vat(x, z, liquid, k, r=2.7, z0=0.0):
     px, py = B(x, z)
-    P.cone("Vat", (px, py, 1.3), r, r, 2.6, segs=36)
-    P.cone("VatRim", (px, py, 2.7), r + 0.15, r + 0.15, 0.22, segs=36)
-    P.cone(liquid, (px, py, 2.6), r - 0.25, r - 0.25, 0.06, segs=32)
+    P.cone("Vat", (px, py, z0 + 1.3), r, r, 2.6, segs=36)
+    P.cone("VatRim", (px, py, z0 + 2.7), r + 0.15, r + 0.15, 0.22, segs=36)
+    P.cone(liquid, (px, py, z0 + 2.6), r - 0.25, r - 0.25, 0.06, segs=32)
     for sx in (-1, 1):
-        P.cone("VatRim", (px + sx * (r + 0.4), py, 0.9), 0.18, 0.18, 1.8, segs=8)                       # pernas/tubos
-    pad = anim("Paddle%d" % k, x, z, 2.9, kind="spin", axis="z", speed=1.3 if k % 2 == 0 else -1.3)
-    pad.cone("Steel", (px, py, 4.4), 0.17, 0.17, 3.0, segs=10)
-    pad.rbox("Steel", (px, py, 3.0), (r * 1.7, 0.4, 0.2), radius=0.06, segs=1)
-    pad.rbox("Steel", (px, py, 3.0), (0.4, r * 1.7, 0.2), radius=0.06, segs=1)
-    pad.sphere("VatRim", (px, py, 5.9), (0.5, 0.5, 0.4), segs=12, rings=8)
-    col_cyl(x, z, r + 0.2, 2.7)
+        P.cone("VatRim", (px + sx * (r + 0.4), py, z0 + 0.9), 0.18, 0.18, 1.8, segs=8)                  # pernas/tubos
+    pad = anim("Paddle%d" % k, x, z, z0 + 2.9, kind="spin", axis="z", speed=1.3 if k % 2 == 0 else -1.3)
+    pad.cone("Steel", (px, py, z0 + 4.4), 0.17, 0.17, 3.0, segs=10)
+    pad.rbox("Steel", (px, py, z0 + 3.0), (r * 1.7, 0.4, 0.2), radius=0.06, segs=1)
+    pad.rbox("Steel", (px, py, z0 + 3.0), (0.4, r * 1.7, 0.2), radius=0.06, segs=1)
+    pad.sphere("VatRim", (px, py, z0 + 5.9), (0.5, 0.5, 0.4), segs=12, rings=8)
+    col_cyl(x, z, r + 0.2, z0 + 2.7)
+
+
+def flat_tank(x, z, color, s, h=6.0, r=3.35):
+    """Depósito de tinta com o topo plano a h m (pintável) e escada de mão do lado da base (s)."""
+    px, py = B(x, z)
+    P.cone(color, (px, py, h / 2), r - 0.1, r - 0.1, h, segs=40)
+    for hh in (1.4, h * 0.62):
+        P.cone("TankWhite", (px, py, hh), r, r, 0.5, segs=40)
+    P.cone("Steel", (px, py, h + 0.05), r + 0.05, r + 0.05, 0.12, segs=40)                            # tampa
+    P.cone(color, (px, py, h + 0.12), 1.0, 1.0, 0.1, segs=20)                                         # boca do depósito
+    for k in range(16):                                                                                # grade à volta do topo (só visual)
+        a = k * math.pi / 8
+        CY("Rail2", x + math.cos(a) * (r - 0.15), z + math.sin(a) * (r - 0.15), 0.04, 0.9, z0=h, segs=6)
+    P.cone("Pipe", (px - s * (r + 0.2), py, 1.0), 0.45, 0.45, 2.0, segs=14)
+    col_cyl(x, z, r, h, paint=1)
+    ladder(x + s * r, z, h, s, 0)
 
 
 def conveyor(x, z, length, k):
@@ -170,19 +189,31 @@ def scenery():
 
 
 def build():
-    floors(); walls(mat="Steel", cap="Hazard", h=2.6); scenery(); pipes()
-    vat(0, -15, "Green", 0); vat(0, 0, "Orange", 1, r=3.3); vat(0, 15, "Purple", 2)
+    floors(); walls(mat="Steel", cap="Hazard", h=2.6); scenery()
+    # plataforma de controlo ao centro (1,2 m) com a cuba grande; rampas para as duas equipas
+    platform(0, 0, 12, 10, 1.2)
+    vat(0, 0, "Orange", 1, r=3.0, z0=1.2)
+    vat(0, -14, "Green", 0); vat(0, 14, "Purple", 2)
+    # passadiços a 6 m entre os depósitos (anel): ao longo de z em x = ±16 e ao longo de x em z = ±20
+    for sz in (1, -1):
+        catwalk(0, sz * 20, 25.3, 2.4, 6.0)
     for s in (1, -1):
-        tank(s * 14, -22, "Red"); tank(s * 14, 0, "Blue"); tank(s * 14, 22, "Yellow")
-        conveyor(s * 26, -14, 12, 0 if s > 0 else 2); conveyor(s * 26, 14, 12, 1 if s > 0 else 3)
-        can_pile(s * 24, -30, rad(8) * s); can_pile(s * 24, 30, -rad(8) * s)
-        can_pile(s * 8, -30); can_pile(s * 8, 30)
-        barrels(s * 21, -5); barrels(s * 21, 5)
-        machine(s * 38, -23); machine(s * 38, 23)
-        forklift(s * 33, -14, rad(90) if s > 0 else -rad(90)); forklift(s * 33, 14, rad(90) if s > 0 else -rad(90))
-        for (x, z) in [(17, -10), (17, 10), (30, 0), (6, -17), (6, 17)]:
-            lamp(s * x, z, 5.6)
-    patrol = [(8, -8), (8, 8), (19.5, -12.5), (19.5, 12.5), (32, -5), (32, 5), (0, -24), (0, 24), (40, -15), (40, 15)]
+        ramp(s * 8.5, 0, 5, 5, "x", *((1.2, 0.0) if s > 0 else (0.0, 1.2)))
+        catwalk(s * 16, 0, 2.4, 33.3, 6.0)
+        flat_tank(s * 16, -20, "Red", s); flat_tank(s * 16, 20, "Yellow" if s > 0 else "Blue", s)
+        # tapetes rolantes: dois lado a lado em sentidos contrários e um junto a cada muro a levar para o centro
+        conveyor_floor(s * 27, 0, 3, 22, push_z=4.0, k=0 if s > 0 else 4)
+        conveyor_floor(s * 31.5, 0, 3, 22, push_z=-4.0, k=1 if s > 0 else 5)
+        for sz in (1, -1):
+            conveyor_floor(s * 14, sz * 30.5, 16, 3, push_x=-s * 4.0, k=(2 if sz > 0 else 3) + (0 if s > 0 else 4))
+            barrels(s * 22, sz * 8)
+            machine(s * 40, sz * 16)
+            can_pile(s * 40, sz * 28, rad(8) * s * sz)
+            forklift(s * 9, sz * 24, rad(90) if s > 0 else -rad(90))
+            low_wall(s * 22, sz * 27, 5.0, 1.0)
+            crate(s * 36, sz * 22, 1.6)
+            lamp(s * 6, sz * 17, 5.4)
+    patrol = [(8, 0), (0, -9), (0, 9), (16, -13), (16, 13), (26, -14), (26, 14), (20, -26), (20, 26), (34, -12), (34, 12), (44, -12), (44, 12), (12, -26), (12, 26)]
     exec(open("/home/andrexie/Documents/ColorAttack/tools/blender/map_extras.py").read(), globals()); decorate(seed=3, wall_h=2.6, patrol=patrol)
     return finish_map("fabrica", patrol, OUTPUT)
 

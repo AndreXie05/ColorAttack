@@ -3,6 +3,7 @@ import { CONFIG, PAL } from "./game-config.js";
 import { mat, G } from "./materials-and-geometry.js";
 import { COLORS } from "./colors.js";
 import { resolveCollisions } from "./collisions.js";
+import { floorAt } from "./surfaces.js";
 
 /* ============================================================
    ITENS QUE SAEM DOS BAÚS
@@ -68,19 +69,20 @@ export class PickupManager {
       if (!it.landed) {
         it.vy -= 26 * dt;
         p.x += it.vx * dt; p.z += it.vz * dt; p.y += it.vy * dt;
-        if (p.y <= 0.9) {
-          p.y = 0.9; it.landed = true;
-          const probe = new THREE.Vector3(p.x, 0, p.z);        // não ficar dentro de obstáculos
+        const fl = it.vy < 0 ? floorAt(colliders, p.x, p.z, p.y - 0.9) : 0;   // pode cair no chão ou em cima de uma plataforma
+        if (it.vy < 0 && p.y <= fl + 0.9) {
+          it.landed = true; it.floor = fl;
+          const probe = new THREE.Vector3(p.x, fl, p.z);       // não ficar dentro de obstáculos
           resolveCollisions(probe, 0.9, colliders);
-          p.x = probe.x; p.z = probe.z;
+          p.x = probe.x; p.z = probe.z; p.y = fl + 0.9;
         }
       } else {
-        p.y = 1.3 + Math.sin(t * 3 + it.phase) * 0.25;
+        p.y = (it.floor || 0) + 1.3 + Math.sin(t * 3 + it.phase) * 0.25;
       }
       it.model.rotation.y = t * 2 + it.phase;
       if (it.life - it.age < 6) it.model.visible = Math.floor(it.age * 6) % 2 === 0;   // pisca antes de desaparecer
 
-      const near = Math.hypot(p.x - playerPos.x, p.z - playerPos.z) < CONFIG.pickup.collectDist && it.age > 0.5;
+      const near = Math.hypot(p.x - playerPos.x, p.z - playerPos.z) < CONFIG.pickup.collectDist && Math.abs((it.floor || 0) - playerPos.y) < 1.2 && it.age > 0.5;
       if (near || it.age >= it.life) {
         this.group.remove(it.model);
         this.items.splice(i, 1);
@@ -118,7 +120,7 @@ export class PickupManager {
     for (let i = this.items.length - 1; i >= 0; i--) {
       const it = this.items[i];
       if (!it.landed || it.age < 0.5) continue;
-      if (Math.hypot(it.pos.x - pos.x, it.pos.z - pos.z) < CONFIG.pickup.collectDist) {
+      if (Math.hypot(it.pos.x - pos.x, it.pos.z - pos.z) < CONFIG.pickup.collectDist && Math.abs((it.floor || 0) - pos.y) < 1.2) {
         this.group.remove(it.model); this.items.splice(i, 1); got.push({ type: it.type, color: it.color, shots: it.shots });
       }
     }

@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { CONFIG, TEAM, ARENA, BOT_PRESETS, DIFFICULTIES, setDifficulty, MATCH_TO_WIN, ROUND_MINUTES, setMatchOptions } from "./game-config.js";
 import { MAPS } from "./map-definitions.js";
 import { resolveCollisions } from "./collisions.js";
+import { floorAt, topAt, ceilingAt, ladderState, ladderAt, hugLadder, surfaceEffects } from "./surfaces.js";
 import { openChest, updateChests, resetChests } from "./chests-and-loot.js";
 import { createDummy, setDummyAmmo, setDummyGhost, setDummyColor } from "./test-dummy.js";
 import { ColorSelector } from "./color-selector.js";
@@ -10,7 +11,7 @@ import { Bot } from "./bots.js";
 import { CombatWorld } from "./combat.js";
 import { symbolMaterial } from "./symbol-sprites.js";
 import { MOTION, createMotionState, stepMotion, collisionFeedback } from "./player-motion.js";
-import { animateCharacter } from "./character-animator.js";
+import { animateCharacter, visualY } from "./character-animator.js";
 import { CHARACTERS, TITANS, buildRosters } from "./characters.js";
 import { buildPortraits, portraitUrl } from "./portraits.js";
 import { PickupManager } from "./pickups.js";
@@ -32,7 +33,7 @@ const state = {
   cam: { yaw: 0, pitch: 0.35, dist: 9, aerial: false, prev: null, focus: new THREE.Vector3(), curDist: 9, fov: 60, ready: false },
   quality: "media", fpsAcc: 0, fpsFrames: 0, fpsTime: 0, lowFpsTime: 0, grace: 0,
   roundTime: CONFIG.roundSeconds, opened: 0, empty: 0, lastUiTimer: "",
-  invisible: 0, round: null, upg: {}, botUpg: {}, feedQueue: [], tutorial: null, tutorialMode: false, startTutorial: false, upgradeChoices: null, intermission: 0, over: false, bots: [], world: null, me: null, ammo: { vermelho: 0, azul: 0, amarelo: 0 }, playerColor: "vermelho", dead: false, deathInfo: null, firing: false, fireCd: 0, noAmmoMsg: 0, aimingGrenade: false, grenadeColor: "vermelho", grenadeColor2: null, grenadeSlot: 0, intenseT: 5, radarT: 0, healingT: 0, tracked: [], aimRing: null, gameTime: 0, targetT: 0, targetKey: "", hpShown: -1, hurtT: 0, starting: false, shownCrossColor: "", characterId: "robin", rosters: null, pickups: null, pips: { A: [], B: [] }, loot: {}, paused: false, weather: null, paint: null, colors: null, shownColor: "", weatherId: "sol", weatherChoice: "random",
+  invisible: 0, round: null, upg: {}, botUpg: {}, feedQueue: [], tutorial: null, tutorialMode: false, startTutorial: false, upgradeChoices: null, intermission: 0, over: false, bots: [], world: null, me: null, ammo: { vermelho: 0, azul: 0, amarelo: 0 }, playerColor: "vermelho", dead: false, deathInfo: null, firing: false, fireCd: 0, noAmmoMsg: 0, aimingGrenade: false, grenadeColor: "vermelho", grenadeColor2: null, grenadeSlot: 0, intenseT: 5, radarT: 0, ads: false, healingT: 0, tracked: [], aimRing: null, gameTime: 0, targetT: 0, targetKey: "", hpShown: -1, hurtT: 0, starting: false, shownCrossColor: "", characterId: "robin", rosters: null, pickups: null, pips: { A: [], B: [] }, loot: {}, paused: false, weather: null, paint: null, colors: null, shownColor: "", weatherId: "sol", weatherChoice: "random",
 };
 const keys = new Set();
 
@@ -238,6 +239,23 @@ function refreshPips() {
 // killer / victim = { team: "A"|"B", index: 0..4 }; byColor = true se foi eliminado com a cor certa.
 // É esta a função que o sistema de tiro vai chamar quando alguém for eliminado.
 const KILL_MS = Number(new URLSearchParams(location.search).get("killms")) || 5500;   // ?killms=60000 deixa as linhas mais tempo (testes)
+// Queda de muito alto (sem ninguém a eliminar)
+function reportFall(victim) {
+  setPlayerOut(victim.team, victim.index, true);
+  const c = CHARACTERS.find((x) => x.id === state.rosters[victim.team][victim.index]) || CHARACTERS[0];
+  const url = portraitUrl(c.id, TEAM[victim.team].color), col = hex6(TEAM[victim.team].color);
+  const row = document.createElement("div");
+  row.className = "killRow bad";
+  row.innerHTML = `
+    <div class="kfIcons"><span class="kfColor" style="font-size:26px">💥</span><span class="kfFace victim" style="--c:${col}">${url ? `<img src="${url}" alt="">` : ""}</span></div>
+    <div class="kfText"><b>${victim.isPlayer ? "Tu" : c.name}</b> caiu de muito alto<small>⬇️ Queda de ${CONFIG.fallDeath} m ou mais</small></div>`;
+  const feed = $("killfeed");
+  feed.appendChild(row);
+  while (feed.children.length > 5) feed.firstChild.remove();
+  setTimeout(() => row.classList.add("out"), KILL_MS);
+  setTimeout(() => row.remove(), KILL_MS + 500);
+}
+
 function reportKill(killer, victim, colorId, byColor) {
   setPlayerOut(victim.team, victim.index, true);
   const info = (who) => {
@@ -385,7 +403,7 @@ async function startMap(def, keepMatch = false) {
   $("crosshair").style.display = CONFIG.ui.crosshair ? "" : "none";            // (a mira é escondida pelo atributo data-mode, não por aqui)
   state.shownColor = ""; state.shownCrossColor = "";
   $("feed").innerHTML = ""; $("killfeed").innerHTML = "";
-  state.paint = new PaintLayer(map.group);
+  state.paint = new PaintLayer(map.group, map.colliders);
   // o mapa começa sem tinta; a tinta desaparece 15 s depois de cair (ver paint-layer.js)
   state.weather = new WeatherSystem(map, scene);
   state.weatherId = state.weatherChoice === "random" ? WEATHER_IDS[Math.floor(Math.random() * WEATHER_IDS.length)] : state.weatherChoice;
@@ -532,6 +550,7 @@ function pickUpgrade(i) {
   state.intermission = 0.8;
 }
 function endRound(winner) {
+  setAds(false);
   const r = state.round;
   if (state.intermission > 0 || state.over) return;
   r.wins[winner]++;
@@ -604,6 +623,7 @@ function summaryHTML(final) {
     </table>`;
 }
 function showGameOver(final) {
+  setAds(false);
   const r = state.round, won = final === "A";
   // VITÓRIA com uma cor de tinta em cada letra (as 6 cores) e DERROTA toda a vermelho
   const word = final === null ? "EMPATE!" : won ? "VITÓRIA!" : "DERROTA", rainbow = ["#ff3b4a", "#ffd21f", "#47e06a", "#2f7bff", "#a447ff", "#ff8a1f"];
@@ -753,11 +773,12 @@ const canvas = renderer.domElement;
 const MOUSE_SENS = 0.0025;
 const MIN_PITCH = -1.25;               // abaixo de 0.08 a câmara fica baixa e inclina-se para cima (ver o céu e o clima)
 const LOW_PITCH = 0.08;
-const AIM_TILT = 0.2;                 // rad: inclina a câmara para cima, o boneco desce no ecrã e a mira (ao centro) fica por cima dele
+const ADS_FOV = 48;                   // campo de visão em 1.ª pessoa (botão direito): ligeiro zoom
 function lockMouse() { document.activeElement?.blur?.(); canvas.requestPointerLock?.(); }       // tira o foco dos botões (senão o Espaço voltava a "clicar" neles)
 function setPaused(p) {
   state.paused = p;
-  if (p) $("mmBox").classList.remove("big");
+  if (p) setAds(false);
+  if (p) { $("mmBox").classList.remove("big"); $("crosshair").dataset.mode = "none"; }       // na pausa não há mira
   if (p) state.tutorial?.event("paused");
   if (p) { state.firing = false; cancelGrenadeAim(); keys.clear(); if (state.colors) { state.colors.held = []; state.colors.mix = null; } }
   $("pause").style.display = p && state.screen === "viewer" ? "flex" : "none";
@@ -786,12 +807,23 @@ document.addEventListener("pointerlockchange", () => {
 document.addEventListener("pointerlockerror", () => { if (state.screen === "viewer") setPaused(true); });
 document.addEventListener("mousemove", (e) => {
   if (state.screen !== "viewer" || document.pointerLockElement !== canvas) return;
-  state.cam.yaw -= e.movementX * MOUSE_SENS;
-  state.cam.pitch = Math.max(MIN_PITCH, Math.min(1.45, state.cam.pitch + e.movementY * MOUSE_SENS));
+  const sens = state.ads ? MOUSE_SENS * 0.6 : MOUSE_SENS;                          // a mirar o rato é mais lento
+  state.cam.yaw -= e.movementX * sens;
+  state.cam.pitch = Math.max(MIN_PITCH, Math.min(1.45, state.cam.pitch + e.movementY * sens));
 });
 // Rato: clique esquerdo dispara (segura para disparar continuamente)
-canvas.addEventListener("mousedown", (e) => { if (e.button === 0 && state.screen === "viewer" && !state.paused) state.firing = true; });
-window.addEventListener("mouseup", (e) => { if (e.button === 0) state.firing = false; });
+canvas.addEventListener("mousedown", (e) => {
+  if (state.screen !== "viewer" || state.paused) return;
+  if (e.button === 0) state.firing = true;
+  else if (e.button === 2 && !state.dead && !state.cam.aerial && !(state.healingT > 0)) setAds(true);          // botão direito: mirar
+});
+window.addEventListener("mouseup", (e) => { if (e.button === 0) state.firing = false; else if (e.button === 2) setAds(false); });
+canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+function setAds(on) {
+  if (state.ads === on) return;
+  state.ads = on;
+  $("hud").classList.toggle("ads", on);
+}
 $("resumeBtn").addEventListener("click", lockMouse);
 $("pauseMapsBtn").addEventListener("click", leaveViewer);
 let statsTab = null;
@@ -1047,12 +1079,20 @@ function setupCombat(map) {
         else if (hit.includes(state.me)) showToast("💣 Uma granada mudou a tua cor!", "#ff8a1f");
       },
       onKill: (k, v, shot, byColor, via) => {
+        if (!k) {                                                                         // caiu de muito alto: o ponto vai para a outra equipa
+          reportFall(v);
+          if (v.isPlayer) { setAds(false); if (!state.tutorial) { Stats.recordDeath(); rerollTracked(); } state.dead = true; state.firing = false; state.deathInfo = { by: "A queda", byColor: false }; }
+          const other = v.team === "A" ? "B" : "A";
+          if (!state.over && !state.tutorial) { state.round.kills[other]++; updateScoreUi(); if (state.round.sudden) endRound(other); }
+          return;
+        }
         reportKill({ team: k.team, index: k.index }, { team: v.team, index: v.index }, shot, byColor);
         if (k.isPlayer && k.team !== v.team) {
           if (!state.tutorial) { Stats.recordKill(!!byColor); if (byColor) Stats.current.damage += Math.max(0, v.hp); }       // eliminação com a cor certa conta a vida que o adversário ainda tinha
           if (byColor && via !== "grenade") refundAmmo(shot);
           if (byColor) { state.radarT = CONFIG.radarSeconds; showToast(`📡 Radar: vês os adversários no minimapa durante ${CONFIG.radarSeconds} s`, "#9be7ff"); }   // bónus da cor certa
         }
+        if (v.isPlayer) setAds(false);
         if (v.isPlayer && !state.tutorial) { Stats.recordDeath(); rerollTracked(); }
         if (k.isPlayer && byColor) state.tutorial?.event("killExact");
         if (k.team !== v.team && !state.over && !state.tutorial) { state.round.kills[k.team]++; updateScoreUi(); if (state.round.sudden) endRound(k.team); }
@@ -1096,7 +1136,7 @@ function aimAssist(c, dir, maxAng = 0.06) {
     const cos = (vx * dir.x + vy * dir.y + vz * dir.z) / d;
     if (cos <= 0 || d > CONFIG.weapon.range) continue;
     const ang = Math.acos(Math.min(1, cos));
-    if (ang < bestAng && state.world.los(p.x, p.z, q.pos.x, q.pos.z)) { best = q; bestAng = ang; }
+    if (ang < bestAng && state.world.los(p.x, p.z, q.pos.x, q.pos.z, 1.3, p.y, q.pos.y)) { best = q; bestAng = ang; }
   }
   return best;
 }
@@ -1162,16 +1202,9 @@ function releaseGrenade() {
   if (state.invisible > 0) state.invisible = 0;
 }
 
-// Plataformas: objetos baixos (até 1,5 m) onde podes saltar para cima e ficar de pé
-function platformFloor(x, z, y) {
-  let best = 0;
-  for (const c of state.map.colliders) {
-    if (c.top > 1.5 || c.top <= best || c.top > y + 0.25) continue;
-    const inside = c.r !== undefined ? Math.hypot(x - c.x, z - c.z) <= c.r : x >= c.minX && x <= c.maxX && z >= c.minZ && z <= c.maxZ;
-    if (inside) best = c.top;
-  }
-  return best;
-}
+// Chão onde os pés pousam: o topo de qualquer objeto ao alcance (degraus sobem-se a andar, o resto a saltar; ver surfaces.js)
+const platformFloor = (x, z, y) => floorAt(state.map.colliders, x, z, y);
+const platformCeil = (x, z, y) => ceilingAt(state.map.colliders, x, z, y);
 const _speedCfg = { ...MOTION };
 function speedCfg() {                                                                // melhoria: mais velocidade
   const k = FX().speedMul;
@@ -1204,7 +1237,8 @@ function bakeMinimap(map) {
   rt.texture.colorSpace = THREE.SRGBColorSpace;
   const cam = new THREE.OrthographicCamera(-ARENA.halfZ, ARENA.halfZ, ARENA.halfX, -ARENA.halfX, 1, 400);   // na vertical: a tua base em baixo, a dos adversários em cima
   cam.up.set(1, 0, 0); cam.position.set(0, 200, 0); cam.lookAt(0, 0, 0);
-  const hide = [state.weather && state.weather.group, dummy, state.paint && state.paint.mesh, state.pickups && state.pickups.group].filter(Boolean);
+  const hide = [state.weather && state.weather.group, dummy, state.paint && state.paint.mesh, state.paint && state.paint.tops, state.pickups && state.pickups.group].filter(Boolean);
+  map.group.traverse((o) => { if (o.name.startsWith("Anim_Sky")) hide.push(o); });   // arco-íris, papagaios, etc. no ar: de cima tapavam o mapa
   const was = hide.map((o) => o.visible), fog = scene.fog;
   hide.forEach((o) => { o.visible = false; }); scene.fog = null;
   const prevTarget = renderer.getRenderTarget();
@@ -1325,7 +1359,7 @@ function updateCombatUi(dt, t) {
   } else box.style.display = "none";
   // piscar durante a proteção após reaparecer; escondido enquanto está eliminado
   const blink = Math.floor(t * 10) % 2 === 0, vis = (c) => !c.alive || state.world.t >= c.protectUntil || blink;
-  dummy.visible = vis(me);
+  dummy.visible = vis(me) && !state.ads;                                          // em 1.ª pessoa o boneco não se vê
   for (const b of state.bots) if (b.model) {
     const unseen = b.hidden && b.team === "B" && Math.hypot(b.pos.x - me.pos.x, b.pos.z - me.pos.z) > 5;   // adversário invisível: só o vês de perto
     b.model.visible = vis(b) && !unseen;
@@ -1417,7 +1451,7 @@ function cameraClearance(colliders, tx, ty, tz, dx, dy, dz, maxDist) {
   for (let d = 1.0; d <= maxDist; d += 0.4) {
     const x = tx + dx * d, y = ty + dy * d, z = tz + dz * d;
     for (const c of colliders) {
-      if (y > c.top + 0.25) continue;
+      if (y > topAt(c, x, z) + 0.25 || y < (c.bottom || 0) - 0.25) continue;
       const hit = c.r !== undefined ? Math.hypot(x - c.x, z - c.z) < c.r + pad
         : x > c.minX - pad && x < c.maxX + pad && z > c.minZ - pad && z < c.maxZ + pad;
       if (hit) return Math.max(0, d - 0.5);
@@ -1453,9 +1487,12 @@ function update(dt, t) {
   const jumpHeld = keys.has("Space") && !st.dead, jumpPressed = jumpHeld && !p.jumpWasHeld;
   p.jumpWasHeld = jumpHeld;
   const before = { x: p.pos.x, z: p.pos.z };
-  const ev = stepMotion(p.motion, p.pos, { x: mx, z: mz }, { run, jumpPressed, jumpHeld, floor: platformFloor }, dt, speedCfg());
+  const ladder = st.dead ? 0 : ladderState(map.ladders, p.pos, { x: mx, z: mz }, p.motion.onGround);
+  const ev = stepMotion(p.motion, p.pos, { x: mx, z: mz }, { run, jumpPressed, jumpHeld, floor: platformFloor, ceil: platformCeil, ladder }, dt, speedCfg());
   resolveCollisions(p.pos, CONFIG.player.radius, map.colliders);
   collisionFeedback(p.motion, before, p.pos, dt);
+  if (!st.dead && surfaceEffects(map.colliders, p.pos, p.motion, dt) === "bounce") showToast("🤸 Boing!", "#ffd21f");   // tapetes, carrosséis e trampolins
+  if (!st.dead && ev.fall >= CONFIG.fallDeath && st.me && st.me.alive) st.world.eliminate(st.me, null, st.me.colorId, false, "fall");   // queda de muito alto
   if (!st.dead && !st.tutorial) Stats.current.distance += Math.hypot(p.pos.x - before.x, p.pos.z - before.z);
 
   // o boneco olha para onde se move
@@ -1469,10 +1506,12 @@ function update(dt, t) {
   const fxk = Math.max(0, Math.min(1, (gspeed - MOTION.walk * 1.2) / (MOTION.run - MOTION.walk * 1.2))) * (st.dead ? 0 : 1);   // linhas de velocidade quando corres
   if (Math.abs(fxk - (st.speedFxK || 0)) > 0.04) { st.speedFxK = fxk; $("speedFx").style.opacity = String(fxk * 0.9); }
   if (p.aimLock > 0) p.aimLock -= dt;                               // a disparar, o boneco olha para onde apontas
-  else if (gspeed > 0.6) p.facing = lerpAngle(p.facing, Math.atan2(p.motion.vx, p.motion.vz), Math.min(1, dt * 14));
-  dummy.position.copy(p.pos);
+  else if (gspeed > 0.6 && !p.motion.climbing) p.facing = lerpAngle(p.facing, Math.atan2(p.motion.vx, p.motion.vz), Math.min(1, dt * 14));
+  const lad = p.motion.climbing ? ladderAt(map.ladders, p.pos) : null;
+  if (lad) { hugLadder(lad, p.pos, p.motion, dt); p.facing = lerpAngle(p.facing, Math.atan2(-lad.nx, -lad.nz), Math.min(1, dt * 25)); }   // na escada: centrado e virado para ela
+  dummy.position.set(p.pos.x, visualY(dummy, p.pos.y, p.motion.onGround, dt), p.pos.z);
   dummy.rotation.y = p.facing;
-  animateCharacter(dummy, { speed: gspeed, maxSpeed: MOTION.run, onGround: p.motion.onGround, vy: p.motion.vy, landed: ev.landed, impact: ev.impact }, dt, t);
+  animateCharacter(dummy, { speed: lad ? 0 : gspeed, maxSpeed: MOTION.run, onGround: p.motion.onGround, vy: p.motion.vy, landed: ev.landed, impact: ev.impact, climbing: !!lad }, dt, t);
 
   // bots
   const agents = [{ pos: p.pos }, ...st.bots];
@@ -1561,9 +1600,13 @@ function update(dt, t) {
   }
   camera.position.set(tx + dirx * dist, Math.max(0.6, ty + diry * dist), tz + dirz * dist);
   camera.lookAt(tx, ty, tz);
-  if (!aerial && cam.pitch < LOW_PITCH) camera.rotateX(LOW_PITCH - cam.pitch);   // olhar para cima
-  if (!aerial) camera.rotateX(AIM_TILT);                                           // a mira fica acima do boneco: ele não tapa o que estás a apontar
-  const fovWant = aerial ? 60 : 60 + 9 * clamp01((gspeed - MOTION.walk) / (MOTION.run - MOTION.walk));
+  if (st.ads) {                                                                    // mirar (botão direito): vista em 1.ª pessoa, a partir dos olhos do boneco
+    const cpt = Math.cos(cam.pitch);
+    camera.position.set(p.pos.x, p.pos.y + 1.75, p.pos.z);
+    camera.lookAt(p.pos.x - Math.sin(cam.yaw) * cpt, p.pos.y + 1.75 - Math.sin(cam.pitch), p.pos.z - Math.cos(cam.yaw) * cpt);
+  }
+  if (!aerial && !st.ads && cam.pitch < LOW_PITCH) camera.rotateX(LOW_PITCH - cam.pitch);   // olhar para cima
+  const fovWant = st.ads ? ADS_FOV : aerial ? 60 : 60 + 9 * clamp01((gspeed - MOTION.walk) / (MOTION.run - MOTION.walk));
   cam.fov += (fovWant - cam.fov) * (1 - Math.exp(-dt * 6));
   if (Math.abs(camera.fov - cam.fov) > 0.05) { camera.fov = cam.fov; camera.updateProjectionMatrix(); }
 }
@@ -1600,4 +1643,4 @@ function frame(now) {
 requestAnimationFrame(frame);
 
 // Modo de testes: abrir index.html?debug expõe o estado do jogo na consola (window.__ca)
-if (new URLSearchParams(location.search).has("debug")) window.__ca = { showGameOver, tryFire, flushUpgradeFeed, startTutorial, FX, addLoot, applyUpgrades, speedCfg, setPaused, endRound, pickUpgrade, state, camera, scene, tryOpenChest, nearestChest, setCharacter, reportKill, tryFire, paintBot };
+if (new URLSearchParams(location.search).has("debug")) window.__ca = { renderer, setAds, showGameOver, tryFire, flushUpgradeFeed, startTutorial, FX, addLoot, applyUpgrades, speedCfg, setPaused, endRound, pickUpgrade, state, camera, scene, tryOpenChest, nearestChest, setCharacter, reportKill, tryFire, paintBot };

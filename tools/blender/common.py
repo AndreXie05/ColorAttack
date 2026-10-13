@@ -77,6 +77,9 @@ def smooth_path(points, per_seg=8):
     return out
 
 
+LOD = globals().get("LOD", False)      # LOD = True (só nos mapas): reduz os polígonos dos objetos pequenos
+
+
 class Part:
     """Junta várias formas numa só malha com vários materiais."""
 
@@ -105,6 +108,10 @@ class Part:
 
     # esfera/elipsoide
     def sphere(self, mat, loc, scale, rot=(0, 0, 0), segs=24, rings=14):
+        if LOD:                                                  # objetos pequenos precisam de menos polígonos (jogo mais leve)
+            r = max(scale)
+            cap = (10, 6) if r < 0.35 else (14, 8) if r < 0.8 else (20, 12) if r < 1.6 else (segs, rings)
+            segs, rings = min(segs, cap[0]), min(rings, cap[1])
         tmp = bmesh.new()
         try:
             bmesh.ops.create_uvsphere(tmp, u_segments=segs, v_segments=rings, radius=1.0, matrix=xform(loc, rot, scale))
@@ -120,6 +127,8 @@ class Part:
 
     # caixa com cantos arredondados (chanfro suave)
     def rbox(self, mat, loc, size, rot=(0, 0, 0), radius=0.15, segs=3):
+        if LOD:
+            segs = min(segs, 1 if max(size) < 1.0 else 2)
         tmp = bmesh.new()
         bmesh.ops.create_cube(tmp, size=1.0)
         bmesh.ops.transform(tmp, matrix=Matrix.Diagonal(Vector((*size, 1.0))), verts=tmp.verts)
@@ -132,6 +141,9 @@ class Part:
 
     # cone / cilindro (radius1 em baixo, radius2 em cima)
     def cone(self, mat, loc, r_bottom, r_top, depth, rot=(0, 0, 0), segs=20):
+        if LOD:
+            r = max(r_bottom, r_top)
+            segs = min(segs, 8 if r < 0.35 else 12 if r < 0.8 else 16 if r < 2.0 else segs)
         tmp = bmesh.new()
         m = xform(loc, rot)
         try:

@@ -169,7 +169,7 @@ export class MapBuilder {
     const cand = [];                                                   // {x, z, ry, wall}
     const off = R + 0.35;
     for (const c of objs) {
-      if (c.top < 1.4) continue;                                       // baixos demais para servirem de encosto
+      if (c.top < 1.4 || c.ramp || c.bottom || c.spin || c.bounce || c.push) continue;                             // baixos demais para servirem de encosto (e as rampas ficam livres)
       const spots = [];
       if (c.r !== undefined) {
         for (let a = 0; a < 6; a++) spots.push([c.x + Math.cos(a * Math.PI / 3) * (c.r + off), c.z + Math.sin(a * Math.PI / 3) * (c.r + off), Math.cos(a * Math.PI / 3), Math.sin(a * Math.PI / 3)]);
@@ -210,7 +210,7 @@ export class MapBuilder {
     }
     return {
       id: this.id, name: this.name, group: this.root, background: this.background, skyTop: this.skyTop,
-      colliders: this.colliders, chests: this.chests, updaters: this.updaters,
+      colliders: this.colliders, ladders: this.ladders || [], chests: this.chests, updaters: this.updaters,
       spawns: this.spawns, patrol: this.patrol, lights: this.lights, disposables: this.disposables,
     };
   }

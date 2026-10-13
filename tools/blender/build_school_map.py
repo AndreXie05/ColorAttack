@@ -1,6 +1,7 @@
 """
-ColorAttack - mapa ESCOLA feito no Blender: um campus cartoon com material escolar gigante como cobertura
-(lápis, livros empilhados, globo), campo de basquetebol ao centro, cacifos coloridos e pavilhões de aulas.
+ColorAttack - mapa ESCOLA (estilo foto.png, com vários níveis): campo de basquetebol com um palco ao centro (globo),
+bancadas que são escadas, pilhas de livros que formam uma "escada de saltos" (1,7 / 2,4 / 3,4 m), lápis gigantes
+deitados por onde se anda (1,8 m), pavilhões com o telhado acessível por escadas (3,0 m), cacifos e quadros como cobertura.
 Corre dentro do Blender:  OUTPUT = "/caminho/assets/maps/escola.glb"; exec(open(este_ficheiro).read())
 """
 import math
@@ -17,27 +18,32 @@ MATERIALS.update({
     "Road": 0x4A4F5A, "Sidewalk": 0xD9DDE6, "Bus": 0xFFD84A, "Hill": 0x7FDB74, "HillFar": 0x9BE3A0, "SchoolWall": 0xFFD9A8,
 })
 ROUGH.update({"Court": 0.5})
+MATERIALS.update({"PlatTop": 0xFFF6E6, "PlatSide": 0xEFCFA2, "Accent": 0xFFD84A, "RampTop": 0xF7EBD6, "RampGrip": 0xD9BE95,
+                  "Desk": 0xF2B96B, "DeskLeg": 0x6B7690, "Chalk": 0x2E7D6B})
 
 
 # ---------- adereços escolares ----------
-def pencil(x, z, length, along, color="Pencil", sign=1):
-    """Lápis gigante deitado. along = 'x' ou 'z' (direção do comprimento, em eixos do jogo)."""
+def pencil(x, z, length, along, color="Pencil", sign=1, R=0.9):
+    """Lápis gigante deitado (R = raio: o topo fica a 2R, dá para saltar para cima e andar ao longo dele)."""
     rot = (0, rad(90), 0) if along == "x" else (rad(90), 0, 0)          # eixo do cone -> X ou Y(=z do jogo)
     ux, uy = (sign, 0) if along == "x" else (0, -1)                       # direção do eixo em coordenadas do Blender (sign espelha a ponta)
     def at(t):                                                           # ponto a distância t do centro, ao longo do lápis
-        return (x + ux * t, -z + uy * t, 1.15)
-    P.cone(color, at(0), 1.15, 1.15, length, rot=rot, segs=6)
-    P.cone("PencilWood", at(length / 2 + 1.3), 1.15, 0.14, 2.6, rot=rot, segs=6)                 # ponta de madeira
-    P.cone("Graphite", at(length / 2 + 2.45), 0.45, 0.03, 0.9, rot=rot, segs=12)                  # grafite
-    P.cone("Ferrule", at(-length / 2 - 0.3), 1.2, 1.2, 0.6, rot=rot, segs=16)                    # virola
-    P.cone("Eraser", at(-length / 2 - 0.95), 1.05, 1.05, 0.9, rot=rot, segs=16)                  # borracha
-    if along == "x":
-        col_box(x + 0.5 * sign, z, length + 4.4, 2.4, 2.3)
+        return (x + ux * t, -z + uy * t, R)
+    k = R / 1.15
+    P.cone(color, at(0), R, R, length, rot=rot, segs=6)
+    P.cone("PencilWood", at(length / 2 + 1.3 * k), R, 0.14, 2.6 * k, rot=rot, segs=6)             # ponta de madeira
+    P.cone("Graphite", at(length / 2 + 2.45 * k), 0.45 * k, 0.03, 0.9 * k, rot=rot, segs=12)      # grafite
+    P.cone("Ferrule", at(-length / 2 - 0.3), R + 0.05, R + 0.05, 0.6, rot=rot, segs=16)          # virola
+    P.cone("Eraser", at(-length / 2 - 0.95), R - 0.1, R - 0.1, 0.9, rot=rot, segs=16)            # borracha
+    if along == "x":                                                                     # só o corpo é plano por cima (a ponta é baixa)
+        col_box(x, z, length + 1.2, 1.6, 2 * R, paint=True)
+        col_box(x + sign * (length / 2 + 1.3 * k), z, 2.6 * k, 1.2, R)
     else:
-        col_box(x, z - 0.5, 2.4, length + 4.4, 2.3)
+        col_box(x, z, 1.6, length + 1.2, 2 * R, paint=True)
 
 
 def books(x, z, colors=("BookRed", "BookBlue", "BookGreen", "BookYellow"), yaw=0.0):
+    """Pilha de livros: cada livro tem 0,75 ou 0,93 m (2 livros = 1,7 m, 3 = 2,4 m, 4 = 3,4 m). Dá para subir de pilha em pilha."""
     F = Frame(x, z, yaw)
     z0 = 0.0
     for k, c in enumerate(colors):
@@ -47,20 +53,20 @@ def books(x, z, colors=("BookRed", "BookBlue", "BookGreen", "BookYellow"), yaw=0
         P.rbox(c, F.pt(off, 0, z0 + h / 2), (w, 3.0, h), rot=F.rot, radius=0.14, segs=2)
         P.rbox("Pages", F.pt(off, -0.15, z0 + h / 2), (w + 0.04, 2.9, h * 0.55), rot=F.rot, radius=0.05, segs=2)   # folhas
         z0 += h
-    col_box(x, z, 4.4 if abs(math.cos(yaw)) > 0.5 else 3.1, 3.1 if abs(math.cos(yaw)) > 0.5 else 4.4, z0)
+    col_box(x, z, 4.4 if abs(math.cos(yaw)) > 0.5 else 3.1, 3.1 if abs(math.cos(yaw)) > 0.5 else 4.4, z0, paint=True)
 
 
-def globe(x, z):
+def globe(x, z, z0=0.0):
     px, py = B(x, z)
-    P.rbox("WoodDark", (px, py, 0.35), (3.4, 3.4, 0.7), radius=0.25)
-    P.cone("Steel", (px, py, 1.2), 0.5, 0.35, 1.0, segs=16)
-    P.sphere("Globe", (px, py, 3.4), (2.4, 2.4, 2.4), segs=32, rings=18)
+    P.rbox("WoodDark", (px, py, z0 + 0.35), (3.4, 3.4, 0.7), radius=0.25)
+    P.cone("Steel", (px, py, z0 + 1.2), 0.5, 0.35, 1.0, segs=16)
+    P.sphere("Globe", (px, py, z0 + 3.4), (2.4, 2.4, 2.4), segs=32, rings=18)
     for (a, e, sx, sy) in [(0.3, 0.4, 0.9, 0.7), (1.8, -0.1, 1.0, 0.6), (3.3, 0.5, 0.8, 0.8), (4.6, -0.3, 0.9, 0.6), (5.6, 0.7, 0.6, 0.5)]:
         nx, ny, nz = math.cos(e) * math.cos(a), math.cos(e) * math.sin(a), math.sin(e)
-        P.sphere("Land", (px + nx * 2.35, py + ny * 2.35, 3.4 + nz * 2.35), (sx, sy, 0.16), rot=(0, 0, a), segs=12, rings=8)
-    pts = [(px + math.cos(t) * 2.75, py, 3.4 + math.sin(t) * 2.75) for t in [k * math.pi / 8 for k in range(-4, 13)]]
+        P.sphere("Land", (px + nx * 2.35, py + ny * 2.35, z0 + 3.4 + nz * 2.35), (sx, sy, 0.16), rot=(0, 0, a), segs=12, rings=8)
+    pts = [(px + math.cos(t) * 2.75, py, z0 + 3.4 + math.sin(t) * 2.75) for t in [k * math.pi / 8 for k in range(-4, 13)]]
     P.tube("Steel", pts, [0.07] * len(pts), sides=8, per_seg=3)                                 # meridiano
-    col_cyl(x, z, 2.7, 5.8)
+    col_cyl(x, z, 2.7, z0 + 5.8)
 
 
 def hoop(x, z, toward):
@@ -87,21 +93,42 @@ def lockers(x, z0, z1, face):
     col_box(x, (z0 + z1) / 2, 1.2, z1 - z0, 3.4)
 
 
-def bleacher(x, z, length, s):
-    """Bancada de 3 degraus que sobe para longe do campo (s = +1 lado direito, -1 esquerdo)."""
-    for k in range(3):
-        RB("Stone", x + s * (k * 1.3), z, 1.3, length, 0.8 * (k + 1), r=0.12)
-        RB("Blue" if k % 2 == 0 else "Red", x + s * (k * 1.3) - s * 0.0, z, 1.0, length * 0.96, 0.1, r=0.03, z0=0.8 * (k + 1))
-    col_box(x + s * 1.3, z, 3.9, length, 2.4)
+def bleacher(x, z, length, s, h=1.6):
+    """Bancada = escada de degraus de 0,4 m que sobe para longe do campo (s = +1 lado direito, -1 esquerdo)."""
+    stairs(x, z, 4.0, length, "x", h, up=s)
+    for k in range(4):                                                         # assentos coloridos
+        RB("Blue" if k % 2 == 0 else "Red", x + s * (-1.5 + k), z, 0.7, length * 0.9, 0.06, r=0.02, z0=h * (k + 1) / 4, segs=1)
 
 
-def classroom(x, z, w, d, h, wall, roof, face):
-    building(x, z, w, d, h, wall, roof, face=face, rows=1, glass="Glass")
-    bx, by = B(x, z)
+def classroom(x, z, w, d, h, wall, face):
+    """Pavilhão de aulas baixo com o telhado plano acessível (por uma escada encostada)."""
+    RB(wall, x, z, w, d, h - 0.2, r=0.3, segs=2)
+    RB("PlatTop", x, z, w + 0.4, d + 0.4, 0.2, r=0.08, z0=h - 0.2, segs=1)
+    RB("Accent", x, z, w + 0.3, d + 0.3, 0.3, r=0.06, z0=h - 0.6, segs=1)
     sgn = 1 if face[0] == "+" else -1
-    if face[1] == "x":                                                          # porta virada para o campo
-        P.rbox("WoodDark", (bx + sgn * (w / 2 + 0.07), by, 1.6), (0.2, 2.0, 3.2), radius=0.1, segs=2)
-    col_box(x, z, w, d, h)
+    bx, by = B(x, z)
+    for i in range(int(d // 3)):                                                # janelas e porta viradas para o campo
+        u = -d / 2 + (i + 0.5) * d / int(d // 3)
+        P.rbox("Glass", (bx + sgn * (w / 2 + 0.05), by - u, 1.7), (0.15, 1.8, 1.4), radius=0.1, segs=1)
+    col_box(x, z, w, d, h, paint=True)
+
+
+def desk(x, z, yaw=0.0):
+    """Carteira gigante (1,1 m): cobertura baixa para saltar por cima."""
+    F = Frame(x, z, yaw)
+    P.rbox("Desk", F.pt(0, 0, 1.0), (3.2, 1.8, 0.2), rot=F.rot, radius=0.06, segs=1)
+    for (lx, ly) in [(-1.4, -0.7), (1.4, -0.7), (-1.4, 0.7), (1.4, 0.7)]:
+        P.rbox("DeskLeg", F.pt(lx, ly, 0.45), (0.14, 0.14, 0.9), rot=F.rot, radius=0.03, segs=1)
+    P.rbox("DeskLeg", F.pt(0, 0, 0.5), (3.0, 0.08, 0.7), rot=F.rot, radius=0.02, segs=1)       # painel (tapa os tiros por baixo)
+    col_box(x, z, 3.2 if abs(math.cos(yaw)) > 0.7 else 1.8, 1.8 if abs(math.cos(yaw)) > 0.7 else 3.2, 1.1, paint=True)
+
+
+def chalkboard(x, z, d=6.0):
+    """Quadro de ardósia de pé (3,2 m): cobertura alta."""
+    RB("BoardFrame", x, z, 0.5, d, 3.4, r=0.1, segs=1)
+    for sgn in (-1, 1):
+        RB("Chalk", x + sgn * 0.26, z, 0.05, d - 0.5, 2.4, r=0.02, z0=0.6, segs=1)
+    col_box(x, z, 0.5, d, 3.4)
 
 
 def planter_tree(x, z):
@@ -109,7 +136,7 @@ def planter_tree(x, z):
     P.cone("WoodDark", (px, py, 0.45), 2.3, 2.1, 0.9, segs=24)
     P.cone("Lawn", (px, py, 0.92), 2.0, 2.0, 0.06, segs=24)
     round_tree(x, z, 1.1)
-    col_cyl(x, z, 2.3, 1.0)
+    col_cyl(x, z, 2.3, 1.0)                                                       # (a borda do vaso dá para subir)
 
 
 # ---------- construção ----------
@@ -167,26 +194,29 @@ def scenery():
 
 def build():
     floor(); walls(mat="SchoolWall", cap="RoofRed"); scenery()
-    globe(0, 0)
+    # palco ao centro do campo (1,2 m) com o globo; rampas para as duas equipas
+    platform(0, 0, 10, 10, 1.2)
+    globe(0, 0, 1.2)
+    hoop(0, -24.6, +1); hoop(0, 24.6, -1)
     for s in (1, -1):
-        for z in (-24.6, 24.6):
-            hoop(0, z, +1 if z < 0 else -1) if s == 1 else None
-        pencil(s * 28, -11, 10, "x", "Pencil", s)
-        pencil(s * 28, 11, 10, "x", "Pencil", s)
-        pencil(s * 21, 0, 8, "z", "Blue")
-        books(s * 35, -15, ("BookRed", "BookBlue", "BookGreen", "BookYellow"))
-        books(s * 35, 15, ("BookPurple", "BookYellow", "BookBlue", "BookGreen"), yaw=rad(90))
-        books(s * 22, -17, ("BookGreen", "BookRed", "BookYellow"), yaw=rad(20) * s)
-        books(s * 22, 17, ("BookBlue", "BookPurple", "BookRed"), yaw=-rad(20) * s)
-        lockers(s * 46.4, -27, -12, -s)
-        lockers(s * 46.4, 12, 27, -s)
-        bleacher(s * 17.2, -9, 8, s); bleacher(s * 17.2, 9, 8, s)
-        classroom(s * 29, -28.5, 16, 9, 4.6, "Pastel2" if s > 0 else "Pastel3", "RoofRed", "-x" if s > 0 else "+x")
-        classroom(s * 29, 28.5, 16, 9, 4.6, "Pastel4" if s > 0 else "Pastel1", "Purple", "-x" if s > 0 else "+x")
-        planter_tree(s * 10, -31); planter_tree(s * 10, 31)
-        for (x, z) in [(12, -14), (12, 14), (24, -23), (24, 23)]:
-            lamp(s * x, z)
-    patrol = [(10, -12), (10, 12), (24, 0), (26, -20), (26, 20), (0, -16), (0, 16), (41, -15), (41, 15), (5, 0)]
+        ramp(s * 7.5, 0, 5, 5, "x", *((1.2, 0.0) if s > 0 else (0.0, 1.2)))
+        for sz in (1, -1):
+            pencil(s * 28, sz * 11, 10, "x", "Pencil" if sz > 0 else "Blue", s)          # anda-se por cima (1,8 m)
+            bleacher(s * 15, sz * 18.5, 6, s)                                        # bancada-escada até 1,6 m
+            platform(s * 19.5, sz * 18.5, 5, 6, 1.6)                                 # topo da bancada
+            books(s * 24, sz * 19, ("BookRed", "BookBlue", "BookGreen"))           # 2,4 m (a partir da bancada)
+            books(s * 28.4, sz * 19, ("BookPurple", "BookYellow", "BookBlue", "BookGreen"))   # 3,4 m
+            books(s * 33, sz * 18, ("BookGreen", "BookRed"), yaw=rad(90))          # 1,7 m
+            classroom(s * 30, sz * 29, 14, 8, 3.0, "Pastel2" if sz > 0 else "Pastel3", "-x" if s > 0 else "+x")
+            stairs(s * 21.5, sz * 29, 3, 5, "x", 3.0, up=s)                           # escada para o telhado
+            desk(s * 11, sz * 7); desk(s * 6, sz * 15, rad(90))
+            desk(s * 34, sz * 13.5)
+            chalkboard(s * 38.5, sz * 20)
+            lockers(s * 46.4, sz * 12 if sz > 0 else -27, 27 if sz > 0 else -12, -s)
+            planter_tree(s * 10, sz * 31)
+            lamp(s * 13, sz * 13); lamp(s * 18, sz * 25)
+    patrol = [(8, 0), (12, -11), (12, 11), (0, -16), (0, 16), (19.5, -18.5), (19.5, 18.5), (28, -11), (28, 11), (26, 0),
+              (33, -22), (33, 22), (19, -29), (19, 29), (40, -15), (40, 15)]
     exec(open("/home/andrexie/Documents/ColorAttack/tools/blender/map_extras.py").read(), globals()); decorate(seed=1, wall_h=2.4, patrol=patrol)
     return finish_map("escola", patrol, OUTPUT)
 

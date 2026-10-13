@@ -7,7 +7,12 @@ Convenção: coordenadas do jogo (x, z) -> Blender (x, -z). Arena 100 x 70 m, si
 REGRA DA TINTA: tudo o que cobre o chão tem de ficar abaixo de z = 0.04 (a camada de tinta do jogo está a 0.045),
 senão a tinta fica escondida por baixo.
 
-Marcadores no .glb:   Col_Box_n (extras w, d, top) · Col_Cyl_n (extras r, top) · Patrol_n
+Marcadores no .glb:   Col_Box_n (extras w, d, top[, paint]) · Col_Cyl_n (extras r, top) · Col_Ramp_n (extras w, d, axis, y0, y1) · Patrol_n
+   paint = 1: topo plano onde se pode pôr os pés e que mostra a tinta (plataformas, caixotes, muretes)
+
+ALTURAS (ver src/surfaces.js): degraus até 0,45 m sobem-se a andar; até ~2,1 m sobe-se a saltar (agarrando a borda);
+mais alto só por rampas/escadas. Níveis usados nos mapas: L1 = 1,0-1,2 m · L2 = 2,0 m · L3 = 3,0 m (por rampa ou a partir do L2).
+Muros/coberturas altas (>= 2,6 m) não se sobem.
 Animações (objetos à parte, com a origem no pivô; extras lidos pelo jogo):
    anim = "spin"    axis = x|y|z (eixos do jogo; y = vertical)   speed = rad/s
    anim = "bob"     sobe e desce no eixo vertical:  amp, speed
@@ -16,6 +21,7 @@ Animações (objetos à parte, com a origem no pivô; extras lidos pelo jogo):
 """
 import math
 import os
+LOD = True                                     # os mapas usam menos polígonos nos objetos pequenos
 COMMON = "/home/andrexie/Documents/ColorAttack/tools/blender/common.py"
 exec(open(COMMON).read())
 
@@ -78,12 +84,22 @@ class Frame:
         return (0, 0, self.yaw)
 
 
-def col_box(x, z, w, d, top):
-    colliders.append(("box", x, z, w, d, top))
+def col_box(x, z, w, d, top, paint=False, **extra):
+    """extra: bottom (ponte), push_x/push_z (tapete), bounce (trampolim) — ver src/surfaces.js"""
+    colliders.append(("box", x, z, w, d, top, paint, extra))
 
 
-def col_cyl(x, z, r, top):
-    colliders.append(("cyl", x, z, r, top))
+def col_ramp(x, z, w, d, axis, y0, y1):
+    """Rampa: altura y0 no lado mínimo do eixo (x ou z do jogo) até y1 no lado máximo."""
+    colliders.append(("ramp", x, z, w, d, axis, y0, y1))
+
+
+def col_cyl(x, z, r, top, **extra):
+    """extra: spin (carrossel, rad/s como a animação), bounce, paint"""
+    colliders.append(("cyl", x, z, r, top, extra))
+
+
+ladders = []                   # escadas de mão: (x, z, w, d, top, nx, nz)  (coordenadas do jogo; nx, nz apontam da parede para fora)
 
 
 def anim(name, x, z, zc=0.0, kind="spin", axis="z", speed=1.0, amp=0.0, span=0.0, phase=0.0, parent=None):
@@ -153,7 +169,7 @@ def palm(x, z, s=1.0, lean=0.9, yaw=0.0):
         for (tilt, length, wdt) in [(rad(22), 2.2, 0.55), (rad(48), 1.9, 0.5)]:
             ln = length * s
             P.sphere("Frond", (tx + math.cos(a) * ln * math.cos(tilt) * 0.95, ty + math.sin(a) * ln * math.cos(tilt) * 0.95, tz + 0.15 - ln * math.sin(tilt) * 0.95),
-                     (ln, wdt * s, 0.09 * s), rot=(0, tilt, a), segs=14, rings=8)
+                     (ln, wdt * s, 0.09 * s), rot=(0, tilt, a), segs=8, rings=5)
     for k in range(3):
         a = k * 2.1
         P.sphere("Coconut", (tx + math.cos(a) * 0.4, ty + math.sin(a) * 0.4, tz - 0.25), (0.28 * s, 0.28 * s, 0.28 * s), segs=10, rings=8)
@@ -218,9 +234,278 @@ def building(x, z, w, d, h, wall, roof, face="+z", rows=None, glass="Glass", z0=
             zz = z0 + 2.2 + j * 4.0
             if onz:
                 # +z do jogo = -y do Blender
-                P.rbox(glass, (bx + u, by - sgn * (d / 2 + 0.05), zz + 1.1), (2.4, 0.18, 2.4), radius=0.15, segs=2)
+                P.rbox(glass, (bx + u, by - sgn * (d / 2 + 0.05), zz + 1.1), (2.4, 0.18, 2.4), radius=0.15, segs=1)
             else:
-                P.rbox(glass, (bx + sgn * (w / 2 + 0.05), by - u, zz + 1.1), (0.18, 2.4, 2.4), radius=0.15, segs=2)
+                P.rbox(glass, (bx + sgn * (w / 2 + 0.05), by - u, zz + 1.1), (0.18, 2.4, 2.4), radius=0.15, segs=1)
+
+
+# ---------- arena com vários níveis (estilo foto.png: cimento claro, plataformas, rampas, caixotes) ----------
+MATERIALS.update({
+    "PlatTop": 0xF2F4F7, "PlatSide": 0xC3CAD4, "PlatTrim": 0x8C96A6, "RampTop": 0xE6E9EE, "RampGrip": 0xB4BCC8,
+    "Crate": 0xD9A066, "CrateDark": 0xA8703F, "Rail": 0x5F6C84, "Accent": 0x4FD6C8,
+})
+ROUGH.update({"PlatTop": 0.75, "PlatSide": 0.8, "RampTop": 0.8, "Crate": 0.7})
+LOOK = {"top": "PlatTop", "side": "PlatSide", "trim": "PlatTrim", "accent": "Accent", "ramp": "RampTop", "grip": "RampGrip"}   # cada mapa pode mudar
+
+
+def platform(x, z, w, d, h, z0=0.0, accent=True, look=None):
+    """Plataforma de betão (topo claro, lados mais escuros, faixa colorida) onde se pode subir. h = altura acima de z0."""
+    L = dict(LOOK, **(look or {}))
+    RB(L["side"], x, z, w, d, h - 0.14, r=0.1, z0=z0, segs=1)
+    RB(L["top"], x, z, w + 0.08, d + 0.08, 0.16, r=0.05, z0=z0 + h - 0.16, segs=1)
+    if accent and h >= 0.8:
+        RB(L["accent"], x, z, w + 0.05, d + 0.05, 0.16, r=0.03, z0=z0 + h - 0.42, segs=1)
+    col_box(x, z, w, d, z0 + h, paint=True)
+
+
+def _wedge(mat, cx, cy, w, d, z0, h0, h1, axis):
+    """Cunha (coordenadas do Blender): altura h0 no lado -axis e h1 no lado +axis (axis = 'x' ou 'y')."""
+    tmp = bmesh.new(); bot = []; top = []
+    for (ux, uy) in [(-1, -1), (1, -1), (1, 1), (-1, 1)]:
+        t = (ux + 1) / 2 if axis == "x" else (uy + 1) / 2
+        h = max(h0 + (h1 - h0) * t, 0.02)
+        bot.append(tmp.verts.new((cx + ux * w / 2, cy + uy * d / 2, z0)))
+        top.append(tmp.verts.new((cx + ux * w / 2, cy + uy * d / 2, z0 + h)))
+    tmp.faces.new(bot[::-1]); tmp.faces.new(top)
+    for i in range(4):
+        j = (i + 1) % 4
+        tmp.faces.new((bot[i], bot[j], top[j], top[i]))
+    bmesh.ops.recalc_face_normals(tmp, faces=tmp.faces[:])
+    P._add(tmp, mat, smooth=False)
+
+
+def ramp(x, z, w, d, axis, y0, y1, look=None):
+    """Rampa (x, z do jogo): sobe de y0 (lado mínimo do eixo do jogo) até y1 (lado máximo). Riscas antiderrapantes."""
+    L = dict(LOOK, **(look or {}))
+    if axis == "x":
+        _wedge(L["ramp"], x, -z, w, d, 0.0, y0, y1, "x")
+        n = int(w / 0.9)
+        for k in range(1, n):                                               # riscas
+            t = k / n; px = x - w / 2 + t * w; h = y0 + (y1 - y0) * t
+            P.box(L["grip"], (px, -z, h + 0.01), (0.12, d * 0.86, 0.05))
+    else:                                                                   # z do jogo = -y do Blender
+        _wedge(L["ramp"], x, -z, w, d, 0.0, y1, y0, "y")
+        n = int(d / 0.9)
+        for k in range(1, n):
+            t = k / n; pz = z - d / 2 + t * d; h = y0 + (y1 - y0) * t
+            P.box(L["grip"], (x, -pz, h + 0.01), (w * 0.86, 0.12, 0.05))
+    col_ramp(x, z, w, d, axis, y0, y1)
+
+
+def stairs(x, z, w, d, axis, h, up=1, z0=0.0, look=None):
+    """Escada de altura h (degraus de <= 0,4 m, sobem-se a andar) ao longo do eixo do jogo; up = +1 sobe para +eixo, -1 para -eixo."""
+    L = dict(LOOK, **(look or {}))
+    n = max(1, int(math.ceil(h / 0.4)))
+    length = w if axis == "x" else d
+    for k in range(n):
+        hk = z0 + h * (k + 1) / n
+        u = (-length / 2 + (k + 0.5) * length / n) * up
+        sx, sz = (x + u, z) if axis == "x" else (x, z + u)
+        sw, sd = (length / n, d) if axis == "x" else (w, length / n)
+        RB(L["side"], sx, sz, sw, sd, hk - 0.08, r=0.04, segs=1)
+        RB(L["top"], sx, sz, sw + 0.02, sd + 0.02, 0.1, r=0.03, z0=hk - 0.1, segs=1)
+        col_box(sx, sz, sw, sd, hk, paint=True)
+
+
+def crate(x, z, s=1.6, h=None, z0=0.0, yaw=0.0):
+    """Caixote de madeira (como na foto) onde se pode subir."""
+    h = h or s
+    F = Frame(x, z, yaw)
+    P.rbox("Crate", F.pt(0, 0, z0 + h / 2), (s, s, h), rot=F.rot, radius=0.06, segs=1)
+    for (lx, ly) in [(-1, -1), (1, -1), (1, 1), (-1, 1)]:                   # cantoneiras
+        P.box("CrateDark", F.pt(lx * (s / 2 - 0.06), ly * (s / 2 - 0.06), z0 + h / 2), (0.16, 0.16, h + 0.02), rot=F.rot)
+    for ly in (-1, 1):                                                       # tábuas em X nas faces
+        for lz in (0.18, h - 0.18):
+            P.box("CrateDark", F.pt(0, ly * (s / 2 + 0.01), z0 + lz), (s - 0.1, 0.05, 0.14), rot=F.rot)
+    col_box(x, z, s, s, z0 + h, paint=True)
+
+
+def low_wall(x, z, w, d, h=1.1, z0=0.0, look=None):
+    """Murete de cobertura (protege as pernas e o corpo dos tiros rasteiros; dá para saltar para cima)."""
+    L = dict(LOOK, **(look or {}))
+    RB(L["side"], x, z, w, d, h - 0.1, r=0.08, z0=z0, segs=1)
+    RB(L["top"], x, z, w + 0.1, d + 0.1, 0.12, r=0.04, z0=z0 + h - 0.12, segs=1)
+    col_box(x, z, w, d, z0 + h, paint=True)
+
+
+def tall_wall(x, z, w, d, h=3.2, z0=0.0, look=None):
+    """Parede alta de cobertura (não se sobe)."""
+    L = dict(LOOK, **(look or {}))
+    RB(L["side"], x, z, w, d, h, r=0.12, z0=z0, segs=1)
+    RB(L["accent"], x, z, w + 0.06, d + 0.06, 0.25, r=0.04, z0=z0 + h - 0.6, segs=1)
+    RB(L["top"], x, z, w + 0.12, d + 0.12, 0.14, r=0.04, z0=z0 + h, segs=1)
+    col_box(x, z, w, d, z0 + h + 0.14)
+
+
+def ramp_up(x, z, w, d, axis, h0, h1, up=1, look=None):
+    """Rampa que sobe de h0 a h1 no sentido +eixo (up = +1) ou -eixo (up = -1)."""
+    ramp(x, z, w, d, axis, *((h0, h1) if up > 0 else (h1, h0)), look=look)
+
+
+def spiral_tower(cx, cz, s=1, c=2.0, w=2.6, rise=1.4, hide=True, look=None):
+    """Torre com rampa às voltas (3 lados, cada um sobe `rise`) até ao topo a 3*rise m (~4,2 m), espelhada por s.
+    Em cima: esconderijo com parede alta virada para o centro do mapa e uma fresta para disparar.
+    Coordenadas locais: +lx = para a base da equipa (s), -lx = para o centro (de onde vem o inimigo)."""
+    X = lambda lx: cx + s * lx
+    o = c + w / 2
+    top = 3 * rise
+    platform(cx, cz, 2 * c, 2 * c, top, look=look)                                      # núcleo (parede alta até lá acima)
+    ramp_up(X(0), cz - o, 2 * c, w, "x", 0.0, rise, up=s, look=look)                    # 1.º lance (lado -z), sobe para a base
+    platform(X(o), cz - o, w, w, rise, accent=False, look=look)                         # patamar
+    ramp_up(X(o), cz, w, 2 * c, "z", rise, 2 * rise, up=1, look=look)                  # 2.º lance (lado da base), sobe para +z
+    platform(X(o), cz + o, w, w, 2 * rise, accent=False, look=look)                     # patamar
+    ramp_up(X(0), cz + o, 2 * c, w, "x", 2 * rise, top, up=-s, look=look)              # 3.º lance (lado +z), sobe para o centro
+    platform(X(-o), cz + o, w, w, top, accent=False, look=look)                         # varanda no fim (passa-se para o núcleo)
+    if hide:                                                                             # esconderijo: parede com fresta virada para o centro
+        piece = (2 * c - 1.0) / 2
+        for sz in (-1, 1):
+            tall_wall(X(-c + 0.3), cz + sz * (0.5 + piece / 2), 0.6, piece, h=2.2, z0=top, look=look)
+        low_wall(X(-c + 0.3), cz, 0.6, 1.0, h=0.9, z0=top, look=look)                    # fresta: murete baixo, dispara-se por cima
+    return top
+
+
+def sniper_ledge(x0, x1, z, s=1, h=3.2, w=3.0, ledge=7.0, look=None):
+    """Rampa comprida ao longo de um muro (de x0 a x1, do centro para a base) até um posto alto com murete e paredes laterais."""
+    L = abs(x1 - x0)
+    ramp_up(s * (x0 + x1) / 2, z, L, w, "x", 0.0, h, up=s, look=look)
+    lx = s * (x1 + ledge / 2)
+    sg = 1 if z > 0 else -1                                                             # lado do muro
+    platform(lx, z, ledge, w + 1.0, h, look=look)
+    low_wall(lx, z - sg * ((w + 1.0) / 2 - 0.3), ledge - 0.4, 0.6, h=1.0, z0=h, look=look)     # murete virado para a arena: dispara-se por cima
+    tall_wall(s * (x1 + ledge - 0.3), z, 0.6, w + 1.0, h=2.2, z0=h, look=look)          # parede ao fundo: esconderijo
+    return h
+
+
+def railing(x0, z0, x1, z1, y, mat="Rail", h=0.9):
+    """Grade só visual na borda de uma plataforma (sem colisão: não atrapalha)."""
+    L = math.hypot(x1 - x0, z1 - z0); n = max(1, int(L / 1.6))
+    for k in range(n + 1):
+        t = k / n
+        CY(mat, x0 + (x1 - x0) * t, z0 + (z1 - z0) * t, 0.05, h, z0=y, segs=6)
+    P.tube(mat, [(x0, -z0, y + h), (x1, -z1, y + h)], [0.06, 0.06], sides=6, per_seg=1)
+
+
+# ---------- mecânicas novas: escadas de mão, pontes/passadiços, tapetes rolantes, trampolins ----------
+for _k, _v in {"Hazard": 0xFFD84A, "Tomato": 0xFF4D4D, "Cheese": 0xFFD866, "Label": 0xFFF6E0}.items():
+    MATERIALS.setdefault(_k, _v)
+MATERIALS.update({"Ladder": 0xFFD84A, "Grate": 0x8C96A6, "BeltTop": 0x2E3345, "BeltArrow": 0xFFD84A, "Tramp": 0x2E3345, "TrampRim": 0xFF5A66})
+
+
+def ladder(x, z, top, nx, nz, z0=0.0, mat="Ladder"):
+    """Escada de mão encostada a uma parede (x, z = pé da escada, junto à parede; nx, nz = para fora da parede).
+    Sobe-se a andar contra ela; no topo passa-se para cima. Zona de 1,2 m x 1,1 m à frente da parede."""
+    tx, tz = -nz, nx                                                     # direção ao longo da parede
+    for sg in (-1, 1):
+        px, pz = x + tx * sg * 0.45 + nx * 0.25, z + tz * sg * 0.45 + nz * 0.25
+        CY(mat, px, pz, 0.07, top - z0 + 0.9, z0=z0, segs=6)
+    k = 0
+    h = z0 + 0.35
+    while h < top + 0.6:
+        cx, cz = x + nx * 0.25, z + nz * 0.25
+        P.cone(mat, (cx, -cz, h), 0.05, 0.05, 0.9, rot=(0, rad(90), 0) if abs(tx) > 0.5 else (rad(90), 0, 0), segs=6)
+        h += 0.42
+    ladders.append((x + nx * 0.55, z + nz * 0.55, 1.1 if abs(nx) > 0.5 else 1.2, 1.2 if abs(nx) > 0.5 else 1.1, top, nx, nz))
+
+
+def catwalk(x, z, w, d, y, rails=True, open_ends=(), look=None):
+    """Passadiço de grelha a y m de altura (passa-se por baixo: fundo a y - 0,35). Muretes de proteção nos lados compridos,
+    com bottom, para não se cair sem querer. open_ends: lados sem murete ('-x', '+x', '-z', '+z')."""
+    P.rbox("Grate", (x, -z, y - 0.17), (w, d, 0.34), radius=0.04, segs=1)
+    P.rbox("PlatTop", (x, -z, y - 0.02), (w - 0.1, d - 0.1, 0.04), radius=0.01, segs=1)
+    col_box(x, z, w, d, y, paint=True, bottom=y - 0.35)
+    L = max(w, d); n = int(L // 11)                                       # pilares de suporte (finos)
+    for k in range(1, n + 1):
+        u = -L / 2 + k * L / (n + 1)
+        px, pz = (x + u, z) if w >= d else (x, z + u)
+        CY("SteelDark", px, pz, 0.22, y - 0.34, segs=10)
+        CY("Hazard", px, pz, 0.24, 0.6, segs=10)
+        col_cyl(px, pz, 0.25, y - 0.35)
+    if not rails:
+        return
+    for side in ("-x", "+x", "-z", "+z"):
+        if side in open_ends:
+            continue
+        along_x = side[1] == "z"
+        if (along_x and w < d * 0.5) or (not along_x and d < w * 0.5):
+            continue                                                     # só nos lados compridos (as pontas ficam abertas)
+        sg = 1 if side[0] == "+" else -1
+        if along_x:
+            cx, cz, rw, rd = x, z + sg * (d / 2 - 0.08), w, 0.16
+        else:
+            cx, cz, rw, rd = x + sg * (w / 2 - 0.08), z, 0.16, d
+        n = max(1, int((rw if along_x else rd) / 1.5))
+        for k in range(n + 1):
+            u = -0.5 + k / n
+            px, pz = (cx + u * rw, cz) if along_x else (cx, cz + u * rd)
+            CY("Rail", px, pz, 0.05, 1.0, z0=y, segs=6)
+        P.rbox("Ladder", (cx, -cz, y + 1.0), (rw, rd, 0.1), radius=0.03, segs=1)
+        col_box(cx, cz, rw, rd, y + 1.05, bottom=y)                      # grade (com fundo: não tapa o chão por baixo)
+
+
+def bridge(x, z, w, d, y, look=None, mat=None):
+    """Ponte maciça a y m (passa-se por baixo: fundo a y - 0,6) com muretes baixos nos lados compridos."""
+    L = dict(LOOK, **(look or {}))
+    RB(mat or L["side"], x, z, w, d, 0.6, r=0.08, z0=y - 0.6, segs=1)
+    RB(L["top"], x, z, w + 0.06, d + 0.06, 0.1, r=0.03, z0=y - 0.1, segs=1)
+    col_box(x, z, w, d, y, paint=True, bottom=y - 0.6)
+    along_x = w >= d
+    for sg in (-1, 1):
+        if along_x:
+            cx, cz, rw, rd = x, z + sg * (d / 2 - 0.15), w, 0.3
+        else:
+            cx, cz, rw, rd = x + sg * (w / 2 - 0.15), z, 0.3, d
+        RB(L["accent"], cx, cz, rw, rd, 0.8, r=0.05, z0=y, segs=1)
+        col_box(cx, cz, rw, rd, y + 0.8, bottom=y)
+
+
+def conveyor_floor(x, z, w, d, push_x=0.0, push_z=0.0, k=0):
+    """Tapete rolante no chão (0,25 m: sobe-se a andar) que empurra quem está em cima; caixas animadas mostram o sentido."""
+    RB("SteelDark", x, z, w, d, 0.2, r=0.05, segs=1)
+    RB("BeltTop", x, z, w - 0.3, d - 0.2, 0.06, r=0.02, z0=0.2, segs=1)
+    for sg in (-1, 1):                                                   # bordas amarelas
+        if abs(push_z) > 0:
+            RB("Hazard", x + sg * (w / 2 - 0.1), z, 0.2, d, 0.3, r=0.03, segs=1)
+        else:
+            RB("Hazard", x, z + sg * (d / 2 - 0.1), w, 0.2, 0.3, r=0.03, segs=1)
+    col_box(x, z, w, d, 0.25, push_x=push_x, push_z=push_z)
+    span = d if abs(push_z) > 0 else w
+    speed = abs(push_z or push_x)
+    sgn = 1 if (push_z or push_x) > 0 else -1
+    axis = "y" if abs(push_z) > 0 else "x"                               # eixo do Blender (z do jogo = -y)
+    for i in range(int(span // 4)):                                      # setas que andam no sentido do tapete
+        a = anim("Belt%d_%d" % (k, i), x, z, 0.3, kind="loop", axis=axis, speed=speed * sgn,           # (o eixo y do Blender passa a z do jogo)
+                 span=span - 1.0, phase=i * 4.0)
+        if axis == "y":
+            a.cone("BeltArrow", (x, -z, 0.3), 0.6, 0.6, 0.05, rot=(0, 0, -rad(90) if sgn > 0 else rad(90)), segs=3)
+        else:
+            a.cone("BeltArrow", (x, -z, 0.3), 0.6, 0.6, 0.05, rot=(0, 0, 0 if sgn > 0 else rad(180)), segs=3)
+
+
+def trampoline(x, z, bounce=19.0, r=1.4):
+    """Trampolim: atira quem pousa nele ao ar (bounce m/s; 19 -> ~7,5 m). Os saltos de trampolim não contam como queda."""
+    px, py = B(x, z)
+    for k in range(6):
+        a = k * math.pi / 3
+        CY("SteelDark", x + math.cos(a) * r * 0.9, z + math.sin(a) * r * 0.9, 0.07, 0.3, segs=6)
+    P.cone("TrampRim", (px, py, 0.33), r, r, 0.12, segs=24)
+    P.cone("Tramp", (px, py, 0.36), r * 0.82, r * 0.82, 0.04, segs=24)
+    P.cone("Yellow", (px, py, 0.385), r * 0.3, r * 0.3, 0.01, segs=16)
+    col_cyl(x, z, r, 0.38, bounce=bounce)
+
+
+def shelves(x, z, w, d, levels, z0=0.0, goods=("Tomato", "Cheese", "Label"), face=1):
+    """Estante da despensa: bloco maciço com prateleiras e latas à frente (face = +1 frente para +x do jogo). Topo pintável."""
+    top = z0 + levels * 1.2
+    RB("WoodDark", x, z, w, d, top - z0, r=0.06, z0=z0, segs=1)
+    for k in range(levels):
+        h = z0 + (k + 1) * 1.2
+        RB("Wood", x, z, w + 0.12, d + 0.12, 0.12, r=0.03, z0=h - 0.12, segs=1)
+        n = max(1, int(d / 0.8))
+        for i in range(n):                                               # latas na frente de cada prateleira
+            u = -d / 2 + (i + 0.5) * d / n
+            CY(goods[(i + k) % len(goods)], x + face * (w / 2 + 0.2), z + u, 0.3, 0.75, z0=h - 1.1, segs=10)
+    col_box(x, z, w + 0.5, d, top, paint=True)
+    return top
 
 
 # ---------- finalização ----------
@@ -260,12 +545,26 @@ def finish_map(map_id, patrol, output, collection=None):
         if c[0] == "box":
             e = bpy.data.objects.new("Col_Box_%d" % i, None)
             e["w"], e["d"], e["top"] = float(c[3]), float(c[4]), float(c[5])
+            if len(c) > 6 and c[6]:
+                e["paint"] = 1
+            for k, v in (c[7] if len(c) > 7 else {}).items():
+                e[k] = float(v)
+        elif c[0] == "ramp":
+            e = bpy.data.objects.new("Col_Ramp_%d" % i, None)
+            e["w"], e["d"], e["axis"], e["y0"], e["y1"] = float(c[3]), float(c[4]), c[5], float(c[6]), float(c[7])
         else:
             e = bpy.data.objects.new("Col_Cyl_%d" % i, None)
             e["r"], e["top"] = float(c[3]), float(c[4])
+            for k, v in (c[5] if len(c) > 5 else {}).items():
+                e[k] = float(v)
         e.empty_display_type = "CUBE"; e.empty_display_size = 0.3
         e.location = (c[1], -c[2], 0)
         col.objects.link(e); objs.append(e)
+    for i, (x, z, w, d, top, nx, nz) in enumerate(ladders):
+        e = bpy.data.objects.new("Col_Ladder_%d" % i, None)
+        e["w"], e["d"], e["top"], e["nx"], e["nz"] = float(w), float(d), float(top), float(nx), float(nz)
+        e.empty_display_type = "ARROWS"; e.empty_display_size = 0.5
+        e.location = (x, -z, 0); col.objects.link(e); objs.append(e)
     n = 0
     for (x, z) in patrol:
         for sx in ((1, -1) if x != 0 else (1,)):

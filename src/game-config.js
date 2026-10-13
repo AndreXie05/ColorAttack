@@ -3,7 +3,7 @@
    ============================================================ */
 export const CONFIG = {
   roundSeconds: 180,                     // 3 minutos por round
-  player: { radius: 0.55, walk: 7, run: 11 },                   // o resto do movimento está em player-motion.js (MOTION)
+  player: { radius: 0.46, walk: 7, run: 11, scale: 0.8, crouchWalk: 3.2 },   // scale: tamanho do boneco (o modelo tem 2,5 m; 0.8 -> 2,0 m); o resto do movimento está em player-motion.js
   ui: { enemyNameDist: 30, symbolAboveHead: false, bodyTint: 0.75, crosshair: true },    // símbolo da cor por cima da cabeça de cada jogador (ajuda a saber a cor dos adversários)
   mixSeconds: 0.1,                       // tempo para misturar duas cores (0 = instantâneo, melhoria futura)
   health: { max: 100, wrongHit: 4, partialHit: 8, cure: 40 },     // vida leve: cor certa elimina de vez; cor errada tira 4; cor misturada atingida por uma das suas cores tira 8
@@ -18,6 +18,7 @@ export const CONFIG = {
   chest: { reopenSeconds: 60, maxOpensPerRound: 3, emptyChance: 0.2, interactDist: 3.4 },
   suddenDeath: { emptyChance: 0.5, shots: [1, 5] },   // morte súbita: baús vazios 50%, prémios todos iguais, a caixa de munição traz de 1 a 5 balas da mesma cor
   killRefund: { primary: 3, secondaryEach: 2 },   // bónus da cor certa (tiro): balas devolvidas (primária: +3; secundária: +2 de cada ingrediente)
+  fallDeath: 6,                          // m: cair desta altura ou mais (desde o ponto mais alto) elimina logo (os trampolins não contam)
   radarSeconds: 5,                       // bónus de eliminar com a cor certa: vês os adversários no minimapa durante estes segundos
   ammoBox: { shots: 7 },                 // uma caixa de munição = 7 tiros de UMA cor primária
   rewards: [                             // 80% dos baús dão um destes prémios; weight = % entre os prémios (soma 100)
@@ -67,3 +68,13 @@ export function setDifficulty(id) {
   CONFIG.botDifficulty = id;
   try { localStorage.setItem("colorattack.difficulty", id); } catch { /* ignora */ }
 }
+
+/* ============================================================
+   ALTURAS DO BONECO (dependem do tamanho e de estar agachado)
+   ============================================================ */
+export const BODY_H = 2.5 * CONFIG.player.scale;                 // altura de pé (m)
+export const CROUCH_K = 0.55;                                    // agachado fica com 55% da altura (um murete de 1,1 m tapa-o)
+export const bodyHeight = (c) => BODY_H * (c && c.crouching ? CROUCH_K : 1);
+export const aimY = (c) => c.pos.y + bodyHeight(c) * 0.52;      // centro do corpo (onde se aponta)
+export const eyeY = (c) => c.pos.y + bodyHeight(c) * 0.7;       // altura dos olhos / da câmara
+export const muzzleY = (c) => c.pos.y + bodyHeight(c) * 0.5;    // altura da arma

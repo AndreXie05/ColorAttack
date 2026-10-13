@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { ARENA, CONFIG } from "./game-config.js";
 import { css } from "./colors.js";
+import { topAt } from "./surfaces.js";
 
 /* ============================================================
    TINTA NO CHÃO
@@ -8,13 +9,15 @@ import { css } from "./colors.js";
    Cada mancha tem vida: ao fim de CONFIG.paint.lifeSeconds (15 s) desaparece, esbatendo-se nos últimos segundos.
    Cada mancha é desenhada com uma semente, por isso pode ser redesenhada igual quando outras desaparecem.
    `colorAt(x, z)` diz que cor de tinta está num ponto (as poças mudam a cor de quem as pisa).
+   Os topos das plataformas (obstáculos com `paint` e as rampas) mostram a mesma textura, por isso a tinta que cai
+   em cima de uma plataforma aparece lá em cima (a textura é a vista de cima do mapa: cada ponto x, z só tem uma cor).
    ============================================================ */
 const RES = 14;                                           // pixels por metro (a textura tem 1400 x 980)
 const MAX = 260;                                          // máximo de manchas ao mesmo tempo
 const mulberry = (a) => () => { a = (a + 0x6D2B79F5) >>> 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 
 export class PaintLayer {
-  constructor(parent) {
+  constructor(parent, colliders = []) {
     this.parent = parent;
     this.w = ARENA.halfX * 2 * RES; this.h = ARENA.halfZ * 2 * RES;
     this.canvas = document.createElement("canvas");
@@ -33,11 +36,40 @@ export class PaintLayer {
     this.mesh.receiveShadow = true;
     this.mesh.renderOrder = 1;
     parent.add(this.mesh);
+    this.tops = this._buildTops(colliders);
+    if (this.tops) parent.add(this.tops);
     this.records = [];                                    // { x, z, colorId, radius, seed, t0 }
     this.t = 0; this.dirty = false; this.lastRedraw = 0; this.seedCounter = 1;
   }
 
   get count() { return this.records.length; }
+
+  // Uma só malha com o topo de cada plataforma, com as coordenadas da textura iguais às do chão (u = x, v = z)
+  _buildTops(colliders) {
+    const pos = [], uv = [], idx = [], hx = ARENA.halfX, hz = ARENA.halfZ, lift = 0.03;
+    const vert = (x, y, z) => { pos.push(x, y + lift, z); uv.push((x + hx) / (2 * hx), 1 - (z + hz) / (2 * hz)); return pos.length / 3 - 1; };
+    for (const c of colliders) {
+      if ((!c.paint && !c.ramp) || c.spin) continue;                   // (os carrosséis rodam: a tinta não ficaria no sítio)
+      if (c.r !== undefined) {                                          // disco
+        const n = 20, o = vert(c.x, c.top, c.z);
+        for (let i = 0; i <= n; i++) { const a = (i / n) * Math.PI * 2; vert(c.x + Math.cos(a) * c.r, c.top, c.z + Math.sin(a) * c.r); }
+        for (let i = 0; i < n; i++) idx.push(o, o + 2 + i, o + 1 + i);
+      } else {
+        const y = (x, z) => topAt(c, x, z);
+        const a = vert(c.minX, y(c.minX, c.minZ), c.minZ), b = vert(c.maxX, y(c.maxX, c.minZ), c.minZ);
+        const d = vert(c.maxX, y(c.maxX, c.maxZ), c.maxZ), e = vert(c.minX, y(c.minX, c.maxZ), c.maxZ);
+        idx.push(a, e, d, a, d, b);
+      }
+    }
+    if (!idx.length) return null;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+    geo.setIndex(idx); geo.computeVertexNormals();
+    const m = new THREE.Mesh(geo, this.material);
+    m.receiveShadow = true; m.renderOrder = 1;
+    return m;
+  }
 
   _px(x, z) { return [(x + ARENA.halfX) * RES, (z + ARENA.halfZ) * RES]; }
 
@@ -118,6 +150,7 @@ export class PaintLayer {
 
   dispose() {
     this.parent.remove(this.mesh);
+    if (this.tops) { this.parent.remove(this.tops); this.tops.geometry.dispose(); }
     this.mesh.geometry.dispose(); this.material.dispose(); this.tex.dispose();
   }
 }

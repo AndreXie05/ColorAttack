@@ -1,6 +1,7 @@
 import { MOTION, createMotionState, stepMotion, collisionFeedback } from "./player-motion.js";
 import { resolveCollisions } from "./collisions.js";
-import { animateCharacter } from "./character-animator.js";
+import { floorAt, ceilingAt, jumpableAhead, ladderState, ladderAt, hugLadder, surfaceEffects } from "./surfaces.js";
+import { animateCharacter, visualY } from "./character-animator.js";
 import { CONFIG, BOT_PRESETS } from "./game-config.js";
 import { COLORS, PRIMARIES, SECONDARIES, ingredients } from "./colors.js";
 
@@ -112,7 +113,7 @@ export class Bot {
       const d = Math.hypot(e.pos.x - p.x, e.pos.z - p.z);
       if (d >= cfg.sight) continue;
       if (e.hidden && d > 4) continue;                          // invisível: só o veem de muito perto
-      if (!world.los(p.x, p.z, e.pos.x, e.pos.z)) continue;
+      if (!world.los(p.x, p.z, e.pos.x, e.pos.z, 1.3, p.y, e.pos.y)) continue;
       let score = -d;
       if (cfg.smart >= 2) {
         const mates = world.combatants.filter((c) => c.team === this.team && c !== this && c.alive && c.enemy === e).length;
@@ -127,7 +128,7 @@ export class Bot {
   // ---- itens: cura, invisibilidade e granada (o quão bem depende da dificuldade) ----
   _useItems(world) {
     const cfg = this.cfg, mode = cfg.items, e = this.enemy, p = this.pos, hpF = this.hp / this.maxHp;
-    const ed = e ? Math.hypot(e.pos.x - p.x, e.pos.z - p.z) : 1e9, seen = e && world.los(p.x, p.z, e.pos.x, e.pos.z);
+    const ed = e ? Math.hypot(e.pos.x - p.x, e.pos.z - p.z) : 1e9, seen = e && world.los(p.x, p.z, e.pos.x, e.pos.z, 1.3, p.y, e.pos.y);
     if (this.items.health > 0 && this.hp < this.maxHp) {
       const use = mode === "random" ? Math.random() < 0.12
         : mode === "some" ? hpF < 0.6 && Math.random() < 0.6
@@ -232,11 +233,11 @@ export class Bot {
         this.strafeT -= dt;
         if (this.strafeT <= 0) { this.strafe = -this.strafe; this.strafeT = cfg.smart >= 3 ? rand(0.3, 1.0) : cfg.smart >= 2 ? rand(0.5, 1.4) : rand(0.8, 2.0); }
         dx += -nz * this.strafe * 0.8 * cfg.strafeMul; dz += nx * this.strafe * 0.8 * cfg.strafeMul;
-        if (cfg.smart >= 3 && p.y === 0 && Math.random() < dt * 0.7) this.jump = true;   // salta para ser difícil de acertar
+        if (cfg.smart >= 3 && this.motion.onGround && Math.random() < dt * 0.7) this.jump = true;   // salta para ser difícil de acertar
         this.running = false;
         faceYaw = Math.atan2(ex, ez);
         const canFire = !stealth || ed <= 8;
-        if (canFire && this.seen >= cfg.reaction && this.fireCd <= 0 && world.los(p.x, p.z, e.pos.x, e.pos.z)) {
+        if (canFire && this.seen >= cfg.reaction && this.fireCd <= 0 && world.los(p.x, p.z, e.pos.x, e.pos.z, 1.3, p.y, e.pos.y)) {
           this._shoot(world);
           this.fireCd = cfg.fireInterval * rand(0.8, 1.35) * (this.fireMul || 1);
         }
@@ -278,24 +279,36 @@ export class Bot {
     if (dl > 1) { dx /= dl; dz /= dl; }
     const wantsMove = dl > 0.05;
 
-    if (wantsMove && this.stuck > 0.4 && p.y === 0 && Math.random() < 0.05) this.jump = true;
+    if (wantsMove && this.stuck > 0.4 && this.motion.onGround && Math.random() < 0.05) this.jump = true;
+    if (wantsMove && this.motion.onGround && p.y > 1) {                                // lá em cima: não se atira de uma borda alta (queda mortal)
+      const ux = dx / Math.max(dl, 1e-6), uz = dz / Math.max(dl, 1e-6);
+      if (p.y - floorAt(map.colliders, p.x + ux * 1.1, p.z + uz * 1.1, p.y) >= CONFIG.fallDeath * 0.7) { dx = 0; dz = 0; this.stuck += 0.5; }
+    }
+    if (wantsMove && this.motion.onGround && jumpableAhead(map.colliders, p.x, p.z, p.y, dx / Math.max(dl, 1e-6), dz / Math.max(dl, 1e-6))) this.jump = true;   // caixote / plataforma ao alcance à frente: salta para cima
+    if (this.jump) this.holdJump = true; else if (this.motion.vy <= 0) this.holdJump = false;   // segura o salto enquanto sobe (salto completo)
     const before = { x: p.x, z: p.z };
-    const ev = stepMotion(this.motion, p, { x: dx, z: dz }, { run: this.running, jumpPressed: this.jump, jumpHeld: this.jump }, dt, this._speedCfg());
+    const ladder = ladderState(map.ladders, p, { x: dx, z: dz }, this.motion.onGround);
+    const ev = stepMotion(this.motion, p, { x: dx, z: dz }, { run: this.running, jumpPressed: this.jump, jumpHeld: this.holdJump, ladder,
+      floor: (x, z, y) => floorAt(map.colliders, x, z, y), ceil: (x, z, y) => ceilingAt(map.colliders, x, z, y) }, dt, this._speedCfg());
     this.jump = false;
     resolveCollisions(p, CONFIG.player.radius, map.colliders);
     collisionFeedback(this.motion, before, p, dt);
+    surfaceEffects(map.colliders, p, this.motion, dt);                                  // tapetes, carrosséis e trampolins
+    if (ev.fall >= CONFIG.fallDeath && this.alive && world) world.eliminate(this, null, this.colorId, false, "fall");   // queda de muito alto
 
     const speed = Math.hypot(this.motion.vx, this.motion.vz);
     this.stuck = wantsMove && speed < 1.2 ? this.stuck + dt : Math.max(0, this.stuck - dt * 2);
-    const want = faceYaw !== null ? faceYaw : speed > 0.6 ? Math.atan2(this.motion.vx, this.motion.vz) : null;
+    const lad = this.motion.climbing ? ladderAt(map.ladders, p) : null;
+    if (lad) hugLadder(lad, p, this.motion, dt);                                       // centrado na escada
+    const want = lad ? Math.atan2(-lad.nx, -lad.nz) : faceYaw !== null ? faceYaw : speed > 0.6 ? Math.atan2(this.motion.vx, this.motion.vz) : null;   // na escada: virado para ela
     if (want !== null) {
       const d = Math.atan2(Math.sin(want - this.facing), Math.cos(want - this.facing));
       this.facing += d * Math.min(1, dt * (faceYaw !== null ? 16 : 12));
     }
     if (this.model) {
-      this.model.position.set(p.x, p.y, p.z);
+      this.model.position.set(p.x, visualY(this.model, p.y, this.motion.onGround, dt), p.z);
       this.model.rotation.y = this.facing;
-      animateCharacter(this.model, { speed, maxSpeed: MOTION.run, onGround: this.motion.onGround, vy: this.motion.vy, landed: ev.landed, impact: ev.impact }, dt, t);
+      animateCharacter(this.model, { speed: lad ? 0 : speed, maxSpeed: MOTION.run, onGround: this.motion.onGround, vy: this.motion.vy, landed: ev.landed, impact: ev.impact, climbing: !!lad }, dt, t);
     }
   }
 }
