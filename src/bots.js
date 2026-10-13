@@ -275,6 +275,11 @@ export class Bot {
         this.strafeT -= dt;
         if (this.strafeT <= 0) { this.strafe = -this.strafe; this.strafeT = cfg.smart >= 3 ? rand(0.3, 1.0) : cfg.smart >= 2 ? rand(0.5, 1.4) : rand(0.8, 2.0); }
         dx += -nz * this.strafe * 0.8 * cfg.strafeMul; dz += nx * this.strafe * 0.8 * cfg.strafeMul;
+        const go = world.objective ? world.objective(this) : null;                     // lata de tinta: continua a avançar para o objetivo enquanto dispara
+        if (go && go.push) {
+          const ox = go.x - p.x, oz = go.z - p.z, od = Math.hypot(ox, oz) || 1;
+          dx = dx * 0.35 + (ox / od) * 1.2; dz = dz * 0.35 + (oz / od) * 1.2; this.running = true;
+        }
         if (cfg.smart >= 3 && this.motion.onGround && Math.random() < dt * 0.7) this.jump = true;   // salta para ser difícil de acertar
         this.running = false;
         faceYaw = Math.atan2(ex, ez);

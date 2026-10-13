@@ -22,7 +22,8 @@ import { setupMapFeatures } from "./map-features.js";
 import { UPGRADES, offerUpgrades, fx } from "./upgrades.js";
 import * as Stats from "./stats.js";
 import { Tutorial, STEPS as TUT_STEPS } from "./tutorial.js";
-import { COLORS, PRIMARIES, symbolSVG, chipHTML, ingredients, mixColors, COLOR_RULES, TERTIARY, paletteColors, hitDamage } from "./colors.js";
+import { COLORS, PRIMARIES, SECONDARIES, symbolSVG, chipHTML, ingredients, mixColors, COLOR_RULES, TERTIARY, paletteColors, hitDamage, shuffleMixes, resetMixes } from "./colors.js";
+import * as Progress from "./progress.js";
 // import { PointerLockControls } from "three/addons/controls/PointerLockControls.js"; // fase da câmara em 1.ª pessoa
 
 /* ============================================================
@@ -111,6 +112,7 @@ resize();
    ============================================================ */
 function showScreen(name) {
   state.screen = name;
+  if (name === "title") refreshLevelBadge();
   $("titleScreen").style.display = name === "title" ? "flex" : "none";
   $("charSelect").style.display = name === "chars" ? "flex" : "none";
   $("mapSelect").style.display = name === "select" ? "flex" : "none";
@@ -208,8 +210,8 @@ function addLoot(key, amount = 1) {
   row.classList.remove("flash"); void row.offsetWidth; row.classList.add("flash");
 }
 // Munição = tanques reais (um por cor primária). Cada caixa apanhada enche o tanque dessa cor.
-// balas de uma caixa: normal = 7; na morte súbita é à sorte de 1 a 5
-const boxShots = () => { if (!state.round?.sudden) return CONFIG.ammoBox.shots; const [lo, hi] = CONFIG.suddenDeath.shots; return lo + Math.floor(Math.random() * (hi - lo + 1)); };
+// balas de uma caixa: normal = 7 (Pinta e Conquista = 25); na morte súbita é à sorte de 1 a 5
+const boxShots = () => { if (!state.round?.sudden) return MODES[state.mode]?.ammoBox || CONFIG.ammoBox.shots; const [lo, hi] = CONFIG.suddenDeath.shots; return lo + Math.floor(Math.random() * (hi - lo + 1)); };
 function addAmmo(colorId, shots) {
   state.ammo[colorId] = Math.min(CONFIG.ammo.max, state.ammo[colorId] + shots);
   const row = $("loot-ammo-" + colorId);
@@ -360,7 +362,7 @@ function updateCrosshair() {
 
 // F: gasta uma Invisibilidade guardada e fica invisível durante `duration` segundos
 function useInvisibility() {
-  if (state.invisible > 0 || !state.loot.invisible) return;
+  if (state.dead || state.invisible > 0 || !state.loot.invisible) return;
   addLoot("invisible", -1); Stats.current.used.invisible++;
   state.invisible = CONFIG.rewards.find((x) => x.id === "invisible").duration;
   showToast(`👻 Invisível durante ${state.invisible} s!`, "#9be7ff");
@@ -385,9 +387,9 @@ function updateInvisibility(dt) {
 // Efeito do clima no jogo (ver `play` em weather.js): duração da tinta e das poças, alcance dos tiros e visão dos bots
 function applyWeatherPlay(announce) {
   const w = WEATHERS[state.weatherId], P = w.play;
-  const k = state.features?.paintLifeK || 1;                                          // mapa com território: a tinta seca em 10 s
-  if (state.world) Object.assign(state.world, { rangeMul: P.range, sightMul: P.sight, paintLifeMul: P.paintLife * k });
-  if (state.paint) state.paint.lifeMul = P.paintLife * k;
+  const life = state.features?.paintLife ? state.features.paintLife / CONFIG.paint.lifeSeconds : P.paintLife;   // mapa com território: a tinta seca sempre em 10 s (o clima não muda)
+  if (state.world) Object.assign(state.world, { rangeMul: P.range, sightMul: P.sight, paintLifeMul: life });
+  if (state.paint) state.paint.lifeMul = life;
   if (announce) showToast(`${w.icon} ${w.name}${P.desc ? ": " + P.desc : ""}`, "#9be7ff");
 }
 
@@ -430,6 +432,7 @@ async function startMap(def, keepMatch = false) {
   const kept = keepMatch ? { loot: { ...state.loot } } : null;         // próximo round: o jogo continua (rounds, melhorias e itens ficam)
   if (!kept) state.mode = state.tutorialMode ? "normal" : CONFIG.mode;  // o modo fica igual até ao fim do jogo (o tutorial é sempre normal)
   COLOR_RULES.triple = state.mode === "paleta"; state.secret = state.mode === "secreto"; state.clues = {};
+  resetMixes(); state.mixT = MODES[state.mode]?.shuffleEvery || 0; state.mixWarned = false; renderMixTable();   // Mistura Relâmpago: cada round começa com as misturas de sempre
   lockMouse();                                            // tem de ser já, dentro do clique do utilizador
   unloadMap();
   let map;
@@ -467,7 +470,7 @@ async function startMap(def, keepMatch = false) {
   state.player.motion = createMotionState(); state.player.facing = sp.ry;
   await spawnBots(map);
   setupCombat(map);
-  state.features = state.tutorialMode ? null : setupMapFeatures(def.id, {              // fontes de tinta, pontes com interruptor... (só em alguns mapas)
+  state.features = state.tutorialMode ? null : setupMapFeatures(def.id, state.mode, {   // fontes de tinta, pontes... (alguns mapas) e a lata / as zonas (modos Rouba-Latas e Pinta e Conquista)
     scene, world: state.world, map, colliders: map.colliders, playerPos: () => state.player.pos, toast: showToast, paint: () => state.paint,
     onScore: (team, n, msg) => {                                                        // pontos do mapa (lata, território): somam às eliminações do round
       if (state.over || state.tutorial || state.intermission > 0) return;
@@ -513,10 +516,11 @@ async function startMap(def, keepMatch = false) {
 }
 
 function leaveViewer() {
+  resetMixes(); renderMixTable();
   state.tutorial = null; state.tutorialMode = false; document.body.classList.remove("tut");
   if (document.pointerLockElement) document.exitPointerLock();
   unloadMap();
-  $("pause").style.display = "none"; document.body.classList.remove("paused");
+  $("pause").style.display = "none"; document.body.classList.remove("overlay");
   showScreen("select");
 }
 
@@ -524,6 +528,7 @@ function leaveViewer() {
 // Cada round dura 3 min; vence o round a equipa com mais eliminações. Empate = morte súbita (a próxima eliminação decide).
 // Vence o jogo a primeira equipa a ganhar 5 rounds (máx. 9 rounds).
 function newMatch() {
+  state.xpDone = false;
   state.upg = {}; state.botUpg = {}; state.upgradeChoices = null; state.tracked = []; state.gameStats = {}; applyUpgrades(); Stats.startMatch(CONFIG.botDifficulty);
   state.round = { n: 1, kills: { A: 0, B: 0 }, wins: { A: 0, B: 0 }, sudden: false };
   state.intermission = 0; state.over = false;
@@ -569,7 +574,7 @@ function applyUpgrades() {
 const BOT_UPGRADES = ["rate", "speed", "hp", "pierce", "damage"];
 function grantBotUpgrades(teams = ["A", "B"]) {
   for (const team of teams) {
-    const preset = BOT_PRESETS[team === "A" ? "media" : CONFIG.botDifficulty];
+    const preset = BOT_PRESETS[CONFIG.botDifficulty];                               // colegas e adversários: o mesmo nível
     if (state.round.n % preset.upgradeEvery !== 0) continue;               // no fácil só recebem de 2 em 2 rounds
     for (let i = 0; i < 5; i++) {
       if (team === "A" && i === 0) continue;
@@ -722,6 +727,7 @@ function summaryHTML(final) {
   return `
     <h4>Resultado</h4>
     <div class="stGrid">${card(final === "A" ? "Vitória" : "Derrota", `${r.wins.A} – ${r.wins.B}`, `${c.rounds} ${c.rounds === 1 ? "round" : "rounds"} · ${BOT_PRESETS[c.diff].name}`, final === "A" ? "good" : "bad")}</div>
+    ${xpHTML(state.lastXP && state.xpDone ? state.lastXP : null)}
     ${awardsHTML()}
     <h4>Último round</h4>
     <div class="rsWrap">${roundStatsHTML()}</div>
@@ -750,14 +756,41 @@ function summaryHTML(final) {
       ${itemRow("🪤", "Armadilhas", c.got.trap, c.used.trap)}
     </table>`;
 }
+// XP da partida (uma vez por jogo; o tutorial não conta): soma ao total guardado e devolve o resumo para o ecrã final
+function grantMatchXP(final) {
+  if (state.xpDone || state.tutorialMode) return state.lastXP || null;
+  state.xpDone = true;
+  const c = Stats.current, m = Progress.matchXP({ kills: c.kills, killsSame: c.killsSame, roundsWon: c.rows.filter((x) => x.won).length, won: final === "A", diff: c.diff });
+  state.lastXP = { ...m, ...Progress.addXP(m.total) };
+  refreshLevelBadge();
+  return state.lastXP;
+}
+function xpBarHTML(info, cls = "") {
+  return `<div class="xpBar ${cls}"><span class="xpLv">⭐ Nível ${info.level}</span><i><b style="width:${Math.round((info.into / info.need) * 100)}%"></b></i><small>${info.into} / ${info.need} XP</small></div>`;
+}
+function xpHTML(x) {
+  if (!x) return "";
+  const up = x.after.level > x.before.level;
+  return `<h4>Experiência</h4><div class="xpBox">
+    <div class="xpRows">${x.rows.map(([t, v]) => `<div><span>${t}</span><b>+${v}</b></div>`).join("")}${x.mult !== 1 ? `<div><span>🤖 Dificuldade ${BOT_PRESETS[Stats.current.diff].name}</span><b>×${String(x.mult).replace(".", ",")}</b></div>` : ""}<div class="xpTot"><span>Total</span><b>+${x.total} XP</b></div></div>
+    ${up ? `<div class="xpUp">🎉 Subiste para o nível ${x.after.level}!</div>` : ""}${xpBarHTML(x.after)}</div>`;
+}
+// Nível no ecrã inicial
+function refreshLevelBadge() {
+  const el = $("levelBadge");
+  if (el) el.innerHTML = xpBarHTML(Progress.levelInfo(), "mini");
+}
+refreshLevelBadge();
+
 function showGameOver(final) {
   setAds(false);
+  const xp = grantMatchXP(final);
   const r = state.round, won = final === "A";
   // VITÓRIA com uma cor de tinta em cada letra (as 6 cores) e DERROTA toda a vermelho
   const word = final === null ? "EMPATE!" : won ? "VITÓRIA!" : "DERROTA", rainbow = ["#ff3b4a", "#ffd21f", "#47e06a", "#2f7bff", "#a447ff", "#ff8a1f"];
   $("goTitle").className = won ? "win" : "lose";
   $("goTitle").innerHTML = [...word].map((ch, i) => `<span style="--c:${won ? rainbow[i % 6] : "#ff3b4a"};--d:${i * 0.08}s">${ch}</span>`).join("");
-  $("goSub").textContent = `${TEAM.A.name} ${r.wins.A} – ${r.wins.B} ${TEAM.B.name}`;
+  $("goSub").textContent = `${TEAM.A.name} ${r.wins.A} – ${r.wins.B} ${TEAM.B.name}` + (xp ? `   ·   ⭐ +${xp.total} XP${xp.after.level > xp.before.level ? ` · Nível ${xp.after.level}!` : ""}` : "");
   $("crosshair").dataset.mode = "none";
   $("summaryBody").innerHTML = summaryHTML(final);
   $("goStage1").style.display = "flex"; $("goStage2").style.display = "none";                // 1.º a faixa VITÓRIA/DERROTA; Esc ou o botão abrem o resumo
@@ -795,6 +828,46 @@ function tickIntense(dt) {
   updateScoreUi();
 }
 
+// ---------- Mistura Relâmpago: de 30 em 30 s as receitas das secundárias rodam (ver shuffleMixes em colors.js) ----------
+function renderMixTable() {
+  const box = $("mixTable");
+  if (!box) return;
+  const on = state.mode === "relampago" && !state.tutorialMode;
+  box.style.display = on ? "flex" : "none";
+  if (!on) return;
+  box.innerHTML = `<b>⚡ Misturas <span id="mixTimer"></span></b>` + SECONDARIES.map((id) => `<div class="mtRow">${chipHTML(COLORS[id].parts[0], 22)}<i>+</i>${chipHTML(COLORS[id].parts[1], 22)}<i>=</i>${chipHTML(id, 26)}</div>`).join("");
+  state.mixTimerTxt = "";
+}
+function tickMixShuffle(dt) {
+  if (state.mode !== "relampago" || state.tutorial || !(state.mixT > 0)) return;
+  state.mixT -= dt;
+  const left = Math.max(0, Math.ceil(state.mixT)), txt = `${left} s`;
+  if (txt !== state.mixTimerTxt && $("mixTimer")) { state.mixTimerTxt = txt; $("mixTimer").textContent = txt; $("mixTable").classList.toggle("soon", state.mixT <= 5); }
+  if (!state.mixWarned && state.mixT <= 5) { state.mixWarned = true; showToast("⚡ Daqui a 5 s as misturas vão trocar!", "#ffd21f"); }
+  if (state.mixT > 0) return;
+  shuffleMixes();
+  state.mixT = MODES.relampago.shuffleEvery; state.mixWarned = false;
+  state.shownColor = ""; state.targetKey = ""; state.mixHintKey = "";            // o HUD volta a desenhar as receitas novas
+  renderMixTable();
+  const box = $("mixTable"); box.classList.remove("flash"); void box.offsetWidth; box.classList.add("flash");
+  showCountdown("TROCA!"); state.goT = 1.1;
+  showToast("⚡ As misturas trocaram! " + SECONDARIES.map((id) => `${COLORS[COLORS[id].parts[0]].name} + ${COLORS[COLORS[id].parts[1]].name} = ${COLORS[id].name}`).join(" · "), "#ffd21f");
+}
+
+// ---------- Pinta e Conquista: quadro com a % de tinta de cada equipa em cada zona (sempre "nós / eles", do ponto de vista de quem joga) ----------
+function updateZoneTable(dt) {
+  const box = $("zoneTable"), terr = state.features?.terr;
+  if (!terr) { if (box.style.display !== "none") box.style.display = "none"; return; }
+  if ((state.zoneUiT = (state.zoneUiT || 0) - dt) > 0) return;
+  state.zoneUiT = 0.25;
+  const mine = state.me?.team || "A", theirs = mine === "A" ? "B" : "A", info = terr.info(), col = (t) => hex6(TEAM[t].color);
+  const html = `<b>🖌️ Zonas · ponto em ${Math.ceil(info.next)} s</b>` + info.zones.map((z) =>
+    `<div class="ztRow"><span class="ztDot" style="${z.owner ? `background:${col(z.owner)}` : ""}"></span><span class="ztName">${z.label}</span><span class="ztPct"><span style="color:${col(mine)}">${z.pct[mine]}%</span> / <span style="color:${col(theirs)}">${z.pct[theirs]}%</span></span></div>`).join("");
+  if (html !== state.zoneHtml) { state.zoneHtml = html; box.innerHTML = html; }
+  box.style.display = "flex";
+  box.classList.toggle("soon", info.next <= 3);
+}
+
 function newRound(announce = true) {
   state.intenseT = CONFIG.match.intenseEvery;
   resetChests(state.map.chests);
@@ -823,7 +896,7 @@ function nearestChest() {
 
 function tryOpenChest() {
   const c = nearestChest();
-  if (!c) return;
+  if (!c || state.dead) return;                                                    // eliminado: não abre baús
   if (state.countdown > 0) return;
   const res = openChest(c, !!state.round?.sudden, state.mode);
   if (!res.ok) return;
@@ -914,7 +987,6 @@ const ADS_FOV = 48;                   // campo de visão em 1.ª pessoa (botão 
 function lockMouse() { document.activeElement?.blur?.(); canvas.requestPointerLock?.(); }       // tira o foco dos botões (senão o Espaço voltava a "clicar" neles)
 function setPaused(p) {
   state.paused = p;
-  document.body.classList.toggle("paused", p && state.screen === "viewer");     // esconde contagem, mensagens, avisos... (ver index.html)
   if (p) setAds(false);
   if (p) { $("mmBox").classList.remove("big"); $("crosshair").dataset.mode = "none"; }       // na pausa não há mira
   $("deathBox").style.display = !p && state.dead && state.deathInfo ? "flex" : "none";       // "Foste eliminado!" some na pausa e volta ao continuar
@@ -1181,7 +1253,8 @@ async function spawnBots(map) {
       model.add(nameTag(CHARACTERS.find((c) => c.id === id).name, team === "A" ? "#4da8ff" : "#ff4455"));
       model.position.set(spawn.x, 0, spawn.z); model.rotation.y = spawn.ry;
       scene.add(model);
-      const bot = new Bot({ difficulty: team === "A" ? "media" : CONFIG.botDifficulty, team, index: i, characterId: id, model, pos: spawn, facing: spawn.ry, role: i <= (team === "A" ? 2 : 1) ? "defend" : "attack", colorId });
+      const bot = new Bot({ difficulty: CONFIG.botDifficulty,                      // os 9 bots têm o nível escolhido (colegas incluídos)
+                             team, index: i, characterId: id, model, pos: spawn, facing: spawn.ry, role: i <= (team === "A" ? 2 : 1) ? "defend" : "attack", colorId });
       bot.applyUpgrades(state.botUpg[bot.id] ||= {});                         // as melhorias dos bots ficam entre rounds
       made.push(bot);
     }
@@ -1877,6 +1950,7 @@ function update(dt, t) {
   tickGolden();
   st.colors.update(dt);
   updateMixHint(dt);
+  updateZoneTable(dt);
   updateInvisibility(dt);
   updateCrosshair();
   st.paint.update(dt);
@@ -1901,7 +1975,7 @@ function update(dt, t) {
   }
 
   // round
-  if (!frozen) { tickRound(dt); tickIntense(dt); }
+  if (!frozen) { tickRound(dt); tickIntense(dt); tickMixShuffle(dt); }
   if (st.tutorial) {                                                              // tutorial: munição de sobra e passos
     for (const c of PRIMARIES) st.ammo[c] = Math.max(st.ammo[c], 40);
     st.tutorial.update(dt);
@@ -1916,7 +1990,7 @@ function update(dt, t) {
     pr.textContent = cn.ready() ? `[E] Usar o canhão de tinta (${CONFIG.cannon.use} s)` : cn.user ? "Canhão ocupado" : `Canhão a recarregar… ${Math.ceil(cn.readyAt - st.world.t)} s`;
     pr.style.display = "block";
   } else if (st.cannon) { pr.textContent = `💥 Clica para disparar · E para sair · ${Math.ceil(st.cannon.left())} s`; pr.style.display = "block"; }
-  else if (c && Math.hypot(c.x - p.pos.x, c.z - p.pos.z) <= CONFIG.chest.interactDist) {
+  else if (c && !st.dead && Math.hypot(c.x - p.pos.x, c.z - p.pos.z) <= CONFIG.chest.interactDist) {
     const left = CONFIG.chest.maxOpensPerRound - c.opens;
     pr.textContent = c.state === "ready" ? `[E] Abrir baú (${left} abertura${left === 1 ? "" : "s"} neste round)`
       : c.state === "cooldown" ? `Baú a reabastecer… ${Math.ceil(c.cooldown)}s`
@@ -1972,8 +2046,14 @@ function trackPerformance(dt) {
   }
 }
 
+// Há um ecrã por cima do jogo (pausa, estatísticas do round, melhorias, fim do jogo)? Então esconde tudo o que é do jogo a decorrer (ver index.html)
+function syncOverlay() {
+  const on = state.screen === "viewer" && (state.paused || state.intermission > 0 || state.over || !!state.upgradeChoices);
+  if (on !== document.body.classList.contains("overlay")) document.body.classList.toggle("overlay", on);
+}
 function frame(now) {
   requestAnimationFrame(frame);
+  syncOverlay();
   if (state.screen !== "viewer" || !state.map) return;
   // limita a 60 fps (ecrãs de 120/144 Hz gastavam o dobro) e, em pausa, só redesenha 10 vezes por segundo: menos calor e ruído da ventoinha
   if (now - lastDraw < (state.paused ? 100 : 1000 / 60 - 1.5)) return;

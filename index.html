@@ -119,6 +119,34 @@
 
 
   #logo { max-height: 50vh; }
+  /* nível e XP */
+  #levelBadge { position: absolute; top: 74px; right: 22px; z-index: 3; }
+  .xpBar { display: flex; align-items: center; gap: 10px; color: #fff; font-weight: 800; }
+  .xpBar i { position: relative; flex: 1; height: 14px; min-width: 160px; border-radius: 999px; background: #ffffff22; border: 2px solid #ffffff66; overflow: hidden; }
+  .xpBar i b { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, #ff3b4a, #ffd21f, #47e06a, #2f7bff); }
+  .xpBar .xpLv { font-family: var(--display); font-weight: 400; color: #ffd21f; letter-spacing: .04em; }
+  .xpBar small { opacity: .85; font-size: 13px; }
+  .xpBar.mini { padding: 6px 16px; border-radius: 999px; background: #0d0b1f99; backdrop-filter: blur(3px); }
+  .xpBox { display: flex; flex-direction: column; gap: 10px; padding: 12px 16px; border-radius: 16px; background: #ffffff10; border: 2px solid #ffffff2e; }
+  .xpRows { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 24px; text-align: left; }
+  .xpRows div { display: flex; justify-content: space-between; gap: 10px; } .xpRows b { color: #47e06a; }
+  .xpRows .xpTot { grid-column: 1 / -1; border-top: 2px solid #ffffff2e; padding-top: 4px; } .xpRows .xpTot b { color: #ffd21f; font-size: 18px; }
+  .xpUp { font-family: var(--display); color: #ffd21f; font-size: 22px; animation: cdPop .5s; }
+  /* Mistura Relâmpago: quadro com as misturas em vigor */
+  #mixTable { margin-top: 10px; width: fit-content; display: none; transform-origin: left center; flex-direction: column; gap: 4px; padding: 8px 12px; border-radius: 14px; background: #0d0b1fcc; border: 3px solid #ffd21f; color: #fff; }
+  #mixTable > b { font-family: var(--display); font-weight: 400; color: #ffd21f; display: flex; justify-content: space-between; gap: 10px; }
+  #mixTable .mtRow { display: flex; align-items: center; gap: 4px; } #mixTable i { font-style: normal; font-weight: 900; }
+  /* Pinta e Conquista: percentagem de tinta de cada equipa em cada zona (a nossa primeiro) */
+  #zoneTable { margin-top: 10px; width: fit-content; display: none; flex-direction: column; gap: 3px; padding: 8px 12px; border-radius: 14px; background: #0d0b1fcc; border: 3px solid #ffffff88; color: #fff; font-weight: 800; }
+  #zoneTable > b { font-family: var(--display); font-weight: 400; color: #ffd21f; }
+  #zoneTable .ztRow { display: flex; align-items: center; gap: 8px; font-size: 15px; }
+  #zoneTable .ztDot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #fff; background: transparent; flex: none; }
+  #zoneTable .ztName { min-width: 120px; } #zoneTable .ztPct { font-family: var(--display); font-weight: 400; }
+  #zoneTable.soon { border-color: #ffd21f; }
+  #mixTable.soon { animation: mtPulse .5s ease-in-out infinite alternate; }
+  #mixTable.flash { animation: mtFlash .9s; }
+  @keyframes mtPulse { to { border-color: #ff3b4a; transform: scale(1.04); } }
+  @keyframes mtFlash { 0% { transform: scale(1.35); background: #ffd21fcc; } 100% { transform: scale(1); } }
   #titleLinks { z-index: 2; display: flex; gap: 14px; margin-top: 22px; flex-wrap: wrap; justify-content: center; }
   .ghost:disabled { opacity: .55; cursor: not-allowed; }
   .ghost:disabled:hover { background: transparent; }
@@ -163,7 +191,7 @@
   .tiles.three { grid-template-columns: repeat(3, 1fr); }
   .tiles.four { grid-template-columns: repeat(4, 1fr); }
   #howContent:has(.tiles.four) { width: min(96vw, 1120px); }          /* página dos itens: quadro mais largo para caberem 4 por fila */
-  .tile.wide { grid-column: 1 / -1; }
+  .tile.wide { grid-column: 1 / -1; } .tile.span2 { grid-column: span 2; }
   .eqGrid.three { grid-template-columns: repeat(3, auto); justify-content: center; gap: 10px 34px; }
   .eqGrid.three .eq { gap: 8px; font-size: 22px; } .eqGrid.three .eq span { font-size: 18px; }
   .keys2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 22px; text-align: left; }
@@ -379,9 +407,10 @@
   #tutText { font-size: 21px; line-height: 1.3; text-shadow: 0 2px 0 #0007; } #tutText b { color: #ffd21f; font-weight: 400; }
   #tutHint { font-size: 13px; opacity: .8; min-height: 16px; }
   #tutDots { display: flex; gap: 6px; } #tutDots i { width: 10px; height: 10px; border-radius: 50%; background: #ffffff33; } #tutDots i.on { background: #47e06a; } #tutDots i.cur { background: #ffd21f; transform: scale(1.3); }
-  /* pausa: tudo o que estiver a aparecer por cima do jogo some e volta ao continuar */
-  body.paused #countdown, body.paused #feed, body.paused #effects, body.paused #killfeed, body.paused #prompt, body.paused #targetInfo,
-  body.paused #mixHint, body.paused #hurt, body.paused #speedFx { visibility: hidden; }
+  /* pausa, estatísticas do round, melhorias, fim do jogo: tudo o que é do jogo a decorrer some (e volta ao continuar); fica só o placar */
+  body.overlay #countdown, body.overlay #feed, body.overlay #effects, body.overlay #killfeed, body.overlay #prompt, body.overlay #targetInfo,
+  body.overlay #mixHint, body.overlay #hurt, body.overlay #speedFx, body.overlay #crosshair, body.overlay #bottomHud, body.overlay #mmBox,
+  body.overlay #deathBox, body.overlay #tutBar, body.overlay #menuBtn, body.overlay #mixTable, body.overlay #zoneTable { visibility: hidden !important; }
   body.tut #tutBar { display: flex; } body.tut #topBar, body.tut #killsBar { display: none; }
   body.tut #targetInfo { top: 168px; }
   #gameOver { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: #0d0b1fcc; pointer-events: auto; }
@@ -546,7 +575,8 @@
   .ammoIcon { transition: transform .1s; }
   #feed { margin-top: 8px; display: flex; flex-direction: column; gap: 5px; width: 250px; }
   .feedRow { font-family: var(--display); font-size: 15px; letter-spacing: .03em; color: #fff; padding: 5px 10px; border-radius: 10px; border-left: 5px solid #fff; background: #0d0b1fcc; text-shadow: 0 1px 0 #000a; animation: feedIn .25s ease-out; }
-  .feedRow.out { opacity: 0; transform: translateX(-12px); transition: all .5s; }
+  .feedRow { max-height: 140px; overflow: hidden; }
+  .feedRow.out { opacity: 0; transform: translateX(-12px); max-height: 0; padding-top: 0; padding-bottom: 0; margin-top: -5px; transition: all .5s; }   /* encolhe ao sair: o que está por baixo (quadro das misturas) sobe devagar */
   @keyframes feedIn { from { opacity: 0; transform: translateX(-16px); } to { opacity: 1; transform: none; } }
   #effects { margin-top: 6px; font-family: var(--display); font-size: 22px; color: #cfe0ff; text-shadow: 0 2px 0 #000b, 0 0 8px #000a; min-height: 26px; }
   #bottomHud { position: absolute; bottom: 14px; left: 14px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
@@ -691,6 +721,7 @@
   </svg>
 
   <div id="tagline">Mistura &middot; Mira &middot; Pinta</div>
+  <div id="levelBadge"></div>
   <button id="playBtn">JOGAR</button>
   <div id="titleLinks">
     <button id="howBtn" class="ghost">📖 Instruções</button>
@@ -743,7 +774,7 @@
   <div id="setupPanel">
     <div class="suRow"><span class="suLabel">🎮 Modo</span><div id="modePick"></div></div>
     <div class="suRow"><span class="suLabel">🌦️ Clima</span><div id="weatherPick"></div></div>
-    <div class="suRow"><span class="suLabel">🤖 Dificuldade</span><div id="diffPick"></div></div>
+    <div class="suRow"><span class="suLabel">🤖 Nível dos bots</span><div id="diffPick"></div></div>
     <div class="suRow"><span class="suLabel">🏆 Primeiro a ganhar</span><div id="mpWins"></div></div>
     <div class="suRow"><span class="suLabel">⏱️ Duração do round</span><div id="mpMin"></div></div>
   </div>
@@ -779,7 +810,7 @@
   <button id="menuBtn" class="ghost">&larr; Mapas</button>
   <div id="mmBox"><canvas id="minimap" width="644" height="920"></canvas><div id="mmTag"><kbd>Tab</kbd> Mapa</div></div>
   <div id="speedFx"><i></i><i></i></div>
-  <div id="loot"><div id="effects"></div><div id="feed"></div></div>
+  <div id="loot"><div id="effects"></div><div id="feed"></div><div id="mixTable"></div><div id="zoneTable"></div></div>   <!-- o quadro da Mistura Relâmpago fica por baixo das mensagens e acompanha-as -->
   <div id="bottomHud">
    <div id="itemsRow">
     <div id="hand">

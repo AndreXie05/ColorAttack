@@ -154,9 +154,20 @@ export class CombatWorld {
       if (via === "grenade" || via === "trap" || via === "cannon") r.grenadeKills++;
     }
     this.splat(target.pos.x, target.pos.z, target.colorId, 2.2);                    // poça da cor do eliminado
-    this.puddles.push({ x: target.pos.x, y: target.pos.y, z: target.pos.z, r: 1.8, colorId: target.colorId, t: this.t });   // só estas poças (e as das armadilhas) mudam a cor de quem as pisa
+    this._addPuddle({ x: target.pos.x, y: target.pos.y, z: target.pos.z, r: 1.8, colorId: target.colorId, t: this.t });   // só estas poças (e as das armadilhas) mudam a cor de quem as pisa
     this.burst(target.pos.x, aimY(target), target.pos.z, target.colorId, 16);
     this.cb.onKill?.(killer, target, shot, byColor, via);
+  }
+
+  // Poça que muda a cor de quem a pisa: leva um anel branco a pulsar, para não se confundir com a tinta dos tiros (que não faz nada)
+  _addPuddle(q) {
+    this.puddles.push(q);
+    if (!this.scene) return;
+    this.ringGeo ||= new THREE.RingGeometry(0.8, 1, 40);
+    this.ringMat ||= new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false });
+    q.ring = new THREE.Mesh(this.ringGeo, this.ringMat);
+    q.ring.rotation.x = -Math.PI / 2; q.ring.position.set(q.x, (q.y || 0) + 0.07, q.z); q.ring.scale.setScalar(q.r); q.ring.renderOrder = 2;   // por cima da camada de tinta
+    this.group.add(q.ring);
   }
 
   // Granada de tinta: voa em arco até ao ponto (limitado ao alcance) e, ao cair, pinta todos os que estiverem na área da cor escolhida (adversários dessa cor são eliminados)
@@ -231,7 +242,7 @@ export class CombatWorld {
       if (tr.fuseAt) {                                                         // acionada: explode ao fim do aviso, apanhe quem apanhar
         if (t < tr.fuseAt) continue;
         this._removeTrap(tr);
-        this.puddles.push({ x: tr.x, y: tr.y, z: tr.z, r: T.radius * 0.6, colorId: tr.colorId, t });   // poça da armadilha: muda a cor (e a velocidade) de quem a pisa, como a dos eliminados
+        this._addPuddle({ x: tr.x, y: tr.y, z: tr.z, r: T.radius * 0.6, colorId: tr.colorId, t });   // poça da armadilha: muda a cor (e a velocidade) de quem a pisa, como a dos eliminados
         this.explodeGrenade({ x: tr.x, y: tr.y, z: tr.z, colorId: tr.colorId, colors: [tr.colorId], owner: tr.owner, via: "trap" }, { radius: T.radius, enemiesOnly: true });
         continue;
       }
@@ -264,6 +275,7 @@ export class CombatWorld {
     for (const p of this.projectiles) { p.active = false; if (p.mesh) p.mesh.visible = false; }
     for (const g of this.grenades) if (g.mesh) { this.group.remove(g.mesh); disposeMesh(g.mesh); }
     for (const tr of [...this.traps]) this._removeTrap(tr);
+    for (const q of this.puddles) if (q.ring) this.group.remove(q.ring);
     this.grenades = []; this.puddles = [];
     for (const c of this.combatants) { this.respawn(c); this.resetRoundStats(c); c.puddleMul = 1; c.puddleUntil = 0; }
   }
@@ -281,7 +293,12 @@ export class CombatWorld {
     }
     this._updateTraps(t);
     // poças deixadas por jogadores eliminados e por armadilhas: quem as pisa fica da cor da poça (as manchas normais dos tiros e granadas não fazem nada)
-    this.puddles = this.puddles.filter((q) => q.life === Infinity || t - q.t < CONFIG.paint.lifeSeconds * this.paintLifeMul);   // (as poças que andam no Estúdio não acabam)
+    this.puddles = this.puddles.filter((q) => {
+      if (q.life === Infinity || t - q.t < CONFIG.paint.lifeSeconds * this.paintLifeMul) return true;   // (as poças que andam no Estúdio não acabam)
+      if (q.ring) this.group.remove(q.ring);
+      return false;
+    });
+    if (this.ringMat) this.ringMat.opacity = 0.7 + 0.3 * Math.sin(t * 5);                    // os anéis pulsam
     const PF = CONFIG.puddleFx;
     for (const c of this.combatants) {
       if (!c.alive) continue;
@@ -303,6 +320,9 @@ export class CombatWorld {
       const steps = Math.max(1, Math.ceil((CONFIG.weapon.projectileSpeed * dt) / 0.5)), h = dt / steps;
       for (let s = 0; s < steps && p.active; s++) {
         p.x += p.vx * h; p.y += p.vy * h; p.z += p.vz * h; p.life -= h;
+        if (p.life <= 0 && Math.abs(p.x) < ARENA.halfX && Math.abs(p.z) < ARENA.halfZ) {   // fim do alcance: a tinta cai no chão (ou no topo da plataforma por baixo)
+          this.splat(p.x, p.z, p.colorId, 0.55 + Math.random() * 0.35, false, p.owner.team); p.active = false; break;
+        }
         if (p.life <= 0 || Math.abs(p.x) > ARENA.halfX + 2 || Math.abs(p.z) > ARENA.halfZ + 2) { p.active = false; break; }
         if (p.y <= 0.1) {                                                       // chão: mancha de tinta
           this.splat(p.x, p.z, p.colorId, 0.7 + Math.random() * 0.6, false, p.owner.team);
@@ -359,6 +379,6 @@ export class CombatWorld {
 
   dispose() {
     if (this.group && this.group.parent) this.group.parent.remove(this.group);
-    if (this.geo) { this.geo.dispose(); this.pgeo.dispose(); this.trapGeo?.dispose(); for (const m of this.mats.values()) m.dispose(); }
+    if (this.geo) { this.geo.dispose(); this.pgeo.dispose(); this.trapGeo?.dispose(); this.ringGeo?.dispose(); this.ringMat?.dispose(); for (const m of this.mats.values()) m.dispose(); }
   }
 }

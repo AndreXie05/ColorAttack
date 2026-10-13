@@ -15,7 +15,7 @@ export const CONFIG = {
   weapon: { fireInterval: 0.16, projectileSpeed: 60, range: 17 }, // cadência (s entre tiros) e alcance máximo da bala (m)
   respawn: { delay: 5, protection: 2 },                         // reaparece 5 s depois, com 2 s de proteção
   pickup: { lifeSeconds: 45, collectDist: 1.9 },
-  chest: { reopenSeconds: 60, maxOpensPerRound: 3, emptyChance: 0.2, interactDist: 3.4 },
+  chest: { reopenSeconds: 20, maxOpensPerRound: 3, emptyChance: 0.2, interactDist: 3.4 },
   suddenDeath: { emptyChance: 0.5, shots: [1, 5] },   // morte súbita: baús vazios 50%, prémios todos iguais, a caixa de munição traz de 1 a 5 balas da mesma cor
   killRefund: { primary: 3, secondaryEach: 2 },   // bónus da cor certa (tiro): balas devolvidas (primária: +3; secundária: +2 de cada ingrediente)
   fallDeath: 6,                          // m: cair desta altura ou mais (desde o ponto mais alto) elimina logo (os trampolins não contam)
@@ -47,7 +47,7 @@ export const TEAM = {
   B: { name: "Equipa Rosa",     color: 0xff5fa8 },   // base à direita   (x positivo)
 };
 
-// Dificuldade dos bots (aplica-se aos adversários; os aliados são sempre "médio").
+// Dificuldade dos bots (os 9 bots, colegas e adversários, têm sempre o mesmo nível).
 //  reaction: tempo de reação (s) · aimErrorDeg: erro de pontaria (°) · fireInterval: segundos entre tiros
 //  correctColorChance / correctSecondaryChance: probabilidade de escolherem logo a cor certa (alvo primário / misturado)
 //  sight: alcance de visão (m) · range: distância preferida (m) · strafeMul: quanto se desviam de lado · lowAmmoAt: vão buscar munição abaixo disto
@@ -74,6 +74,9 @@ export const MODES = {
   normal:  { id: "normal",  icon: "🎨", name: "Normal",          desc: "As regras de sempre" },
   secreto: { id: "secreto", icon: "🕵️", name: "Cores Secretas",  desc: "Os adversários ficam cinzentos: descobre a cor deles pelo efeito dos teus tiros" },
   paleta:  { id: "paleta",  icon: "🟤", name: "Paleta Completa", desc: "Há uma 7.ª cor, o castanho (1 + 2 + 3), e quase tudo pode acabar castanho" },
+  relampago: { id: "relampago", icon: "⚡", name: "Mistura Relâmpago", desc: "De 30 em 30 s as misturas trocam: vermelho + azul pode passar a dar verde! Vê o quadro no ecrã", shuffleEvery: 30 },
+  latas:   { id: "latas",   icon: "🥫", name: "Rouba-Latas",     desc: "Rouba a lata de tinta da base adversária e leva-a até à tua: cada entrega vale +2 pontos" },
+  zonas:   { id: "zonas",   icon: "🖌️", name: "Pinta e Conquista", desc: "Pinta as zonas marcadas no chão: quem tiver mais tinta numa zona ganha 1 ponto a cada 15 s. A tinta seca em 10 s e cada caixa dá 25 balas", ammoBox: 25 },   // ammoBox: cada caixa de munição dá 25 balas (é preciso muita tinta para pintar)
 };
 CONFIG.mode = (() => { try { const m = localStorage.getItem("colorattack.mode"); return MODES[m] ? m : "normal"; } catch { return "normal"; } })();
 export function setGameMode(id) {

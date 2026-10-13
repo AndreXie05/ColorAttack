@@ -18,10 +18,11 @@ import { floorAt } from "./surfaces.js";
    - Estúdio de Tinta (mapa novo): 4 poças grandes no chão mudam a cor de quem as pisa. A meio do round há a VIRAGEM:
      metade do chão ganha uma cor (quente = mais rápido, fria = mais lento), as poças começam a andar e, de 15 em 15 s,
      a metade pintada troca de lado e as poças mudam de cor.
-   - Lata de tinta (Parque de Diversões): cada base tem uma lata. Apanha a dos adversários (passa por cima) e leva-a
+   Modos de jogo que funcionam em qualquer mapa:
+   - Rouba-Latas (modo "latas"): cada base tem uma lata. Apanha a dos adversários (passa por cima) e leva-a
      até à tua base: +2 pontos. Quem a leva anda mais devagar e aparece no minimapa; se for eliminado, a lata cai.
      Um adversário que lhe toque devolve-a à base (e ao fim de 20 s no chão volta sozinha).
-   - Território (Escola): 3 zonas no chão. A equipa com mais tinta (dos seus tiros e granadas, de qualquer cor) dentro
+   - Pinta e Conquista (modo "zonas"): 3 zonas no chão. A equipa com mais tinta (dos seus tiros e granadas, de qualquer cor) dentro
      de uma zona fica com ela. A tinta seca em 10 s, por isso é preciso repintar. De 30 em 30 s cada zona dá +1 ponto.
    Tudo é leve: poucas malhas simples, criadas uma vez por mapa, e sem trabalho quando nada está a acontecer.
    ============================================================ */
@@ -30,17 +31,15 @@ export const FEATURES = {
   fabrica: { fountains: [{ x: 0, z: 0, y: 1.2, top: 3.9, r: 7 }] },
   castelo: { bridges: [{ z: 20 }, { z: -20 }], cannons: [{ x: -15, z: 8 }, { x: 15, z: -8 }] },
   restaurante: { cannons: [{ x: -16, z: 0 }, { x: 16, z: 0 }] },
-  diversoes: { cans: true },
-  escola: { territory: true },
   estudio: { studio: true },
 };
 const FOUNTAIN = { every: 20, warn: 3 };                     // s entre jatos; aviso antes do jato
 const BRIDGE = { open: 25, warn: 4, halfX: 3.6, halfZ: 1.4, top: 0.85, sunk: -1.4, ramp: 3, rise: 1.4, sink: 2.2 };   // s aberta, aviso antes de afundar, medidas e altura no fundo do rio (m), s a subir / a afundar
 
 // ctx = { scene, world, map, colliders, onColor(c, colorId), toast(text, color), playerPos() }
-export function setupMapFeatures(mapId, ctx) {
-  const def = FEATURES[mapId];
-  if (!def) return null;
+export function setupMapFeatures(mapId, mode, ctx) {
+  const def = { ...(FEATURES[mapId] || {}), cans: mode === "latas", territory: mode === "zonas" };
+  if (!Object.values(def).some(Boolean)) return null;
   const group = new THREE.Group(); ctx.scene.add(group);
   const disposables = [];
   const fountains = (def.fountains || []).map((f, i) => makeFountain(f, i, group, disposables, ctx));
@@ -53,8 +52,8 @@ export function setupMapFeatures(mapId, ctx) {
   const goals = [cans, terr].filter(Boolean);
   ctx.world.objective = goals.length ? (b) => { for (const g of goals) { const o = g.objective(b); if (o) return o; } return null; } : null;   // para onde os bots vão (bots.js)
   return {
-    cannons,
-    paintLifeK: terr ? TERR.dry / CONFIG.paint.lifeSeconds : 1,                            // Escola: a tinta seca em 10 s
+    cannons, cans, terr,
+    paintLife: terr ? TERR.dry : 0,                                                       // Escola: a tinta seca em 10 s (s)
     carrying: (c) => cans?.carrying(c) || false,
     update(dt, now) { for (const f of fountains) f.update(dt, now); for (const b of bridges) b.update(dt, now); for (const c of cannons) c.update(dt, now); studio?.update(dt, now); for (const g of goals) g.update(dt, now); },
     nearCannon(pos) { return cannons.find((c) => Math.hypot(pos.x - c.x, pos.z - c.z) < 2.6 && Math.abs(pos.y - c.top) < 1.2) || null; },
@@ -107,9 +106,11 @@ function makeBridge(b, group, disposables, ctx) {
   ctx.colliders.push({ minX: -B.halfX - B.ramp, maxX: -B.halfX, minZ: z - B.halfZ, maxZ: z + B.halfZ, top: B.top, ramp: { axis: "x", y0: 0, y1: B.top } });
   ctx.colliders.push({ minX: B.halfX, maxX: B.halfX + B.ramp, minZ: z - B.halfZ, maxZ: z + B.halfZ, top: B.top, ramp: { axis: "x", y0: B.top, y1: 0 } });
   const wood = mat(0x9a6a3a);
-  const rampGeo = new THREE.BoxGeometry(B.ramp, 0.2, B.halfZ * 2), deckGeo = new THREE.BoxGeometry(B.halfX * 2, 0.25, B.halfZ * 2);
+  // rampa em cunha: a face de cima coincide com a rampa por onde se anda (do chão até à altura da ponte), sem degraus nas pontas
+  const wedge = new THREE.Shape([new THREE.Vector2(0, 0), new THREE.Vector2(B.ramp, 0), new THREE.Vector2(0, B.top)]);
+  const rampGeo = new THREE.ExtrudeGeometry(wedge, { depth: B.halfZ * 2, bevelEnabled: false }), deckGeo = new THREE.BoxGeometry(B.halfX * 2, 0.25, B.halfZ * 2);
   for (const s of [-1, 1]) {
-    const r = new THREE.Mesh(rampGeo, wood); r.position.set(s * (B.halfX + B.ramp / 2), B.top / 2, z); r.rotation.z = -s * Math.atan2(B.top, B.ramp); r.receiveShadow = true; group.add(r);
+    const r = new THREE.Mesh(rampGeo, wood); r.position.set(s * B.halfX, 0, z - B.halfZ); r.scale.x = s; r.receiveShadow = true; r.castShadow = true; group.add(r);   // lado esquerdo: espelhada
   }
   // tabuleiro: fica no fundo do rio (escondido) e sobe quando se abre. Para os bots são duas metades, cada uma com a saída para a sua margem
   const deckMesh = new THREE.Mesh(deckGeo, wood); deckMesh.receiveShadow = true; deckMesh.visible = false; group.add(deckMesh);
@@ -170,11 +171,13 @@ function makeBridge(b, group, disposables, ctx) {
 
 // ---------- canhão de tinta ----------
 // Procura um sítio livre (sem obstáculos a menos de 2,4 m, fora do rio) a partir do ponto pedido, em espiral
-function freeSpot(ctx, x0, z0) {
-  const cols = ctx.colliders, waters = ctx.map.waters || [];
-  const gap = (x, z, c) => c.r !== undefined ? Math.hypot(x - c.x, z - c.z) - c.r : Math.hypot(x - Math.max(c.minX, Math.min(x, c.maxX)), z - Math.max(c.minZ, Math.min(z, c.maxZ)));
-  const ok = (x, z) => Math.abs(x) < ARENA.halfX - 8 && Math.abs(z) < ARENA.halfZ - 3 && cols.every((c) => gap(x, z, c) > 2.4) &&
-    !waters.some((w) => x > w.minX - 3 && x < w.maxX + 3 && z > w.minZ - 3 && z < w.maxZ + 3);
+function spotOk(ctx, x, z, maxX = ARENA.halfX - 8, gapMin = 2.4) {
+  const gap = (c) => c.r !== undefined ? Math.hypot(x - c.x, z - c.z) - c.r : Math.hypot(x - Math.max(c.minX, Math.min(x, c.maxX)), z - Math.max(c.minZ, Math.min(z, c.maxZ)));
+  return Math.abs(x) <= maxX && Math.abs(z) < ARENA.halfZ - 3 && ctx.colliders.every((c) => gap(c) > gapMin) &&
+    !(ctx.map.waters || []).some((w) => x > w.minX - 3 && x < w.maxX + 3 && z > w.minZ - 3 && z < w.maxZ + 3);
+}
+function freeSpot(ctx, x0, z0, maxX = ARENA.halfX - 8, gapMin = 2.4) {           // maxX: até onde pode ir (as latas ficam dentro das bases)
+  const ok = (x, z) => spotOk(ctx, x, z, maxX, gapMin);
   for (let r = 0; r < 16; r += 1) for (let a = 0; a < 16; a++) {
     const x = x0 + Math.cos((a / 16) * Math.PI * 2) * r, z = z0 + Math.sin((a / 16) * Math.PI * 2) * r;
     if (ok(x, z)) return { x, z };
@@ -341,11 +344,12 @@ function makeStudio(group, disposables, ctx) {
 const CAN = { points: 2, carryMul: 0.85, grab: 1.7, back: 20, score: 3.2 };
 const teamCss = (t) => "#" + TEAM[t].color.toString(16).padStart(6, "0");
 const who = (t) => (t === "A" ? "A tua equipa" : "Os adversários");
+const did = (t, one, many) => `${who(t)} ${t === "A" ? one : many}`;              // concordância: "A tua equipa entregou" / "Os adversários entregaram"
 function makeCans(group, disposables, ctx) {
   const w = ctx.world, geo = new THREE.CylinderGeometry(0.55, 0.55, 1.1, 18), lidGeo = new THREE.CylinderGeometry(0.58, 0.58, 0.18, 18), padGeo = new THREE.RingGeometry(1.6, 2.1, 32);
   disposables.push(geo, lidGeo, padGeo);
   const cans = ["A", "B"].map((team) => {
-    const side = team === "A" ? -1 : 1, home = freeSpot(ctx, side * 46, 0), col = TEAM[team].color;
+    const side = team === "A" ? -1 : 1, home = freeSpot(ctx, side * 46, 0, 47, 1.6), col = TEAM[team].color;
     const mesh = new THREE.Group();
     const body = new THREE.Mesh(geo, mat(0xd8dde4)); body.castShadow = true; mesh.add(body);
     const lid = new THREE.Mesh(lidGeo, mat(col, { emissive: col })); lid.position.y = 0.6; mesh.add(lid);
@@ -358,6 +362,7 @@ function makeCans(group, disposables, ctx) {
   const other = (t) => cans.find((c) => c.team !== t);
   const reset = (can) => { if (can.carrier) can.carrier.carryMul = 1; Object.assign(can, { state: "home", carrier: null, x: can.home.x, y: 0, z: can.home.z }); };
   return {
+    list: cans,
     carrying: (c) => cans.some((k) => k.carrier === c),
     update(dt) {
       for (const can of cans) {
@@ -371,7 +376,7 @@ function makeCans(group, disposables, ctx) {
             const base = other(can.team).home;                                            // a base de quem a leva
             if (Math.hypot(c.pos.x - base.x, c.pos.z - base.z) < CAN.score) {
               reset(can);
-              ctx.onScore(c.team, CAN.points, `🥫 ${c.isPlayer ? "Entregaste" : who(c.team) + " entregou"} a lata ${c.team === "A" ? "dos adversários" : "da tua equipa"}! +${CAN.points} pontos`);
+              ctx.onScore(c.team, CAN.points, `🥫 ${c.isPlayer ? "Entregaste" : did(c.team, "entregou", "entregaram")} a lata ${c.team === "A" ? "dos adversários" : "da tua equipa"}! +${CAN.points} pontos`);
             }
           }
         } else {
@@ -384,7 +389,7 @@ function makeCans(group, disposables, ctx) {
               break;
             }
             if (q.team === can.team && can.state === "dropped") {                            // da mesma equipa: devolve-a à base
-              reset(can); ctx.toast(`🥫 ${q.isPlayer ? "Devolveste" : who(q.team) + " devolveu"} a lata à base`, teamCss(q.team));
+              reset(can); ctx.toast(`🥫 ${q.isPlayer ? "Devolveste" : did(q.team, "devolveu", "devolveram")} a lata à base`, teamCss(q.team));
               break;
             }
           }
@@ -397,9 +402,9 @@ function makeCans(group, disposables, ctx) {
     // bots: quem leva a lata vai para a base; atacantes vão buscar a dos adversários; defensores perseguem quem roubou a sua (ou devolvem-na)
     objective(b) {
       const mine = cans.find((k) => k.team === b.team), theirs = other(b.team);
-      if (theirs.carrier === b) return { x: mine.home.x, z: mine.home.z };
-      if (b.role === "defend" && mine.state !== "home") return { x: mine.x, z: mine.z };
-      if (b.role === "attack" && theirs.state !== "carried") return { x: theirs.x, z: theirs.z };
+      if (theirs.carrier === b) return { x: mine.home.x, z: mine.home.z, push: true };          // push: avança mesmo a lutar
+      if (b.role === "defend" && mine.state !== "home") return { x: mine.x, z: mine.z, push: true };
+      if (b.role === "attack" && theirs.state !== "carried") return { x: theirs.x, z: theirs.z, push: b.index % 2 === 1 };   // metade dos atacantes vai mesmo à lata
       return null;
     },
     minimap(g, X, Y, now) {
@@ -414,36 +419,53 @@ function makeCans(group, disposables, ctx) {
 }
 
 // ---------- território: 3 zonas; a tinta (de qualquer cor) conta para a equipa que a disparou ----------
-const TERR = { zones: [{ x: 0, z: 0, name: "do centro" }, { x: 0, z: -22, name: "da esquerda" }, { x: 0, z: 22, name: "da direita" }], r: 6.5, dry: 10, every: 30, min: 6 };
+// zonas: name (nas mensagens) e label (no quadro); a percentagem é a tinta que se VÊ (pintar por cima tira à outra equipa)
+const TERR = { zones: [{ x: 0, z: 0, name: "do centro", label: "Centro" }, { x: 0, z: -22, name: "da esquerda", label: "Esquerda" }, { x: 0, z: 22, name: "da direita", label: "Direita" }], r: 6.5, dry: 10, every: 15, minPct: 10, step: 1.1 };
 function makeTerritory(group, disposables, ctx) {
   const w = ctx.world, ringGeo = new THREE.RingGeometry(TERR.r - 0.45, TERR.r, 48), discGeo = new THREE.CircleGeometry(TERR.r - 0.45, 48);
   disposables.push(ringGeo, discGeo);
-  const zones = TERR.zones.map((z) => {
+  // em qualquer mapa: cada zona procura chão livre na linha do meio (justo para as duas equipas); se não houver
+  // (ex.: o rio do Castelo), passa a ser um par de zonas espelhadas, uma de cada lado
+  const specs = [];
+  for (const z0 of TERR.zones) {
+    let mid = null;
+    for (const dz of [0, 2, -2, 4, -4, 6, -6, 8, -8]) if (spotOk(ctx, 0, z0.z + dz, 30, 1.2)) { mid = { x: 0, z: z0.z + dz }; break; }
+    if (mid) { specs.push({ ...z0, ...mid }); continue; }
+    const p = freeSpot(ctx, 7, z0.z, 30, 1.2);
+    specs.push({ ...z0, x: -Math.abs(p.x), z: p.z, name: z0.name + " (lado da tua base)", label: z0.label + " (nosso lado)" }, { ...z0, x: Math.abs(p.x), z: p.z, name: z0.name + " (lado adversário)", label: z0.label + " (lado deles)" });
+  }
+  const zones = specs.map((z) => {
     const ringMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false });
     const discMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false });
     disposables.push(ringMat, discMat);
     const ring = new THREE.Mesh(ringGeo, ringMat), disc = new THREE.Mesh(discGeo, discMat);
     for (const m of [ring, disc]) { m.rotation.x = -Math.PI / 2; m.position.set(z.x, 0.05, z.z); group.add(m); }
-    return { ...z, owner: null, sums: { A: 0, B: 0 }, ringMat, discMat, wander: null };
+    const pts = [];                                                                       // pontos de medição (uma grelha dentro do círculo)
+    for (let x = -TERR.r; x <= TERR.r; x += TERR.step) for (let q = -TERR.r; q <= TERR.r; q += TERR.step) if (Math.hypot(x, q) < TERR.r - 0.3) pts.push([z.x + x, z.z + q]);
+    return { ...z, owner: null, pct: { A: 0, B: 0 }, pts, ringMat, discMat, wander: null };
   });
   let countCd = 0, scoreT = TERR.every;
   const paintCd = new Map();
   return {
+    zones,
+    info: () => ({ zones, next: Math.max(0, scoreT) }),                                    // para o quadro das zonas no ecrã
     update(dt) {
       if ((countCd -= dt) <= 0) {                                                         // conta a tinta fresca dentro de cada zona (2 vezes por segundo)
         countCd = 0.5;
         const P = ctx.paint();
         for (const z of zones) {
-          z.sums.A = 0; z.sums.B = 0;
-          for (const r of P ? P.records : []) {
-            if (!r.team || P.t - r.t0 > TERR.dry || Math.hypot(r.x - z.x, r.z - z.z) > TERR.r) continue;
-            z.sums[r.team] += r.radius * r.radius;
+          // em cada ponto conta só a mancha de cima (a mais recente): pintar por cima tira percentagem à outra equipa
+          const near = P ? P.records.filter((r) => r.team && P.t - r.t0 <= TERR.dry && Math.hypot(r.x - z.x, r.z - z.z) < TERR.r + r.radius) : [];
+          const n = { A: 0, B: 0 };
+          for (const [px, pz] of z.pts) {
+            for (let i = near.length - 1; i >= 0; i--) { const r = near[i]; if (Math.hypot(px - r.x, pz - r.z) < r.radius * 0.9) { n[r.team]++; break; } }
           }
-          const lead = z.sums.A > z.sums.B ? "A" : "B", top = z.sums[lead], next = z.sums[lead === "A" ? "B" : "A"];
-          const owner = top >= TERR.min && top > next * 1.15 ? lead : top < TERR.min ? null : z.owner;   // quase empatado: fica como estava
+          z.pct.A = Math.round((n.A / z.pts.length) * 100); z.pct.B = Math.round((n.B / z.pts.length) * 100);
+          const lead = z.pct.A > z.pct.B ? "A" : "B", top = z.pct[lead], next = z.pct[lead === "A" ? "B" : "A"];
+          const owner = top < TERR.minPct ? null : top > next ? lead : z.owner;                // empate: fica como estava
           if (owner !== z.owner) {
             z.owner = owner;
-            if (owner) ctx.toast(`🗺️ ${who(owner)} ${owner === "A" ? "conquistou" : "conquistaram"} a zona ${z.name}`, teamCss(owner));
+            if (owner) ctx.toast(`🗺️ ${did(owner, "conquistou", "conquistaram")} a zona ${z.name}`, teamCss(owner));
             z.ringMat.color.setHex(owner ? TEAM[owner].color : 0xffffff);
             z.discMat.color.setHex(owner ? TEAM[owner].color : 0xffffff);
           }
@@ -460,9 +482,10 @@ function makeTerritory(group, disposables, ctx) {
       }
       // bots dentro de uma zona sem adversários à vista pintam o chão dela
       for (const b of w.combatants) {
-        if (b.isPlayer || !b.alive || b.enemy || b.passive || b.mounted) continue;
+        if (b.isPlayer || !b.alive || b.passive || b.mounted) continue;
+        if (b.enemy && Math.hypot(b.enemy.pos.x - b.pos.x, b.enemy.pos.z - b.pos.z) < 15) continue;   // adversário perto: luta primeiro
         const z = zones.find((q) => Math.hypot(b.pos.x - q.x, b.pos.z - q.z) < TERR.r);
-        if (!z || z.owner === b.team && z.sums[b.team] > TERR.min * 3) continue;
+        if (!z || z.owner === b.team && z.pct[b.team] > 45) continue;
         const cd = (paintCd.get(b) || 0) - dt; paintCd.set(b, cd);
         if (cd > 0) continue;
         const col = PRIMARIES.filter((c) => b.ammo[c] >= 1)[0];

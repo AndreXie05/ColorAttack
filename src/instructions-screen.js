@@ -54,9 +54,10 @@ function buildPages() {
     card("🎯 Objetivo", `
       <p>Duas equipas de 5 (tu + 4 bots contra 5 bots). Cada round dura <b>${Math.round(CONFIG.roundSeconds / 60)} minutos</b> e ganha a equipa com mais pontos.
       Vence o jogo quem ganhar primeiro <b>${CONFIG.match.toWin} rounds</b>. Se o tempo acabar empatado em eliminações, há <b>morte súbita</b>: a primeira equipa a fazer uma eliminação ganha o round. Nessa altura os baús são reabastecidos, mas só têm item em metade das vezes, todos os itens são igualmente prováveis e cada baú dá uma só caixa de munição, com <b>1 a 5 balas</b> da mesma cor.</p>
-      <p>Antes de jogar escolhes a <b>dificuldade dos adversários</b>: Fácil, Médio, Difícil ou Impossível. Os bots também apanham e usam itens, e os bots da equipa que ganha cada round ganham melhorias. Quem és novo? Faz o <b>Tutorial</b> no ecrã inicial.</p>
+      <p>Antes de jogar escolhes a <b>dificuldade dos bots</b>: Fácil, Médio, Difícil ou Impossível. Vale para os <b>9 bots</b>, os teus colegas e os adversários, que ficam sempre do mesmo nível. Os bots também apanham e usam itens, e os bots da equipa que ganha cada round ganham melhorias. És novo? Faz o <b>Tutorial</b> no ecrã inicial.</p>
       <p>Quando uma equipa chega a <b>${CONFIG.match.intenseAt} rounds ganhos</b> entra o <b>modo intenso</b>: as cores de toda a gente mudam de 5 em 5 segundos até haver um vencedor. A cada round o mapa muda.</p>
-      <p>Os adversários têm cores. <b>Só os eliminas com a cor certa</b>, que tu misturas na arma.</p>`),
+      <p>Os adversários têm cores. <b>Só os eliminas com a cor certa</b>, que tu misturas na arma.</p>
+      <p><b>⭐ Níveis:</b> no fim de cada partida ganhas XP (eliminações, cor certa, rounds ganhos e vitória; mais XP nas dificuldades altas) e vais subindo de nível. O teu nível aparece no ecrã inicial.</p>`),
 
     card("🎨 As cores", `
       <p><b>Primárias</b></p><div class="colorGrid">${prim}</div>
@@ -88,12 +89,12 @@ function buildPages() {
       <p>Cada eliminação deixa uma <b>poça da cor</b> do jogador eliminado, que dura ${CONFIG.paint.lifeSeconds} segundos.
       Quem passar por cima dela <b>fica dessa cor</b>, por isso cuidado por onde andas, ou usa-as para mudares a tua cor!</p>
       <p>As poças também mudam a <b>velocidade</b> durante uns segundos: cores quentes (vermelho, laranja, amarelo) deixam-te <b>mais rápido</b> ⚡ e cores frias (azul, roxo, verde) <b>mais lento</b> 🐌.</p>
-      <p>Só estas poças e as das <b>armadilhas</b> mudam a cor de quem as pisa. A tinta dos tiros e das granadas que pinta o chão é só decoração e <b>não faz nada</b> a quem passa por cima.</p>`),
+      <p>Só estas poças e as das <b>armadilhas</b> mudam a cor de quem as pisa, e reconheces-as pelo <b>anel branco a pulsar</b> à volta. A tinta dos tiros e das granadas que pinta o chão é só decoração e <b>não faz nada</b> a quem passa por cima.</p>`),
 
     card("🎁 Baús", `
       <p>Espalhados pelo mapa. Chega-te perto e carrega em <b>E</b>. Em 80% das vezes sai um item; em 20% está vazio. Passa por cima dos itens para os apanhares: ficam guardados na lista, em baixo, cada um com a sua tecla.</p>
       <p>Munição · granada de tinta · cura · invisibilidade (rara). Nos modos <b>Cores Secretas</b> e <b>Paleta Completa</b> também podem sair <b>armadilhas</b>.</p>
-      <p>Cada caixa de munição dá ${CONFIG.ammoBox.shots} balas de uma cor, e um baú pode dar de 1 a 3 caixas. Cada baú volta a abrir ao fim de <b>1 minuto</b> e pode ser aberto <b>3 vezes por round</b>.</p>
+      <p>Cada caixa de munição dá ${CONFIG.ammoBox.shots} balas de uma cor, e um baú pode dar de 1 a 3 caixas. Cada baú volta a abrir ao fim de <b>${CONFIG.chest.reopenSeconds} segundos</b> e pode ser aberto <b>3 vezes por round</b>.</p>
       <p><b>Baú dourado</b> 🌟: a meio de cada round um baú fica dourado, com um feixe de luz e uma estrela no minimapa. Quem o abrir ganha <b>${CONFIG.golden.grenades} granadas</b> ou <b>${CONFIG.golden.invisibleSeconds} s de invisibilidade</b>. Os bots também correm para lá!</p>`),
 
     card("🧰 Os itens", `<div class="tiles">
@@ -103,24 +104,32 @@ function buildPages() {
       ${tile("🪤", "C", "Armadilha de tinta", `<i>Só em Cores Secretas e Paleta Completa.</i> Fica no chão com a cor da tua arma e é <b>invisível</b> para os adversários. Quem passar perto fá-la explodir meio segundo depois.`)}
     </div>`),
 
-    card("🎮 Modos de jogo", `
-      <p>Escolhes o modo na página <b>Prepara a partida</b>, depois de escolheres o mapa.</p>
+    card("🎮 Modos para jogar", `
+      <p>Escolhes o modo na página <b>Prepara a partida</b>, depois de escolheres o mapa. Todos funcionam em qualquer mapa.</p>
       <div class="tiles">
-      ${tile("🎨", "", "Normal", "As regras de sempre.")}
-      ${tile("🟤", "", "Paleta Completa", `Há uma 7.ª cor, o <b>castanho</b> (<b>1 + 2 + 3</b> ao mesmo tempo, gasta uma bala de cada tanque). Um tiro que junte as 3 primárias deixa o alvo castanho, e um castanho só se elimina com castanho. Os baús também dão <b>armadilhas</b>.`)}
-      <div class="tile wide"><b class="tt">🕵️ Cores Secretas</b>Os adversários ficam <b>cinzentos</b>. Cada tiro dá uma pista no painel do alvo: <b>−8</b> = a cor dele <b>leva</b> essa tinta; <b>−4</b> = <b>não leva</b>; <b>"e mudou de cor!"</b> = era primário e virou mistura. As poças dos eliminados mostram a cor verdadeira, e os baús também dão <b>armadilhas</b>.<br>
+      <div class="tile wide"><b class="tt">🎨 Normal</b>As regras de sempre: baús com granadas, curas e invisibilidade.</div>
+      ${tile("🥫", "", "Rouba-Latas", `Cada equipa tem uma <b>lata de tinta</b> na sua base. Vai à base adversária, passa por cima da lata deles para a apanhares e leva-a até à <b>lata da tua equipa</b>: cada entrega vale <b>+2 pontos</b>.<br>
+        Enquanto a levas andas mais devagar e todos te veem no minimapa. Se fores eliminado, a lata cai: um colega pode apanhá-la de novo, mas se um adversário lhe tocar ela volta para a base deles.`)}
+      ${tile("🖌️", "", "Pinta e Conquista", `Há <b>zonas</b> marcadas no chão. Toda a tinta que disparas, de qualquer cor, conta para a tua equipa. Conta só a tinta <b>que se vê</b>: se pintares por cima da dos adversários, a percentagem deles desce. Quem tiver mais numa zona fica com ela, e a cada <b>15 segundos</b> cada zona vale <b>+1 ponto</b>.<br>
+        Um quadro à esquerda mostra a percentagem de cada zona: <b>a tua equipa primeiro</b> (ex.: 25% / 20%). A tinta <b>seca em 10 segundos</b> e cada caixa de munição dá <b>25 balas</b>.`)}
+      </div>`),
+
+    card("🎨 Modos das cores", `
+      <p>Estes modos mudam as regras das cores e são mais difíceis.</p>
+      <div class="tiles" style="grid-template-columns: 1fr">
+      ${tile("⚡", "", "Mistura Relâmpago", `De 30 em 30 segundos as <b>misturas trocam</b>: por exemplo, vermelho + azul pode passar a dar verde. Um quadro à esquerda do ecrã mostra as misturas em vigor e quanto falta para a próxima troca, e há um aviso 5 segundos antes. As cores dos jogadores não mudam, só as receitas.`)}
+      ${tile("🟤", "", "Paleta Completa", `<i>Os baús também dão armadilhas.</i> Há uma 7.ª cor, o <b>castanho</b> (<b>1 + 2 + 3</b> ao mesmo tempo, gasta uma bala de cada tanque). Um tiro que junte as 3 primárias deixa o alvo castanho, e um castanho só se elimina com castanho.`)}
+      <div class="tile wide"><b class="tt">🕵️ Cores Secretas</b><i>Os baús também dão armadilhas.</i> Os adversários ficam <b>cinzentos</b>. Cada tiro dá uma pista no painel do alvo: <b>−8</b> = a cor dele <b>leva</b> essa tinta; <b>−4</b> = <b>não leva</b>; <b>"e mudou de cor!"</b> = era primário e virou mistura. As poças dos eliminados mostram a cor verdadeira.<br>
         <i>Exemplo (é verde em segredo):</i> vermelho → −4 · azul → −8 · amarelo → −8 → leva azul e amarelo = <b>verde</b>: dispara verde!</div>
       </div>`),
 
     card("🗺️ Surpresas dos mapas", `
       <p>Alguns mapas têm algo especial que pode mudar o rumo do round.</p>
-      <div class="tiles three">
+      <div class="tiles">
       ${tile("⛲", "", "Fonte de tinta", `<i>Parque e Fábrica de Tintas</i><br>A cada 20 segundos a fonte lança tinta. Antes, um <b>anel a piscar</b> mostra a cor. Quem estiver na praça <b>fica dessa cor</b>.`)}
       ${tile("💥", "E", "Canhão de tinta", `<i>Castelo e Restaurante</i><br>Sobe ao canhão e carrega em <b>E</b>: durante ${CONFIG.cannon.use} segundos, cada clique dispara uma <b>bola gigante</b> que só afeta os adversários.`)}
       ${tile("🌉", "", "Pontes do rio", `<i>Castelo</i><br>Acerta numa <b>placa</b> com a mesma cor e uma ponte sobe da água. Quando começar a <b>tremer</b>, sai: afunda e <b>elimina quem estiver em cima</b>.`)}
       ${tile("🎨", "", "Chão que muda de cor", `<i>Estúdio de Tinta</i><br>4 <b>poças gigantes</b> mudam a tua cor. A meio do round, metade do chão ganha uma cor (quente = mais rápido, fria = mais lento) e as poças começam a andar.`)}
-      ${tile("🥫", "", "Lata de tinta", `<i>Parque de Diversões</i><br>Cada base tem uma lata. Passa por cima da dos adversários e leva-a até à tua base: <b>+2 pontos</b>. Quem a leva anda mais devagar e aparece no minimapa.`)}
-      ${tile("🗺️", "", "Território", `<i>Escola</i><br>Há 3 <b>zonas</b> no chão. A equipa com mais tinta lá dentro fica com a zona; a tinta <b>seca em 10 segundos</b>. A cada 30 segundos, cada zona vale <b>+1 ponto</b>.`)}
       </div>`),
 
     card("🌦️ O clima conta", `
@@ -158,12 +167,12 @@ const TOPICS = [
   { icon: "💥", name: "Tiro e munição",      desc: "Tanques, acertos e vida",        pages: [3, 4] },
   { icon: "🟣", name: "Poças",               desc: "Mudam a cor e a velocidade",     pages: [5] },
   { icon: "🎁", name: "Baús e itens",        desc: "Granadas, curas, armadilhas…",   pages: [6, 7] },
-  { icon: "🎮", name: "Modos de jogo",       desc: "Normal, Secretas, Paleta",       pages: [8] },
-  { icon: "🗺️", name: "Surpresas dos mapas", desc: "Canhões, lata, território…",     pages: [9] },
-  { icon: "🌦️", name: "Clima",               desc: "Chuva, nevoeiro, trovoada",      pages: [10] },
-  { icon: "⬆️", name: "Melhorias",           desc: "O que ganhas ao vencer",         pages: [11] },
-  { icon: "🕹️", name: "Movimento",           desc: "Andar, saltar, agachar, subir",  pages: [13, 12] },
-  { icon: "⌨️", name: "Teclas",              desc: "Todos os comandos",              pages: [14] },
+  { icon: "🎮", name: "Modos de jogo",       desc: "Latas, zonas, relâmpago…",       pages: [8, 9] },
+  { icon: "🗺️", name: "Surpresas dos mapas", desc: "Fontes, canhões, pontes…",       pages: [10] },
+  { icon: "🌦️", name: "Clima",               desc: "Chuva, nevoeiro, trovoada",      pages: [11] },
+  { icon: "⬆️", name: "Melhorias",           desc: "O que ganhas ao vencer",         pages: [12] },
+  { icon: "🕹️", name: "Movimento",           desc: "Andar, saltar, agachar, subir",  pages: [14, 13] },
+  { icon: "⌨️", name: "Teclas",              desc: "Todos os comandos",              pages: [15] },
 ];
 
 // Ecrã de instruções: primeiro um menu de temas; ao escolher um, vê-se só esse tema (setas para as páginas dele)

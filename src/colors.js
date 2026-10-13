@@ -25,7 +25,26 @@ const pairKey = (a, b) => [a, b].sort().join("+");
 
 // Tabela de misturas, gerada a partir das secundárias: { "azul+vermelho": "roxo", ... }
 export const MIX = {};
-for (const c of Object.values(COLORS)) if (c.parts && c.parts.length === 2) MIX[pairKey(c.parts[0], c.parts[1])] = c.id;
+function buildMix() {
+  for (const k of Object.keys(MIX)) delete MIX[k];
+  for (const c of Object.values(COLORS)) if (c.parts && c.parts.length === 2) MIX[pairKey(c.parts[0], c.parts[1])] = c.id;
+}
+buildMix();
+
+// Mistura Relâmpago: as receitas das 3 secundárias rodam (todas mudam ao mesmo tempo, ex.: vermelho + azul passa a dar verde).
+// As cores continuam as mesmas; só muda de que primárias cada uma é feita (e por isso as balas que gasta e o que a elimina em parte).
+const PAIRS = [["vermelho", "azul"], ["vermelho", "amarelo"], ["azul", "amarelo"]];
+const DEFAULT_PARTS = Object.fromEntries(SECONDARIES.map((id) => [id, [...COLORS[id].parts]]));
+export function shuffleMixes() {
+  const cur = SECONDARIES.map((id) => PAIRS.findIndex((p) => pairKey(...p) === pairKey(...COLORS[id].parts)));
+  const step = Math.random() < 0.5 ? 1 : 2;                                  // rotação: nenhuma receita fica igual
+  SECONDARIES.forEach((id, i) => { COLORS[id].parts = [...PAIRS[(cur[i] + step) % 3]]; });
+  buildMix();
+}
+export function resetMixes() {
+  for (const id of SECONDARIES) COLORS[id].parts = [...DEFAULT_PARTS[id]];
+  buildMix();
+}
 
 export const css = (id) => "#" + COLORS[id].hex.toString(16).padStart(6, "0");
 export const isPrimary = (id) => COLORS[id].kind === "primaria";
