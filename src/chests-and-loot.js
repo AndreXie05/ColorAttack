@@ -4,20 +4,22 @@ import { mat } from "./materials-and-geometry.js";
 /* ============================================================
    8. BAÚS (lógica)
    ============================================================ */
-export function rollChest(sudden = false) {
+// mode: os prémios com `modes` só saem nesses modos de jogo (ex.: a armadilha)
+export function rollChest(sudden = false, mode = "normal") {
+  const rewards = CONFIG.rewards.filter((r) => !r.modes || r.modes.includes(mode));
   if (sudden) {                                                         // morte súbita: 50% vazio e os 4 prémios com a mesma probabilidade (1 caixa, 1 bala)
     if (Math.random() < CONFIG.suddenDeath.emptyChance) return null;
-    const r = CONFIG.rewards[Math.floor(Math.random() * CONFIG.rewards.length)];
+    const r = rewards[Math.floor(Math.random() * rewards.length)];
     return { ...r, drops: [1, 1] };
   }
   if (Math.random() < CONFIG.chest.emptyChance) return null;            // 20% vazio
-  const total = CONFIG.rewards.reduce((s, r) => s + r.weight, 0);
+  const total = rewards.reduce((s, r) => s + r.weight, 0);
   let x = Math.random() * total;
-  for (const r of CONFIG.rewards) { x -= r.weight; if (x <= 0) return r; }
-  return CONFIG.rewards[0];
+  for (const r of rewards) { x -= r.weight; if (x <= 0) return r; }
+  return rewards[0];
 }
 const GOLDEN = { id: "golden", icon: "🌟", label: "Baú dourado" };
-export function openChest(c, sudden = false) {
+export function openChest(c, sudden = false, mode = "normal") {
   if (c.golden) {                                                       // baú dourado: abre sempre e dá o prémio forte
     c.golden = false; c.openTimer = 1.8; c.lidTarget = 1;
     if (c.state === "ready") { c.state = "cooldown"; c.cooldown = CONFIG.chest.reopenSeconds; }
@@ -28,7 +30,7 @@ export function openChest(c, sudden = false) {
   c.openTimer = 1.8; c.lidTarget = 1;
   if (c.opens >= CONFIG.chest.maxOpensPerRound) { c.state = "exhausted"; c.cooldown = 0; }
   else { c.state = "cooldown"; c.cooldown = CONFIG.chest.reopenSeconds; }
-  return { ok: true, reward: rollChest(sudden) };
+  return { ok: true, reward: rollChest(sudden, mode) };
 }
 export function updateChests(chests, dt, t) {
   for (const c of chests) {

@@ -107,8 +107,8 @@ export class PaintLayer {
     ctx.globalAlpha = 1;
   }
 
-  splat(x, z, colorId, radius = 1.6) {
-    const rec = { x, z, colorId, radius, seed: (this.seedCounter++ * 2654435761) >>> 0, t0: this.t };
+  splat(x, z, colorId, radius = 1.6, team = null) {                        // team: equipa que pintou (para as zonas de território)
+    const rec = { x, z, colorId, radius, team, seed: (this.seedCounter++ * 2654435761) >>> 0, t0: this.t };
     this.records.push(rec);
     if (this.records.length > MAX) this.records.shift();
     this._draw(rec);

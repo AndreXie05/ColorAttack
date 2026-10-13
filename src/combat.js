@@ -14,6 +14,7 @@ import { COLORS, PRIMARIES, resolveHit, hitDamage } from "./colors.js";
    - Ao reaparecer fica branco (cor neutra, escondida) enquanto tem proteção; só depois se vê a cor.
    - Armadilhas de tinta: pousadas no chão, um adversário a menos de 2 m aciona-as e explodem 0,5 s depois (como uma granada pequena) e deixam uma poça da sua cor.
    - Clima: rangeMul (alcance dos tiros), sightMul (visão dos bots) e paintLifeMul (duração das poças).
+   - Canhão de tinta: as bolas são granadas grandes (throwGrenade com opts), que só pintam adversários.
    Cada combatente: { id, team, index, isPlayer, pos{x,y,z}, hp, maxHp, colorId, alive, protectUntil, respawnAt, radius, height }
    ============================================================ */
 function grenadeMesh(m1, m2) {
@@ -33,6 +34,7 @@ export class CombatWorld {
     this.scene = scene; this.map = map; this.paint = paint; this.cb = callbacks;
     this.combatants = []; this.t = 0; this.lastSplat = -1;
     this.projectiles = []; this.particles = []; this.grenades = []; this.effects = []; this.puddles = []; this.traps = [];
+    this.cannons = [];                                                        // canhões de tinta do mapa (map-features.js), para os bots os encontrarem
     this.targets = [];                                                        // alvos do mapa (ex.: placas das pontes): { x, y, z, r, onHit(cor, quem) }
     this.rangeMul = 1; this.sightMul = 1; this.paintLifeMul = 1;
     this.mats = new Map();
@@ -58,7 +60,7 @@ export class CombatWorld {
   }
 
   add(c) {
-    Object.assign(c, { maxHp: c.maxHp ?? CONFIG.health.max, protectUntil: c.protectUntil ?? 0, respawnAt: 0, radius: c.radius ?? 0.62 * CONFIG.player.scale, height: bodyHeight(c), kills: 0, deaths: 0, streak: 0, puddleMul: 1, puddleUntil: 0 });
+    Object.assign(c, { maxHp: c.maxHp ?? CONFIG.health.max, protectUntil: c.protectUntil ?? 0, respawnAt: 0, radius: c.radius ?? 0.62 * CONFIG.player.scale, height: bodyHeight(c), kills: 0, deaths: 0, streak: 0, puddleMul: 1, puddleUntil: 0, carryMul: 1 });
     this.resetRoundStats(c);
     if (c.hp === undefined) c.hp = c.maxHp;
     if (c.alive === undefined) c.alive = true;
@@ -121,11 +123,11 @@ export class CombatWorld {
     }
   }
 
-  splat(x, z, colorId, r, force = false) {
+  splat(x, z, colorId, r, force = false, team = null) {                      // team: quem pintou (conta para as zonas de território)
     if (!this.paint || (!force && this.t - this.lastSplat < 0.07)) return;
     if ((this.map.waters || []).some((w) => x > w.minX && x < w.maxX && z > w.minZ && z < w.maxZ)) return;   // a tinta não fica a boiar no rio
     this.lastSplat = this.t;
-    this.paint.splat(x, z, colorId, r);
+    this.paint.splat(x, z, colorId, r, team);
   }
 
   // O tiro (da cor `shot`) acerta em `target`
@@ -149,7 +151,7 @@ export class CombatWorld {
       const r = killer.rs;
       killer.kills++; r.kills++; killer.streak++; r.bestStreak = Math.max(r.bestStreak, killer.streak);
       if (byColor) r.killsSame++;
-      if (via === "grenade" || via === "trap") r.grenadeKills++;
+      if (via === "grenade" || via === "trap" || via === "cannon") r.grenadeKills++;
     }
     this.splat(target.pos.x, target.pos.z, target.colorId, 2.2);                    // poça da cor do eliminado
     this.puddles.push({ x: target.pos.x, y: target.pos.y, z: target.pos.z, r: 1.8, colorId: target.colorId, t: this.t });   // só estas poças (e as das armadilhas) mudam a cor de quem as pisa
@@ -158,29 +160,34 @@ export class CombatWorld {
   }
 
   // Granada de tinta: voa em arco até ao ponto (limitado ao alcance) e, ao cair, pinta todos os que estiverem na área da cor escolhida (adversários dessa cor são eliminados)
-  throwGrenade(owner, o, target, colorId, colorId2 = null) {
-    const G = CONFIG.grenade, T = G.flight;
+  // opts (canhão): { range, radius, via, size, enemiesOnly } — o tempo de voo cresce com a distância
+  throwGrenade(owner, o, target, colorId, colorId2 = null, opts = null) {
+    const G = CONFIG.grenade, range = opts?.range ?? G.range;
     let tx = target.x, tz = target.z;
     const dx = tx - owner.pos.x, dz = tz - owner.pos.z, d = Math.hypot(dx, dz);
-    if (d > G.range) { tx = owner.pos.x + (dx / d) * G.range; tz = owner.pos.z + (dz / d) * G.range; }   // alcance máximo
-    const gr = { x: o.x, y: o.y, z: o.z, vx: (tx - o.x) / T, vz: (tz - o.z) / T, vy: (0.2 - o.y + 0.5 * G.gravity * T * T) / T, t: 0, owner, colorId, colors: colorId2 && colorId2 !== colorId ? [colorId, colorId2] : [colorId], mesh: null };
+    if (d > range) { tx = owner.pos.x + (dx / d) * range; tz = owner.pos.z + (dz / d) * range; }   // alcance máximo
+    const T = opts ? 0.45 + Math.min(d, range) / 45 : G.flight;
+    const gr = { x: o.x, y: o.y, z: o.z, vx: (tx - o.x) / T, vz: (tz - o.z) / T, vy: (0.2 - o.y + 0.5 * G.gravity * T * T) / T, t: 0, T, owner, colorId, colors: colorId2 && colorId2 !== colorId ? [colorId, colorId2] : [colorId], mesh: null,
+                 radius: opts?.radius, via: opts?.via, enemiesOnly: !!opts?.enemiesOnly };
     if (this.scene) {
       gr.mesh = grenadeMesh(this.mat(colorId), gr.colors.length > 1 ? this.mat(gr.colors[1]) : null);          // 2 cores: metade de cada
+      if (opts?.size) gr.mesh.scale.setScalar(opts.size);
       gr.mesh.position.set(gr.x, gr.y, gr.z); this.group.add(gr.mesh);
     }
     this.grenades.push(gr);
-    if (owner.rs) owner.rs.grenades++;
+    if (owner.rs && !opts) owner.rs.grenades++;
     return { x: tx, z: tz };
   }
 
   // opts.radius: área (as armadilhas são mais pequenas); opts.enemiesOnly: não pinta os colegas de quem a pôs
   explodeGrenade(g, opts = {}) {
-    const R = opts.radius ?? CONFIG.grenade.radius * (g.owner?.grenadeMul || 1), hit = [], via = g.via || "grenade";
+    const R = opts.radius ?? g.radius ?? CONFIG.grenade.radius * (g.owner?.grenadeMul || 1), hit = [], via = g.via || "grenade";
+    if (g.enemiesOnly) opts = { ...opts, enemiesOnly: true };
     this.burst(g.x, g.y + 0.8, g.z, g.colorId, 30);
     if (g.colors.length > 1) {                                                // 2 cores: duas manchas lado a lado
       this.burst(g.x, g.y + 0.8, g.z, g.colors[1], 30);
-      this.splat(g.x - R * 0.32, g.z, g.colors[0], R * 0.62, true); this.splat(g.x + R * 0.32, g.z, g.colors[1], R * 0.62, true);
-    } else this.splat(g.x, g.z, g.colorId, R * 0.92, true);
+      this.splat(g.x - R * 0.32, g.z, g.colors[0], R * 0.62, true, g.owner?.team); this.splat(g.x + R * 0.32, g.z, g.colors[1], R * 0.62, true, g.owner?.team);
+    } else this.splat(g.x, g.z, g.colorId, R * 0.92, true, g.owner?.team);
     if (this.scene) {                                                       // onda de choque
       const m = new THREE.Mesh(new THREE.RingGeometry(0.85, 1, 40), new THREE.MeshBasicMaterial({ color: COLORS[g.colorId].hex, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false }));
       m.rotation.x = -Math.PI / 2; m.position.set(g.x, g.y + 0.08, g.z); this.group.add(m);
@@ -274,7 +281,7 @@ export class CombatWorld {
     }
     this._updateTraps(t);
     // poças deixadas por jogadores eliminados e por armadilhas: quem as pisa fica da cor da poça (as manchas normais dos tiros e granadas não fazem nada)
-    this.puddles = this.puddles.filter((q) => t - q.t < CONFIG.paint.lifeSeconds * this.paintLifeMul);
+    this.puddles = this.puddles.filter((q) => q.life === Infinity || t - q.t < CONFIG.paint.lifeSeconds * this.paintLifeMul);   // (as poças que andam no Estúdio não acabam)
     const PF = CONFIG.puddleFx;
     for (const c of this.combatants) {
       if (!c.alive) continue;
@@ -298,14 +305,14 @@ export class CombatWorld {
         p.x += p.vx * h; p.y += p.vy * h; p.z += p.vz * h; p.life -= h;
         if (p.life <= 0 || Math.abs(p.x) > ARENA.halfX + 2 || Math.abs(p.z) > ARENA.halfZ + 2) { p.active = false; break; }
         if (p.y <= 0.1) {                                                       // chão: mancha de tinta
-          this.splat(p.x, p.z, p.colorId, 0.7 + Math.random() * 0.6);
+          this.splat(p.x, p.z, p.colorId, 0.7 + Math.random() * 0.6, false, p.owner.team);
           this.burst(p.x, 0.2, p.z, p.colorId, 6); p.active = false; break;
         }
         for (const c of this.map.colliders) {
           if (!this._inside(c, p.x, p.z, 0)) continue;
           const top = topAt(c, p.x, p.z);
           if (p.y >= top || p.y < (c.bottom || 0)) continue;
-          if (p.y - p.vy * h >= top - 0.05) this.splat(p.x, p.z, p.colorId, 0.7 + Math.random() * 0.6);   // caiu em cima de uma plataforma: pinta o topo
+          if (p.y - p.vy * h >= top - 0.05) this.splat(p.x, p.z, p.colorId, 0.7 + Math.random() * 0.6, false, p.owner.team);   // caiu em cima de uma plataforma: pinta o topo
           this.burst(p.x, Math.max(p.y, top + 0.1), p.z, p.colorId, 7); p.active = false; break;
         }
         if (!p.active) break;
@@ -327,7 +334,7 @@ export class CombatWorld {
       const g = this.grenades[i], G = CONFIG.grenade;
       g.t += dt; g.vy -= G.gravity * dt; g.x += g.vx * dt; g.y += g.vy * dt; g.z += g.vz * dt;
       const fl = floorAt(this.map.colliders, g.x, g.z, g.y);                // chão ou topo de uma plataforma por baixo da granada
-      let boom = g.y <= fl + 0.2 || g.t > G.flight + 1;
+      let boom = g.y <= fl + 0.2 || g.t > (g.T || G.flight) + 1;
       if (!boom) for (const c of this.map.colliders) if (g.y < topAt(c, g.x, g.z) && g.y >= (c.bottom || 0) && this._inside(c, g.x, g.z, 0)) { boom = true; break; }
       if (g.mesh) g.mesh.position.set(g.x, Math.max(g.y, fl + 0.2), g.z);
       if (boom) {

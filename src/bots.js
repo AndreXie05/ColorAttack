@@ -12,7 +12,7 @@ import { COLORS, PRIMARIES, ingredients, paletteColors } from "./colors.js";
    disparam com imprecisão. Escolhem a cor certa para o alvo (às vezes enganam-se, conforme a dificuldade em
    o preset da dificuldade em BOT_PRESETS). Desviam-se uns dos outros e destravam sozinhos se ficarem presos.
    Também apanham itens e usam cura, granadas, invisibilidade e armadilhas conforme a dificuldade (ver BOT_PRESETS),
-   e correm para o baú dourado quando aparece.
+   correm para o baú dourado quando aparece, usam os canhões de tinta e seguem os objetivos do mapa (lata, zonas; map-features.js).
    Cada bot é também um "combatente" (hp, cor, vivo/morto...) para o CombatWorld.
    ============================================================ */
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -39,7 +39,8 @@ export class Bot {
     // munição própria: tanques por cor primária, que recarregam devagar e se enchem com as caixas que apanham
     this.ammo = { vermelho: CONFIG.ammo.start, azul: CONFIG.ammo.start, amarelo: CONFIG.ammo.start };
     this.openCd = 0;
-    this.items = { health: 0, grenade: 0, invisible: 0, trap: 0 }; this.invisibleT = 0; this.itemCd = rand(0.5, 1.5); this.grenadeCd = 0;
+    this.items = { health: 0, grenade: 0, invisible: 0, trap: 0 };
+    this.mounted = null; this.cannonGoal = null; this.cannonGoalT = 0;            // canhão em que está / para onde vai this.invisibleT = 0; this.itemCd = rand(0.5, 1.5); this.grenadeCd = 0;
     this._ePrev = null; this._vel = { x: 0, z: 0 };
   }
 
@@ -55,7 +56,7 @@ export class Bot {
     this.damageMul = lv.damage ? 2 : 1;
   }
   _speedCfg() {
-    const k = (this.speedMul || 1) * (this.puddleMul || 1);                    // poça pisada: mais rápido ou mais lento
+    const k = (this.speedMul || 1) * (this.puddleMul || 1) * (this.carryMul || 1);   // poça pisada: mais rápido ou mais lento; com a lata às costas: mais lento
     if (k === 1 && !this.crouching) return MOTION;
     this._sc = this._sc || { ...MOTION };
     this._sc.walk = (this.crouching ? CONFIG.player.crouchWalk : MOTION.walk) * k; this._sc.run = (this.crouching ? CONFIG.player.crouchWalk : MOTION.run) * k;
@@ -101,7 +102,7 @@ export class Bot {
   onRespawn() {                                              // chamado quando reaparece
     this.motion = createMotionState(); this.enemy = null; this.seen = 0; this.stuck = 0;
     this.wait = rand(0.3, 1.0); this.target = { x: this.pos.x, z: this.pos.z };
-    this.invisibleT = 0;
+    this.invisibleT = 0; this.mounted = null; this.cannonGoal = null;
     if (this.passive) { this.pos.x = this.home.x; this.pos.z = this.home.z; }       // alvo do tutorial: volta ao seu lugar
   }
 
@@ -232,6 +233,17 @@ export class Bot {
   update(dt, t, map, agents, world) {
     if (!this.alive) return;
     const p = this.pos, cfg = this.cfg;
+    this._t = world ? world.t : t;
+    if (this.mounted) {                                                         // no canhão: fica parado no assento, virado para onde o canhão aponta (é o canhão que dispara)
+      const m = this.mounted;
+      p.x = m.x; p.z = m.z; p.y = m.top; Object.assign(this.motion, { vx: 0, vz: 0, vy: 0, onGround: true });
+      this.facing = m.yaw; this.crouching = false;
+      if (this.model) {
+        this.model.position.set(p.x, visualY(this.model, p.y, true, dt), p.z); this.model.rotation.y = this.facing;
+        animateCharacter(this.model, { speed: 0, maxSpeed: MOTION.run, onGround: true, vy: 0, landed: false, impact: 0, climbing: false, crouching: false }, dt, t);
+      }
+      return;
+    }
     let dx = 0, dz = 0, engaged = false, faceYaw = null;
     this.openCd -= dt; this.grenadeCd -= dt;
     if (this.invisibleT > 0) this.invisibleT -= dt;
@@ -284,7 +296,15 @@ export class Bot {
         if (arrived) this.wait = rand(0.2, 1.4);
       }
       const gold = world && world.services && cfg.smart >= 1 ? map.chests.find((c) => c.golden && Math.hypot(c.x - p.x, c.z - p.z) < 45) : null;
-      if (gold) {                                                                     // baú dourado: corre para lá e abre-o
+      const cg = this.cannonGoal;
+      if (cg && (!cg.ready() || (this.cannonGoalT -= dt) <= 0)) this.cannonGoal = null;      // alguém chegou primeiro (ou demorou demais)
+      const obj = world && !gold && !this.cannonGoal && world.objective ? world.objective(this) : null;   // objetivo do mapa (lata de tinta, zonas de território)
+      if (this.cannonGoal) {                                                            // vai para o canhão e sobe para ele
+        this.target = { x: cg.x, z: cg.z }; this.wait = 0; this.running = true;
+        if (Math.hypot(cg.x - p.x, cg.z - p.z) < 1.6) { cg.mount(this); this.cannonGoal = null; }
+      } else if (obj) {
+        this.target = { x: obj.x, z: obj.z }; this.wait = 0; this.running = obj.run !== false;
+      } else if (gold) {                                                                     // baú dourado: corre para lá e abre-o
         this.target = { x: gold.x, z: gold.z }; this.wait = 0; this.running = true;
         if (Math.hypot(gold.x - p.x, gold.z - p.z) < 3 && this.openCd <= 0) { world.services.openChest(this, gold); this.openCd = 2; }
       } else if (world && this.lowAmmo && this._resupply(map, world)) this.wait = Math.min(this.wait, 0);   // pouca munição: vai buscar mais

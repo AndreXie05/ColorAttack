@@ -12,6 +12,7 @@ import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.j
    Devolve um grupo com o mesmo `userData` do boneco simples (test-dummy.js), por isso o resto do jogo
    não precisa de saber qual dos dois está a usar. Se o ficheiro faltar ou falhar, devolve null.
    ============================================================ */
+const MODEL_HEIGHT = 2.7;                                  // altura de todos os bonecos no modelo (antes de CONFIG.player.scale)
 export async function loadCharacter(url = "assets/character.glb") {
   let gltf;
   try {
@@ -22,6 +23,10 @@ export async function loadCharacter(url = "assets/character.glb") {
   }
   const root = new THREE.Group();
   root.add(gltf.scene);
+  // todos os personagens com a mesma altura total (do pé ao topo do cabelo): os corpos são iguais, só o cabelo/capuz muda
+  const h = new THREE.Box3().setFromObject(gltf.scene).max.y;
+  const k = h > 0.5 ? MODEL_HEIGHT / h : 1;
+  gltf.scene.scale.setScalar(k);
 
   const paintMat = new THREE.MeshStandardMaterial({ color: 0xff3b4a, roughness: 0.5, metalness: 0 });
   const gunMat = new THREE.MeshStandardMaterial({ color: 0xff3b4a, roughness: 0.35, emissive: 0x222222 });
@@ -49,7 +54,7 @@ export async function loadCharacter(url = "assets/character.glb") {
 
   const body = gltf.scene.getObjectByName("Body");
   root.userData = { legL, legR, armL, armR, shinL: gltf.scene.getObjectByName("ShinL"), shinR: gltf.scene.getObjectByName("ShinR"), body,
-    rest: restPose(body, armL, armR), sym, paint, gunMat, paintMat, fromModel: true };
+    rest: restPose(body, armL, armR), sym, paint, gunMat, paintMat, fromModel: true, k };
   collectTint(root, false);
   return root;
 }
@@ -75,7 +80,7 @@ export function cloneCharacter(template) {
   root.userData = {
     legL: find("LegL"), legR: find("LegR"), armL: find("ArmL"), armR: find("ArmR"), shinL: find("ShinL"), shinR: find("ShinR"), body: find("Body"),
     rest: template.userData.rest || restPose(find("Body"), find("ArmL"), find("ArmR")),   // (a do modelo original: o clone pode ter sido feito a meio de uma pose)
-    sym: root.children.find((c) => c.isSprite), paint, gunMat, paintMat, fromModel: true,
+    sym: root.children.find((c) => c.isSprite), paint, gunMat, paintMat, fromModel: true, k: template.userData.k || 1,
   };
   collectTint(root, true);
   return root;

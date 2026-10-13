@@ -117,7 +117,7 @@ export function animateCharacter(dummy, ctx, dt, t) {
   dummy.rotation.x = lerp(lerp(a.lean * (1 - cr), 0.02, a.climb), 0.3, a.mantle || 0);
   dummy.rotation.z = s * 0.045 * a.amp * ground;
   dummy.rotation.y += s * 0.07 * a.amp * ground;
-  dummy.position.y -= drop * S;
+  dummy.position.y -= drop * S * (u.k || 1);                                // k: escala do modelo para todos terem a mesma altura
 
   // esticar a subir, esmagar ao aterrar, respirar parado; sem joelhos (boneco simples) agachar = encolher
   const squat = knees ? 0 : a.crouch;

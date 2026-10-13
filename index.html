@@ -135,6 +135,18 @@
   #howContent .howCard:first-child { margin-top: auto; }
   #howContent .howCard:last-child { margin-bottom: auto; }
   #howBack { margin-bottom: auto; }
+  /* menu de temas das instruções */
+  .topicGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: auto 0; }
+  .topicBtn {
+    cursor: pointer; font: inherit; color: #fff; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 4px;
+    background: #0d0b1fcc; border: 3px solid #ffffff66; border-radius: 18px; padding: 14px 10px 12px; animation: cardIn .35s var(--d, 0s) backwards;
+    transition: transform .12s, border-color .12s, background .12s;
+  }
+  .topicBtn:hover { transform: translateY(-4px) scale(1.03); border-color: #ffd21f; background: #2a1f5ccc; }
+  .topicBtn .ti { font-size: 38px; line-height: 1.1; }
+  .topicBtn b { font-size: 18px; color: #ffd21f; }
+  .topicBtn small { font-size: 13px; opacity: .85; }
+  @media (max-width: 800px) { .topicGrid { grid-template-columns: repeat(2, 1fr); } }
   #howNav { z-index: 2; display: flex; align-items: center; gap: 22px; }
   #howDots { display: flex; gap: 10px; }
   #howNav .ghost { font-size: 20px; padding: 10px 30px; }
@@ -143,7 +155,20 @@
   .ghost.small { font-size: 13px; padding: 5px 16px; opacity: .8; }
   .keyRow { display: flex; gap: 22px; margin: 10px 0 14px; }
   .keyChip { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-  .howCard { background: #0d0b1fcc; border: 3px solid #ffffffaa; border-radius: 20px; padding: 22px 32px 26px; line-height: 1.6; font-size: 21px; }
+  .howCard { background: #0d0b1fcc; border: 3px solid #ffffffaa; border-radius: 20px; padding: 18px 28px 22px; line-height: 1.5; font-size: 17px; }
+  .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; text-align: left; margin-top: 6px; }
+  .tile { background: #ffffff10; border: 2px solid #ffffff2e; border-radius: 14px; padding: 10px 14px; font-size: 15px; line-height: 1.4; }
+  .tile .tt { display: block; margin-bottom: 4px; font-size: 17px; color: #ffd21f; }
+  .tile kbd { font-size: 13px; padding: 0 7px; margin-left: 4px; vertical-align: 1px; }
+  .tiles.three { grid-template-columns: repeat(3, 1fr); }
+  .tiles.four { grid-template-columns: repeat(4, 1fr); }
+  #howContent:has(.tiles.four) { width: min(96vw, 1120px); }          /* página dos itens: quadro mais largo para caberem 4 por fila */
+  .tile.wide { grid-column: 1 / -1; }
+  .eqGrid.three { grid-template-columns: repeat(3, auto); justify-content: center; gap: 10px 34px; }
+  .eqGrid.three .eq { gap: 8px; font-size: 22px; } .eqGrid.three .eq span { font-size: 18px; }
+  .keys2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 22px; text-align: left; }
+  @media (max-width: 900px) { .tiles.four { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 700px) { .tiles, .tiles.three, .tiles.four, .keys2, .eqGrid.three { grid-template-columns: 1fr; } }
   #howContent .howCard { text-align: center; }
   .upList { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 22px; text-align: left; font-size: 16px; line-height: 1.3; }
   .upList b { display: block; font-weight: 400; color: #ffd21f; font-size: 18px; } .upList small { opacity: .92; }
@@ -152,27 +177,27 @@
   .colorLine { justify-content: center; flex-direction: column; gap: 6px; text-align: center; }
   .eq, .keyRow, .eqGrid { justify-content: center; justify-items: center; }
   .keys { width: auto; margin: 0 auto; text-align: left; }
-  .howCard h3 { margin: 0 0 10px; font-size: 32px; color: #ffd21f; }
+  .howCard h3 { margin: 0 0 10px; font-size: 26px; color: #ffd21f; }
   .howCard p { margin: 8px 0; }
   .howCard ul { margin: 8px 0; padding-left: 20px; }
   .colorChip { display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 3px 0 #00000066; flex: none; }
   .colorGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 8px auto 14px; max-width: 560px; }   /* 3 colunas iguais: símbolos alinhados em cima e em baixo */
   .colorLine { display: flex; align-items: center; gap: 10px; }
   .colorLine small { opacity: .75; display: block; }
-  .colorLine b { display: block; font-size: 22px; }
+  .colorLine b { display: block; font-size: 18px; }
   .eqGrid { display: grid; gap: 10px; margin-top: 10px; }
   .eq { display: flex; align-items: center; gap: 14px; font-size: 30px; font-weight: 900; flex-wrap: wrap; }
   .eq span { font-size: 22px; }
   .keys { width: 100%; border-collapse: collapse; }
-  .keys { font-size: 20px; }
+  .keys { font-size: 16px; }
   .keys td { padding: 6px 8px; border-bottom: 1px solid #ffffff22; vertical-align: top; }
   .keys td:first-child { white-space: nowrap; }
   kbd { background: #ffffff22; border: 2px solid #ffffff88; border-bottom-width: 4px; border-radius: 8px; padding: 1px 10px; font: inherit; font-weight: 800; }
 
   @media (max-height: 720px) {                      /* janelas baixas: letra um pouco mais pequena para caber tudo */
     #howTo { gap: 10px; padding-top: 14px; padding-bottom: 14px; }
-    .howCard { font-size: 17px; padding: 14px 24px 16px; line-height: 1.45; }
-    .howCard h3 { font-size: 26px; margin-bottom: 6px; }
+    .howCard { font-size: 15px; padding: 12px 20px 14px; line-height: 1.4; }
+    .howCard h3 { font-size: 22px; margin-bottom: 6px; }
     .colorChip { transform: scale(.82); margin: -4px; }
     .eq { font-size: 24px; }
     #howContent { min-height: 0; }
@@ -203,19 +228,19 @@
   .ghost.big { font-size: 22px; padding: 10px 34px; background: linear-gradient(90deg, #ff3b4a, #ffd21f, #2f7bff); color: #1a1033; border-color: #fff; }
 
   /* ===== ESCOLHA DE MAPA ===== */
-  #mapSelect, #charSelect {
+  #mapSelect, #charSelect, #setupScreen {
     position: fixed; inset: 0; display: none; z-index: 10;
-    flex-direction: column; align-items: center; justify-content: center; gap: 22px;
+    flex-direction: column; align-items: center; justify-content: safe center; gap: 22px;   /* safe: se não couber, começa no topo (o título não fica cortado) */
     background: radial-gradient(circle at 50% 40%, #2a1f5c 0%, #0d0b1f 70%);
     overflow-x: hidden; overflow-y: auto; padding: 20px; box-sizing: border-box;
   }
-  #mapSelect h2, #charSelect h2 {
+  #mapSelect h2, #charSelect h2, #setupScreen h2 {
     z-index: 2; margin: 0; color: #fff; font-size: clamp(26px, 4vw, 44px); letter-spacing: .08em;
     text-shadow: 0 4px 0 #ff3b4a, 0 8px 0 #2f7bff;
   }
   #mapGrid {
-    z-index: 2; display: grid; gap: 18px; width: min(94vw, 980px);
-    grid-template-columns: repeat(3, 1fr);          /* 3 em cima e 3 em baixo (o Aleatório é o primeiro) */
+    z-index: 2; display: grid; gap: 18px; width: min(94vw, 1180px);
+    grid-template-columns: repeat(4, 1fr);          /* 2 filas de 4 (o Aleatório é o primeiro cartão) */
   }
   .mapCard {
     cursor: pointer; border: 4px solid #fff; border-radius: 22px; padding: 16px 14px; text-align: center;
@@ -227,8 +252,8 @@
   .mapCard .name { font-size: 22px; font-weight: 900; margin: 6px 0 4px; text-shadow: 0 2px 0 #00000055; }
   .mapCard .desc { font-size: 13px; opacity: .95; text-shadow: 0 1px 0 #00000055; }
   /* mapas com imagem: inclinam para o rato, a imagem aproxima-se e aparece "Jogar" */
-  .mapCard:first-child { grid-column: 1 / -1; justify-self: center; width: min(100%, 320px); padding: 10px 14px; }
-  .mapCard:first-child .icon { font-size: 40px; }
+  .mapCard:first-child { aspect-ratio: 16 / 11; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10px 14px; }
+  .mapCard:first-child .icon { font-size: 58px; }
   .mapCard.pic {
     position: relative; overflow: hidden; padding: 0; aspect-ratio: 16 / 11; text-align: left;
     transform: perspective(700px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
@@ -253,13 +278,29 @@
     font-weight: 900; font-size: 14px; opacity: 0; transform: scale(.7); transition: opacity .2s, transform .2s;
   }
   .mapCard.pic:hover .go { opacity: 1; transform: scale(1); }
+  @media (max-width: 900px) { #mapGrid { grid-template-columns: repeat(3, 1fr); } }
   @media (max-width: 700px) { #mapGrid { grid-template-columns: repeat(2, 1fr); } }
-  #matchPick { z-index: 2; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; color: #fff; font-weight: 800; }
-  #matchPick > span { display: inline-flex; gap: 8px; align-items: center; } #matchPick .mpGap { margin-left: 18px; }
-  #diffPick { z-index: 2; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; color: #fff; font-weight: 800; }
+  /* ===== CONFIGURAÇÕES DA PARTIDA ===== */
+  #setupMap {
+    z-index: 2; position: relative; width: min(92vw, 560px); aspect-ratio: 16 / 6; border: 4px solid #fff; border-radius: 22px; overflow: hidden;
+    background: linear-gradient(160deg, var(--c1), var(--c2)); box-shadow: 0 8px 0 #00000066; animation: cardIn .35s backwards;
+  }
+  #setupMap .shot { position: absolute; inset: 0; background-size: cover; background-position: center; }
+  #setupMap .info { position: absolute; left: 0; right: 0; bottom: 0; padding: 26px 18px 12px; color: #fff;
+    background: linear-gradient(to top, color-mix(in srgb, var(--c2) 92%, #000) 0%, transparent); }
+  #setupMap .name { font-size: 26px; font-weight: 900; text-shadow: 0 2px 0 #00000055; }
+  #setupMap .desc { font-size: 14px; opacity: .95; }
+  #setupMap .big { position: absolute; inset: 0; display: grid; place-items: center; font-size: 64px; }
+  #setupPanel {
+    z-index: 2; width: min(92vw, 760px); display: flex; flex-direction: column; gap: 4px; padding: 14px 18px; box-sizing: border-box;
+    background: #ffffff10; border: 3px solid #ffffff33; border-radius: 22px; backdrop-filter: blur(4px); animation: cardIn .35s .08s backwards;
+  }
+  .suRow { display: flex; align-items: center; gap: 14px; padding: 8px 4px; color: #fff; }
+  .suRow + .suRow { border-top: 2px solid #ffffff1a; }
+  .suLabel { flex: 0 0 215px; font-weight: 900; font-size: 17px; }
+  .suRow > div { display: flex; flex-wrap: wrap; gap: 8px; }
+  @media (max-width: 700px) { .suRow { flex-direction: column; align-items: flex-start; } .suLabel { flex: none; } }
   .chip.d-facil.on { background: #47e06a; color: #0d2a14; } .chip.d-media.on { background: #ffd21f; color: #2a2100; } .chip.d-dificil.on { background: #ff8a1f; color: #2a1400; } .chip.d-impossivel.on { background: #ff3b4a; color: #fff; }
-  #modePick { z-index: 2; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; color: #fff; font-weight: 800; }
-  #weatherPick { z-index: 2; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; color: #fff; font-weight: 800; }
   .chip { cursor: pointer; font: inherit; font-weight: 800; color: #fff; background: #ffffff1f; border: 3px solid #ffffff66; border-radius: 999px; padding: 6px 18px; }
   .chip:hover { background: #ffffff40; }
   .chip.on { background: linear-gradient(90deg, #ff3b4a, #ffd21f, #2f7bff); color: #1a1033; border-color: #fff; }
@@ -338,6 +379,9 @@
   #tutText { font-size: 21px; line-height: 1.3; text-shadow: 0 2px 0 #0007; } #tutText b { color: #ffd21f; font-weight: 400; }
   #tutHint { font-size: 13px; opacity: .8; min-height: 16px; }
   #tutDots { display: flex; gap: 6px; } #tutDots i { width: 10px; height: 10px; border-radius: 50%; background: #ffffff33; } #tutDots i.on { background: #47e06a; } #tutDots i.cur { background: #ffd21f; transform: scale(1.3); }
+  /* pausa: tudo o que estiver a aparecer por cima do jogo some e volta ao continuar */
+  body.paused #countdown, body.paused #feed, body.paused #effects, body.paused #killfeed, body.paused #prompt, body.paused #targetInfo,
+  body.paused #mixHint, body.paused #hurt, body.paused #speedFx { visibility: hidden; }
   body.tut #tutBar { display: flex; } body.tut #topBar, body.tut #killsBar { display: none; }
   body.tut #targetInfo { top: 168px; }
   #gameOver { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: #0d0b1fcc; pointer-events: auto; }
@@ -687,12 +731,26 @@
 <div id="mapSelect">
   <div class="blobs"><div class="blob r"></div><div class="blob b"></div><div class="blob y"></div></div>
   <h2>ESCOLHE O MAPA</h2>
-  <div id="modePick"><span>Modo:</span></div>
-  <div id="weatherPick"><span>Clima:</span></div>
-  <div id="diffPick"><span>Dificuldade:</span></div>
-  <div id="matchPick"><span>Primeiro a ganhar:</span><span id="mpWins"></span><span class="mpGap">Duração do round:</span><span id="mpMin"></span></div>
   <div id="mapGrid"></div>
   <button id="backBtn" class="ghost">&larr; Voltar</button>
+</div>
+
+<!-- ===== CONFIGURAÇÕES DA PARTIDA (depois de escolher o mapa) ===== -->
+<div id="setupScreen">
+  <div class="blobs"><div class="blob r"></div><div class="blob b"></div><div class="blob y"></div></div>
+  <h2>PREPARA A PARTIDA</h2>
+  <div id="setupMap"></div>
+  <div id="setupPanel">
+    <div class="suRow"><span class="suLabel">🎮 Modo</span><div id="modePick"></div></div>
+    <div class="suRow"><span class="suLabel">🌦️ Clima</span><div id="weatherPick"></div></div>
+    <div class="suRow"><span class="suLabel">🤖 Dificuldade</span><div id="diffPick"></div></div>
+    <div class="suRow"><span class="suLabel">🏆 Primeiro a ganhar</span><div id="mpWins"></div></div>
+    <div class="suRow"><span class="suLabel">⏱️ Duração do round</span><div id="mpMin"></div></div>
+  </div>
+  <div class="navRow">
+    <button id="setupBack" class="ghost">&larr; Mudar o mapa</button>
+    <button id="setupPlay" class="ghost big">JOGAR &#9654;</button>
+  </div>
 </div>
 
 <div id="statsScreen">

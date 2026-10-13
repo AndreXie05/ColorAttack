@@ -35,7 +35,7 @@ const state = {
   quality: "media", fpsAcc: 0, fpsFrames: 0, fpsTime: 0, lowFpsTime: 0, grace: 0,
   roundTime: CONFIG.roundSeconds, opened: 0, empty: 0, lastUiTimer: "",
   invisible: 0, round: null, upg: {}, botUpg: {}, feedQueue: [], tutorial: null, tutorialMode: false, startTutorial: false, upgradeChoices: null, intermission: 0, over: false, bots: [], world: null, me: null, ammo: { vermelho: 0, azul: 0, amarelo: 0 }, playerColor: "vermelho", dead: false, deathInfo: null, firing: false, fireCd: 0, noAmmoMsg: 0, aimingGrenade: false, grenadeColor: "vermelho", grenadeColor2: null, grenadeSlot: 0, intenseT: 5, radarT: 0, ads: false, healingT: 0, tracked: [], aimRing: null, gameTime: 0, targetT: 0, targetKey: "", hpShown: -1, hurtT: 0, starting: false, shownCrossColor: "", characterId: "robin", rosters: null, pickups: null, pips: { A: [], B: [] }, loot: {}, paused: false, weather: null, paint: null, colors: null, shownColor: "", weatherId: "sol", weatherChoice: "random",
-  countdown: 0, goT: 0, mixHintT: 0, mixHintKey: "", gameStats: {}, goldenDone: false, mode: "normal", secret: false, clues: {},
+  countdown: 0, goT: 0, mixHintT: 0, mixHintKey: "", gameStats: {}, goldenDone: false, mode: "normal", secret: false, clues: {}, cannon: null,
 };
 const keys = new Set();
 
@@ -114,6 +114,7 @@ function showScreen(name) {
   $("titleScreen").style.display = name === "title" ? "flex" : "none";
   $("charSelect").style.display = name === "chars" ? "flex" : "none";
   $("mapSelect").style.display = name === "select" ? "flex" : "none";
+  $("setupScreen").style.display = name === "setup" ? "flex" : "none";
   $("howTo").style.display = name === "howto" ? "flex" : "none";
   $("hud").style.display = name === "viewer" ? "block" : "none";
 }
@@ -129,17 +130,14 @@ function buildMapCards() {
     else {                                             // cartão com a imagem do mapa (assets/previews), que se aproxima ao passar o rato
       el.classList.add("pic");
       el.innerHTML = `<div class="shot" style="background-image:url(assets/previews/${m.id}.jpg)"></div>
-        <div class="info"><div class="name"><span class="icon">${m.icon}</span> ${m.name}</div><div class="desc">${m.desc}</div></div><div class="go">Jogar ▶</div>`;
+        <div class="info"><div class="name"><span class="icon">${m.icon}</span> ${m.name}</div><div class="desc">${m.desc}</div></div><div class="go">Escolher ▶</div>`;
       el.addEventListener("pointermove", (e) => {      // inclina para o lado do rato
         const r = el.getBoundingClientRect(), x = (e.clientX - r.left) / r.width - 0.5, y = (e.clientY - r.top) / r.height - 0.5;
         el.style.setProperty("--rx", `${-y * 10}deg`); el.style.setProperty("--ry", `${x * 12}deg`);
       });
       el.addEventListener("pointerleave", () => { el.style.setProperty("--rx", "0deg"); el.style.setProperty("--ry", "0deg"); });
     }
-    el.addEventListener("click", () => {
-      const def = m.id === "random" ? MAPS[Math.floor(Math.random() * MAPS.length)] : m;
-      startMap(def);
-    });
+    el.addEventListener("click", () => showSetup(m));                             // escolher o mapa leva às configurações da partida
     grid.appendChild(el);
   }
 }
@@ -158,6 +156,23 @@ function showToast(text, color = "#fff") {
   setTimeout(() => row.remove(), FEED_MS + 500);
 }
 
+// Página das configurações: o mapa escolhido em cima (com a imagem) e as opções da partida por baixo
+let chosenMap = null;
+function showSetup(m) {
+  chosenMap = m;
+  const box = $("setupMap");
+  box.style.setProperty("--c1", m.c1); box.style.setProperty("--c2", m.c2);
+  box.innerHTML = (m.id === "random" ? `<div class="big">${m.icon}</div>` : `<div class="shot" style="background-image:url(assets/previews/${m.id}.jpg)"></div>`) +
+    `<div class="info"><div class="name">${m.icon} ${m.name}</div><div class="desc">${m.desc}</div></div>`;
+  box.style.animation = "none"; void box.offsetWidth; box.style.animation = "";
+  showScreen("setup");
+}
+$("setupBack").addEventListener("click", () => showScreen("select"));
+$("setupPlay").addEventListener("click", () => {
+  if (!chosenMap) return;
+  startMap(chosenMap.id === "random" ? MAPS[Math.floor(Math.random() * MAPS.length)] : chosenMap);
+});
+
 function fmtTime(s) {
   s = Math.max(0, Math.ceil(s));
   return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
@@ -171,16 +186,17 @@ function lootIcon(key) {
   }
   return `<span class="emoji">${CONFIG.rewards.find((r) => r.id === key).icon}</span>`;
 }
+const ITEM_KEYS = { health: "T", invisible: "F", grenade: "G", trap: "C" };
 function buildLootPanel() {
   const panel = $("lootRows");
   panel.innerHTML = "";
   state.loot = {};
-  const keys = [...PRIMARIES.map((c) => "ammo:" + c), ...CONFIG.rewards.filter((r) => r.id !== "ammo").map((r) => r.id)];
+  const keys = [...PRIMARIES.map((c) => "ammo:" + c), ...CONFIG.rewards.filter((r) => r.id !== "ammo" && (!r.modes || r.modes.includes(state.mode))).map((r) => r.id)];   // (a armadilha só nos modos em que existe)
   for (const key of keys) {
     state.loot[key] = 0;
     const row = document.createElement("div");
     row.className = "lootRow"; row.id = "loot-" + key.replace(":", "-");
-    const hint = key === "health" ? "T" : key === "invisible" ? "F" : key === "grenade" ? "G" : key === "trap" ? "C" : key.startsWith("ammo:") ? COLORS[key.slice(5)].key : "";
+    const hint = ITEM_KEYS[key] || (key.startsWith("ammo:") ? COLORS[key.slice(5)].key : "");
     row.innerHTML = `<kbd class="kh">${hint}</kbd><div class="lootMain">${lootIcon(key)}<span class="qty">0</span></div>`;
     panel.appendChild(row);
   }
@@ -361,6 +377,7 @@ function updateInvisibility(dt) {
   if (state.radarT > 0) state.radarT = Math.max(0, state.radarT - dt);
   const me = state.me, pl = me && me.puddleMul !== 1 && state.world ? Math.max(0, me.puddleUntil - state.world.t) : 0;   // efeito da poça
   const txt = [state.invisible > 0 ? `👻 ${state.invisible.toFixed(1)} s` : "", state.radarT > 0 ? `📡 ${state.radarT.toFixed(1)} s` : "",
+               state.cannon ? `💥 ${state.cannon.left().toFixed(1)} s` : "", me && state.features?.carrying(me) ? "🥫 Leva a lata para a tua base!" : "",
                pl > 0 ? `${me.puddleMul > 1 ? "⚡" : "🐌"} ${pl.toFixed(1)} s` : "", me?.streak >= 2 ? `🔥 ×${me.streak}` : ""].filter(Boolean).join("   ");
   if (fx.textContent !== txt) fx.textContent = txt;
 }
@@ -368,8 +385,9 @@ function updateInvisibility(dt) {
 // Efeito do clima no jogo (ver `play` em weather.js): duração da tinta e das poças, alcance dos tiros e visão dos bots
 function applyWeatherPlay(announce) {
   const w = WEATHERS[state.weatherId], P = w.play;
-  if (state.world) Object.assign(state.world, { rangeMul: P.range, sightMul: P.sight, paintLifeMul: P.paintLife });
-  if (state.paint) state.paint.lifeMul = P.paintLife;
+  const k = state.features?.paintLifeK || 1;                                          // mapa com território: a tinta seca em 10 s
+  if (state.world) Object.assign(state.world, { rangeMul: P.range, sightMul: P.sight, paintLifeMul: P.paintLife * k });
+  if (state.paint) state.paint.lifeMul = P.paintLife * k;
   if (announce) showToast(`${w.icon} ${w.name}${P.desc ? ": " + P.desc : ""}`, "#9be7ff");
 }
 
@@ -388,6 +406,7 @@ function unloadMap() {
   if (!m) return;
   clearGoldenBeams();
   if (state.features) { state.features.dispose(); state.features = null; }
+  state.cannon = null;
   showCountdown(""); state.countdown = 0; state.goT = 0;
   if (state.pickups) { state.pickups.dispose(); state.pickups = null; }
   if (state.weather) { state.weather.dispose(); state.weather = null; }
@@ -448,11 +467,24 @@ async function startMap(def, keepMatch = false) {
   state.player.motion = createMotionState(); state.player.facing = sp.ry;
   await spawnBots(map);
   setupCombat(map);
-  applyWeatherPlay(false);
   state.features = state.tutorialMode ? null : setupMapFeatures(def.id, {              // fontes de tinta, pontes com interruptor... (só em alguns mapas)
-    scene, world: state.world, map, colliders: map.colliders, playerPos: () => state.player.pos, toast: showToast,
+    scene, world: state.world, map, colliders: map.colliders, playerPos: () => state.player.pos, toast: showToast, paint: () => state.paint,
+    onScore: (team, n, msg) => {                                                        // pontos do mapa (lata, território): somam às eliminações do round
+      if (state.over || state.tutorial || state.intermission > 0) return;
+      state.round.kills[team] += n; updateScoreUi();
+      showToast(msg, team === "A" ? "#4da8ff" : "#ff4455");
+      if (state.round.sudden) endRound(team);
+    },
     onColor: (c, col) => state.world.cb.onColorChange?.(c, col, "fountain"),
+    onCannon: (cn, c, on) => {
+      if (c.isPlayer) {
+        state.cannon = on ? cn : null;
+        if (on) showToast(`💥 Canhão de tinta: ${CONFIG.cannon.use} s! Clica para lançar bolas gigantes da cor da mão (E para sair)`, "#ff8a1f");
+        else showToast(`💥 Saíste do canhão (recarrega ${CONFIG.cannon.cooldown} s)`, "#ffd21f");
+      } else if (on && c.team === "B" && Math.hypot(cn.x - state.player.pos.x, cn.z - state.player.pos.z) < CONFIG.cannon.range + 5) showToast(`💥 ${nameOf(c)} subiu para o canhão de tinta! Cuidado!`, "#ff4455");
+    },
   });
+  applyWeatherPlay(false);                                                             // (depois das surpresas do mapa: na Escola a tinta seca mais depressa)
   state.goldenDone = false;
   state.countdown = state.tutorialMode ? 0 : CONFIG.countdown; state.goT = 0;
   state.cam.ready = false;
@@ -484,7 +516,7 @@ function leaveViewer() {
   state.tutorial = null; state.tutorialMode = false; document.body.classList.remove("tut");
   if (document.pointerLockElement) document.exitPointerLock();
   unloadMap();
-  $("pause").style.display = "none";
+  $("pause").style.display = "none"; document.body.classList.remove("paused");
   showScreen("select");
 }
 
@@ -793,7 +825,7 @@ function tryOpenChest() {
   const c = nearestChest();
   if (!c) return;
   if (state.countdown > 0) return;
-  const res = openChest(c, !!state.round?.sudden);
+  const res = openChest(c, !!state.round?.sudden, state.mode);
   if (!res.ok) return;
   if (!state.tutorial) Stats.current.chests++;
   if (res.reward?.id === "golden") { goldenReward(state.me); return; }
@@ -832,7 +864,10 @@ window.addEventListener("keydown", (e) => {
   if (state.tutorial && e.code === "KeyN") { state.tutorial.skip(); return; }               // N salta o passo do tutorial
   if (/^Digit[1-3]$/.test(e.code)) state.tutorial?.event("digit", e.code);
   if (e.code === "KeyX" && state.aimingGrenade && state.grenadeColor2) { state.grenadeSlot ^= 1; return; }
-  if (e.code === "KeyE") tryOpenChest();
+  if (e.code === "KeyE") {
+    if (state.cannon) state.cannon.leave();                                      // E dentro do canhão: sai
+    else { const cn = !state.dead && state.countdown <= 0 && state.features?.nearCannon?.(state.player.pos); if (cn) { if (!cn.mount(state.me)) showToast(`💥 O canhão está a recarregar (${Math.ceil(cn.readyAt - state.world.t)} s)`, "#ffd21f"); } else tryOpenChest(); }
+  }
   else if (e.code === "KeyV") state.cam.aerial = !state.cam.aerial;
   else if (e.code === "KeyR") newRound();
   else if (e.code === "Digit1" || e.code === "Digit2" || e.code === "Digit3") state.colors.press(PRIMARIES[Number(e.code.slice(5)) - 1]);
@@ -879,6 +914,7 @@ const ADS_FOV = 48;                   // campo de visão em 1.ª pessoa (botão 
 function lockMouse() { document.activeElement?.blur?.(); canvas.requestPointerLock?.(); }       // tira o foco dos botões (senão o Espaço voltava a "clicar" neles)
 function setPaused(p) {
   state.paused = p;
+  document.body.classList.toggle("paused", p && state.screen === "viewer");     // esconde contagem, mensagens, avisos... (ver index.html)
   if (p) setAds(false);
   if (p) { $("mmBox").classList.remove("big"); $("crosshair").dataset.mode = "none"; }       // na pausa não há mira
   $("deathBox").style.display = !p && state.dead && state.deathInfo ? "flex" : "none";       // "Foste eliminado!" some na pausa e volta ao continuar
@@ -1000,16 +1036,16 @@ $("charBack").addEventListener("click", () => showScreen("title"));
 $("charNext").addEventListener("click", () => showScreen("select"));
 $("backBtn").addEventListener("click", () => showScreen("chars"));
 const instructions = createInstructions({
-  content: $("howContent"), prev: $("howPrev"), next: $("howNext"), dots: $("howDots"),
+  content: $("howContent"), prev: $("howPrev"), next: $("howNext"), dots: $("howDots"), nav: $("howNav"), back: $("howBack"),
   onClose: () => showScreen("title"),
 });
 $("howBtn").addEventListener("click", () => { instructions.reset(); showScreen("howto"); });
-$("howBack").addEventListener("click", () => showScreen("title"));
+$("howBack").addEventListener("click", () => instructions.back());            // dentro de um tema volta aos temas; no menu sai
 window.addEventListener("keydown", (e) => {
   if (state.screen !== "howto") return;
   if (e.code === "ArrowRight") instructions.go(1);
   else if (e.code === "ArrowLeft") instructions.go(-1);
-  else if (e.code === "Escape") showScreen("title");
+  else if (e.code === "Escape") instructions.back();
 });
 $("menuBtn").addEventListener("click", leaveViewer);
 function buildDifficultyChips() {                                                   // dificuldade dos bots adversários
@@ -1181,7 +1217,7 @@ function paintBot(bot) {
 
 // Um bot abre um baú: as caixas caem no chão (cores à sorte) e qualquer um pode apanhá-las
 function botOpenChest(bot, c) {
-  const res = openChest(c, !!state.round?.sudden);
+  const res = openChest(c, !!state.round?.sudden, state.mode);
   if (!res.ok || !res.reward) return;
   if (res.reward.id === "golden") { goldenReward(bot); return; }
   const r = res.reward, [lo, hi] = r.drops;
@@ -1230,6 +1266,11 @@ function setupCombat(map) {
       },
       onReveal: (c) => { if (c.isPlayer) paintPlayer(c.colorId); else paintBot(c); },
       onGrenade: (k, x, z, colorId, hit, via) => {
+        if (via === "cannon") {
+          if (k.isPlayer && hit.length) showToast(`💥 A bola do canhão apanhou ${hit.map(nameOf).join(", ")}!`, hex6(hexOf(colorId)));
+          else if (hit.includes(state.me)) showToast("💥 Uma bola do canhão mudou a tua cor!", "#ff8a1f");
+          return;
+        }
         if (via === "trap") {
           if (k.isPlayer) showToast(`🪤 A tua armadilha ${COLORS[colorId].name} apanhou ${hit.map(nameOf).join(", ") || "alguém"}!`, hex6(hexOf(colorId)));
           else if (hit.includes(state.me)) showToast("🪤 Pisaste uma armadilha!", "#ff8a1f");
@@ -1342,7 +1383,7 @@ function grenadeTarget() {
 }
 function startGrenadeAim() {
   if (state.healingT > 0) return;
-  if (state.dead || state.cam.aerial || state.countdown > 0) return;
+  if (state.dead || state.cam.aerial || state.countdown > 0 || state.cannon) return;
   if (!state.loot.grenade) { showToast("💣 Não tens granadas", "#ffd21f"); return; }
   state.grenadeColor = state.colors.current; state.aimLastCol = state.colors.current;   // começa com a cor da mão; a roda do rato ou as teclas 1, 2, 3 mudam
   state.grenadeColor2 = FX().dualGrenade ? state.grenadeColor : null; state.grenadeSlot = 0;
@@ -1372,6 +1413,7 @@ function releaseGrenade() {
 // ---------- armadilha de tinta (C): fica no chão com a cor da mão e explode quando um adversário passa por cima ----------
 function placeTrap() {
   if (state.dead || state.cam.aerial || state.countdown > 0 || !state.world) return;
+  if (!("trap" in state.loot)) return;                                             // neste modo não há armadilhas
   if (!state.loot.trap) { showToast("🪤 Não tens armadilhas", "#ffd21f"); return; }
   if (!state.player.motion.onGround) { showToast("🪤 Só podes pousar a armadilha no chão", "#ffd21f"); return; }
   const p = state.player.pos, col = state.colors.current;
@@ -1380,12 +1422,20 @@ function placeTrap() {
   showToast(`🪤 Armadilha ${COLORS[col].name} pousada (ativa daqui a ${CONFIG.trap.arm} s)`, hex6(hexOf(col)));
 }
 
+// ---------- canhão de tinta: E para subir/sair; clique dispara bolas gigantes da cor da mão ----------
+function cannonFire() {
+  const cn = state.cannon;
+  camera.getWorldDirection(_aimDir);
+  const hit = state.world.raycast({ x: camera.position.x, y: camera.position.y, z: camera.position.z }, _aimDir, CONFIG.cannon.range + 10, "A");
+  if (cn.fire(hit.x, hit.z, state.colors.current)) { state.player.facing = cn.yaw; if (state.invisible > 0) state.invisible = 0; }
+}
+
 // Chão onde os pés pousam: o topo de qualquer objeto ao alcance (degraus sobem-se a andar, o resto a saltar; ver surfaces.js)
 const platformFloor = (x, z, y) => floorAt(state.map.colliders, x, z, y);
 const platformCeil = (x, z, y) => ceilingAt(state.map.colliders, x, z, y);
 const _speedCfg = { ...MOTION };
 function speedCfg() {                                                                // melhoria: mais velocidade; agachado anda devagar
-  const k = FX().speedMul * (state.me?.puddleMul || 1), crouch = state.me && state.me.crouching;   // poça pisada: mais rápido ou mais lento
+  const k = FX().speedMul * (state.me?.puddleMul || 1) * (state.me?.carryMul || 1), crouch = state.me && state.me.crouching;   // poça pisada: mais rápido ou mais lento; com a lata às costas: mais lento
   if (k === 1 && !crouch) return MOTION;
   _speedCfg.walk = crouch ? CONFIG.player.crouchWalk * k : MOTION.walk * k; _speedCfg.run = crouch ? CONFIG.player.crouchWalk * k : MOTION.run * k;
   return _speedCfg;
@@ -1480,6 +1530,7 @@ function updateMinimap(now) {
       g.beginPath(); g.arc(x, y, r + 6, 0, Math.PI * 2); g.lineWidth = 2; g.setLineDash([4, 4]); g.strokeStyle = "#ffd21f"; g.stroke(); g.setLineDash([]);
     }
   }
+  state.features?.minimap?.(g, X, Y, now);                                           // poças do Estúdio, canhões...
   if (state.tutorial && !state.tutorial.finished) {                                  // tutorial: os baús aparecem no minimapa
     for (const c of state.map.chests) {
       if (c.state !== "ready") continue;
@@ -1759,8 +1810,8 @@ function update(dt, t) {
   let mx = fx * iz + rx * ix, mz = fz * iz + rz * ix;
   const len = Math.hypot(mx, mz);
   if (len > 0) { mx /= len; mz /= len; }
-  if (st.dead || frozen) { mx = 0; mz = 0; }                        // eliminado (ou à espera da contagem): não se mexe
-  const jumpHeld = keys.has("Space") && !st.dead && !frozen, jumpPressed = jumpHeld && !p.jumpWasHeld;
+  if (st.dead || frozen || st.cannon) { mx = 0; mz = 0; }           // eliminado (ou à espera da contagem, ou no canhão): não se mexe
+  const jumpHeld = keys.has("Space") && !st.dead && !frozen && !st.cannon, jumpPressed = jumpHeld && !p.jumpWasHeld;
   p.jumpWasHeld = jumpHeld;
   const before = { x: p.pos.x, z: p.pos.z };
   if (st.dead || jumpPressed || p.motion.climbing || st.cam.aerial) st.crouch = false;   // saltar, escada de mão, morrer: levanta-se
@@ -1770,6 +1821,7 @@ function update(dt, t) {
   resolveCollisions(p.pos, CONFIG.player.radius, map.colliders);
   collisionFeedback(p.motion, before, p.pos, dt);
   if (!st.dead && surfaceEffects(map.colliders, p.pos, p.motion, dt) === "bounce") showToast("🤸 Boing!", "#ffd21f");   // tapetes, carrosséis e trampolins
+  if (st.cannon) { p.pos.x = st.cannon.x; p.pos.z = st.cannon.z; p.motion.vx = 0; p.motion.vz = 0; st.cannon.aim(cam.yaw + Math.PI, cam.pitch); }   // no canhão: fica no estrado e o canhão roda com a câmara
   if (!st.dead && ev.fall >= CONFIG.fallDeath && st.me && st.me.alive) st.world.eliminate(st.me, null, st.me.colorId, false, "fall");   // queda de muito alto
   if (!st.dead && st.me && st.me.alive && inWater(map.waters, p.pos, p.motion.onGround)) st.world.eliminate(st.me, null, st.me.colorId, false, "water");   // caiu ao rio
   if (!st.dead && !st.tutorial) Stats.current.distance += Math.hypot(p.pos.x - before.x, p.pos.z - before.z);
@@ -1795,7 +1847,11 @@ function update(dt, t) {
   // bots
   const agents = [{ pos: p.pos }, ...st.bots];
   for (const b of st.bots) {
-    if (frozen) continue;
+    if (frozen) {                                                          // contagem: parados, mas animados (é a animação que lhes dá o tamanho certo)
+      if (b.model) b.model.position.set(b.pos.x, b.pos.y, b.pos.z), b.model.rotation.y = b.facing;   // repõe a posição em cada frame (a animação ajusta a altura a partir dela; sem isto iam subindo)
+      if (b.model) animateCharacter(b.model, { speed: 0, maxSpeed: MOTION.run, onGround: true, vy: 0, landed: false, impact: 0, climbing: false, crouching: false }, dt, t);
+      continue;
+    }
     b.update(dt, t, map, agents, st.world);
     if (b.team !== "A") { const tag = b.model.getObjectByName("nameTag"); if (tag) tag.visible = Math.hypot(b.pos.x - p.pos.x, b.pos.z - p.pos.z) <= CONFIG.ui.enemyNameDist; }   // nomes dos adversários só de perto
     if (b.alive) for (const g of st.pickups.collectNear(b.pos)) {
@@ -1807,7 +1863,8 @@ function update(dt, t) {
   // tiros, munição, combate e vida
   for (const c of PRIMARIES) st.ammo[c] = Math.min(CONFIG.ammo.max, st.ammo[c] + CONFIG.ammo.regen * dt);   // os tanques recarregam devagar
   st.fireCd -= dt;
-  if (st.firing && !st.dead && !cam.aerial && st.fireCd <= 0 && !frozen) tryFire();
+  if (st.cannon && st.firing && !st.dead) cannonFire();                    // no canhão o clique lança bolas (não gasta munição)
+  else if (st.firing && !st.dead && !cam.aerial && st.fireCd <= 0 && !frozen) tryFire();
   if (!frozen) { st.gameTime += dt; st.world.update(dt, st.gameTime); st.features?.update(dt, performance.now()); }
   updateTraps();
   updateAmmoUi();
@@ -1839,7 +1896,7 @@ function update(dt, t) {
     } else {
       const r = CONFIG.rewards.find((x) => x.id === it.type);
       addLoot(it.type); Stats.current.got[it.type]++;
-      showToast(`+1 ${r.icon} ${r.label}`, "#ffd21f");
+      showToast(`+1 ${r.icon} ${r.label}${ITEM_KEYS[it.type] ? ` — carrega em ${ITEM_KEYS[it.type]} para usar` : ""}`, "#ffd21f");
     }
   }
 
@@ -1854,8 +1911,12 @@ function update(dt, t) {
   if (tl !== st.lastUiTimer) { $("hudTimer").textContent = tl; st.lastUiTimer = tl; }
 
   // indicação do baú mais próximo
-  const pr = $("prompt"), c = nearestChest();
-  if (c && Math.hypot(c.x - p.pos.x, c.z - p.pos.z) <= CONFIG.chest.interactDist) {
+  const pr = $("prompt"), c = nearestChest(), cn = !st.dead && !st.cannon ? st.features?.nearCannon?.(p.pos) : null;
+  if (cn) {
+    pr.textContent = cn.ready() ? `[E] Usar o canhão de tinta (${CONFIG.cannon.use} s)` : cn.user ? "Canhão ocupado" : `Canhão a recarregar… ${Math.ceil(cn.readyAt - st.world.t)} s`;
+    pr.style.display = "block";
+  } else if (st.cannon) { pr.textContent = `💥 Clica para disparar · E para sair · ${Math.ceil(st.cannon.left())} s`; pr.style.display = "block"; }
+  else if (c && Math.hypot(c.x - p.pos.x, c.z - p.pos.z) <= CONFIG.chest.interactDist) {
     const left = CONFIG.chest.maxOpensPerRound - c.opens;
     pr.textContent = c.state === "ready" ? `[E] Abrir baú (${left} abertura${left === 1 ? "" : "s"} neste round)`
       : c.state === "cooldown" ? `Baú a reabastecer… ${Math.ceil(c.cooldown)}s`

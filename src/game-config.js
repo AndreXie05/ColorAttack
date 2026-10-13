@@ -25,12 +25,13 @@ export const CONFIG = {
   trap: { radius: 3.5, trigger: 2, fuse: 0.5, arm: 1.0, life: 60, maxPerOwner: 2 },   // armadilha de tinta: área da explosão, distância que a aciona, tempo entre acionar e explodir (aviso), tempo até ficar ativa, duração (s), máximo por jogador
   golden: { at: 0.5, grenades: 3, invisibleSeconds: 12 },   // baú dourado: aparece a meio do round (fração do tempo); dá 3 granadas ou invisibilidade longa
   countdown: 3,                          // contagem "3, 2, 1, PINTA!" no início de cada round (s)
+  cannon: { use: 5, cooldown: 20, fireEvery: 0.9, range: 34, radius: 3.6 },   // canhão de tinta: tempo a usar, recarga, s entre bolas, alcance e área de cada bola
   radarSeconds: 5,                       // bónus de eliminar com a cor certa: vês os adversários no minimapa durante estes segundos
   ammoBox: { shots: 7 },                 // uma caixa de munição = 7 tiros de UMA cor primária
   rewards: [                             // 80% dos baús dão um destes prémios; weight = % entre os prémios (soma 100)
     { id: "ammo",      icon: "📦", label: "Caixa de munição", weight: 64, drops: [1, 3] },   // 1 a 3 caixas, cada uma de uma cor à sorte
     { id: "grenade",   icon: "💣", label: "Granada de tinta", weight: 14, drops: [1, 1] },
-    { id: "trap",      icon: "🪤", label: "Armadilha de tinta", weight: 7, drops: [1, 1] },   // C: pousa no chão com a cor da mão; explode quando um adversário passa por cima
+    { id: "trap",      icon: "🪤", label: "Armadilha de tinta", weight: 7, drops: [1, 1], modes: ["secreto", "paleta"] },   // C: pousa no chão com a cor da arma; explode quando um adversário passa por cima (só nos modos em que acertar a cor é mais difícil)
     { id: "health",    icon: "💊", label: "Cura",             weight: 12, drops: [1, 1] },
     { id: "invisible", icon: "👻", label: "Invisibilidade",   weight: 3,  drops: [1, 1], duration: 5 },   // raro: 5 s invisível
   ],

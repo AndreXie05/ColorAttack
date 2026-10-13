@@ -245,6 +245,64 @@ export function buildFactory() {
   return b.finish();
 }
 
+// ---------- MAPA: ESTÚDIO DE TINTA (feito em código) ----------
+// Chão de tela, paleta gigante com um pincel ao centro, cavaletes, bisnagas e latas de tinta.
+// As 4 poças grandes e a "viragem" a meio do round estão em map-features.js (FEATURES.estudio).
+export function buildStudio() {
+  const b = new MapBuilder("estudio", "Estúdio de Tinta");
+  b.background = 0xf6efe4; b.outerColor = 0xd9cbb5; b.skyTop = 0x7cb6ff;
+  b.lighting({ ground: 0xf3e6d0, hemi: 1.4, sunI: 1.35 });
+  b.ground(0xfbf7ef, 0xeee6d6, 5);
+  shell(b, 0xb98a5a);
+  baseSetup(b);
+
+  // paleta gigante (estrado baixo) com um pincel espetado ao meio
+  b.cyl(0, 0, 0, 5.5, 0.4, 0xd7a86e);
+  b.solidCircle(0, 0, 5.5, 0.4);
+  [[2.8, 1.5, PAL.red], [1.2, 3.4, PAL.yellow], [-1.8, 3.0, PAL.blue], [-3.4, 0.2, PAL.green], [-2.0, -2.8, PAL.purple], [1.4, -3.4, PAL.orange]]
+    .forEach(([x, z, c]) => b.disc(x, z, 1.0, c, 0.42));
+  b.cyl(0, 0.4, 0, 0.45, 5.2, 0xc0392b);
+  b.cyl(0, 5.6, 0, 0.55, 0.7, 0xb0b0b0);
+  b.cyl(0, 6.3, 0, 0.75, 1.3, 0x2f7bff, 0.15);
+  b.solidCircle(0, 0, 0.7, 7.6);
+
+  b.mirror(s => {
+    // cavaletes com telas pintadas (paredes de cobertura)
+    for (const [x, z] of [[26, 0], [10, -22], [10, 22]]) {
+      b.begin(s * x, z, x === 26 ? 0 : Math.PI / 2);
+      b.box(0, 0, 0, 0.5, 4.2, 6, 0xfdfbf6);
+      b.box(s * 0.27, 1.2, -1.2, 0.05, 1.6, 2.2, PAINTS[(x + Math.abs(z)) % 6]);
+      b.box(s * 0.27, 2.4, 1.4, 0.05, 1.4, 1.8, PAINTS[(x + 2) % 6]);
+      for (const lz of [-2.6, 2.6]) b.box(0, 0, lz, 0.3, 4.6, 0.3, 0x8a5a2b);
+      b.solid(0, 0, 0.5, 6, 4.2);
+      b.end();
+    }
+    // bisnagas de tinta gigantes deitadas
+    for (const [x, z, c] of [[22, -28, PAL.red], [22, 28, PAL.blue]]) {
+      b.cylAxis("x", s * x, 1.1, z, 1.1, 7, 0xeeeeee);
+      b.cylAxis("x", s * (x - 3.4), 1.1, z, 1.12, 1.2, c);
+      b.cylAxis("x", s * (x + 4.0), 1.1, z, 0.5, 1.0, 0x444444);
+      b.solid(s * x, z, 8, 2.2, 2.2);
+    }
+    // latas de tinta (cobertura redonda) e caixotes
+    for (const [x, z, c] of [[30, -16, PAL.yellow], [30, 16, PAL.purple], [5, -12, PAL.green], [5, 12, PAL.orange]]) {
+      b.cyl(s * x, 0, z, 1.4, 2.2, 0xcfd6dc);
+      b.cyl(s * x, 2.2, z, 1.42, 0.12, c);
+      b.solidCircle(s * x, z, 1.4, 2.3);
+    }
+    b.box(s * 18, 0, 0, 3, 1.1, 3, 0x9a6a3a);                         // banco baixo para saltar
+    b.solid(s * 18, 0, 3, 3, 1.1);
+    Props.crate(b, s * 36, -26, PAL.red);
+    Props.crate(b, s * 36, 26, PAL.blue);
+  });
+
+  b.scatterChests();
+  b.patrolPairs([[8, -6], [8, 6], [16, -8], [16, 8], [22, -14], [22, 14], [30, -6], [30, 6], [0, -18], [0, 18], [16, -24], [16, 24], [38, -16], [38, 16]]);
+  addDecor(b, "studio");
+  addSurroundings(b, "park");
+  return b.finish();
+}
+
 // Mapas feitos no Blender (assets/maps/*.glb); se um ficheiro falhar, usa-se a versão feita em código (build).
 const GLB = (id, name, bg, sky, lighting) => () => loadGlbMap(`assets/maps/${id}.glb`, { id, name, background: bg, skyTop: sky, lighting });
 
@@ -261,5 +319,6 @@ export const MAPS = [
     load: GLB("fabrica", "Fábrica de Tintas", 0xbcd4ea, 0x4f8fd0, { sky: 0xe8f1ff, ground: 0xc8d0dc, hemi: 1.4, sunI: 1.4, pos: [30, 70, -20] }) },
   { id: "castelo",     name: "Castelo",             icon: "🏰", desc: "Muralhas, salões, canhões e um rio com pontes-levadiças", c1: "#6f6a62", c2: "#4e3522", build: buildPark,
     load: GLB("castelo", "Castelo", 0x8a929c, 0x55606c, { sky: 0xd8dde4, ground: 0x5a5048, hemi: 1.15, sun: 0xffe2c0, sunI: 1.3, pos: [-35, 60, 25] }) },
+  { id: "estudio",     name: "Estúdio de Tinta",    icon: "🎨", desc: "Poças gigantes e, a meio do round, o chão muda de cor", c1: "#ff8a1f", c2: "#a447ff", build: buildStudio },
 ];
 
