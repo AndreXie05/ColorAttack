@@ -9,7 +9,7 @@ export function resolveCollisions(pos, r, colliders) {
     for (const c of colliders) {
       if (c.bottom && pos.y + HEAD <= c.bottom) continue;  // ponte/passadiço por cima da cabeça: passa-se por baixo
       if (c.r !== undefined) {
-        if (pos.y >= c.top - STEP) continue;               // degrau baixo (ou já por cima): sobe-se, não empurra
+        if (pos.y >= c.top - (c.solid ? -0.05 : STEP)) continue;   // degrau baixo (ou já por cima): sobe-se, não empurra
         let dx = pos.x - c.x, dz = pos.z - c.z, d = Math.hypot(dx, dz);
         const min = c.r + r;
         if (d < min) {
@@ -19,7 +19,7 @@ export function resolveCollisions(pos, r, colliders) {
       } else {
         const nx = Math.max(c.minX, Math.min(pos.x, c.maxX));
         const nz = Math.max(c.minZ, Math.min(pos.z, c.maxZ));
-        if (pos.y >= topAt(c, nx, nz) - STEP) continue;    // degrau baixo / rampa (no ponto mais próximo): sobe-se, não empurra
+        if (pos.y >= topAt(c, nx, nz) - (c.solid ? -0.05 : STEP)) continue;    // degrau baixo / rampa: sobe-se, não empurra (os "solid" empurram sempre, a não ser que se passe por cima a saltar)
         const dx = pos.x - nx, dz = pos.z - nz, d2 = dx * dx + dz * dz;
         if (d2 < r * r) {
           if (d2 > 1e-8) {

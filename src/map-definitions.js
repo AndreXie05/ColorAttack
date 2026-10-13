@@ -259,5 +259,7 @@ export const MAPS = [
     load: GLB("diversoes", "Parque de Diversões", 0xffc48a, 0x7a5cf0, { sky: 0xfff0e0, ground: 0xc8b0ff, hemi: 1.35, sun: 0xffe6c0, sunI: 1.4, pos: [-40, 55, 30] }) },
   { id: "fabrica",     name: "Fábrica de Tintas",   icon: "🏭", desc: "Depósitos de tinta, cubas e tapetes rolantes",    c1: "#2f7bff", c2: "#2fd15a", build: buildFactory,
     load: GLB("fabrica", "Fábrica de Tintas", 0xbcd4ea, 0x4f8fd0, { sky: 0xe8f1ff, ground: 0xc8d0dc, hemi: 1.4, sunI: 1.4, pos: [30, 70, -20] }) },
+  { id: "castelo",     name: "Castelo",             icon: "🏰", desc: "Muralhas, salões, canhões e um rio com pontes-levadiças", c1: "#6f6a62", c2: "#4e3522", build: buildPark,
+    load: GLB("castelo", "Castelo", 0x8a929c, 0x55606c, { sky: 0xd8dde4, ground: 0x5a5048, hemi: 1.15, sun: 0xffe2c0, sunI: 1.3, pos: [-35, 60, 25] }) },
 ];
 

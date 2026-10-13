@@ -111,6 +111,7 @@ export class CombatWorld {
 
   splat(x, z, colorId, r, force = false) {
     if (!this.paint || (!force && this.t - this.lastSplat < 0.07)) return;
+    if ((this.map.waters || []).some((w) => x > w.minX && x < w.maxX && z > w.minZ && z < w.maxZ)) return;   // a tinta não fica a boiar no rio
     this.lastSplat = this.t;
     this.paint.splat(x, z, colorId, r);
   }

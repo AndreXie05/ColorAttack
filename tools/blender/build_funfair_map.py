@@ -191,7 +191,7 @@ def ticket_tower(x, z, s, h=6.5):
     piece = 2.4
     for sz in (-1, 1):
         tall_wall(x - s * 2.7, z + sz * (0.6 + piece / 2), 0.6, piece, h=2.2, z0=h)
-    low_wall(x - s * 2.7, z, 0.6, 1.2, h=0.9, z0=h)                                               # fresta
+    low_wall(x - s * 2.7, z, 0.6, 1.2, h=0.9, z0=h, solid=True)                                   # fresta (não se sobe)
     ladder(x + s * 3.0, z + 1.5, h, s, 0)
     P.cone("Gold", (x, -z, h + 2.6), 0.08, 0.08, 1.8, segs=6)                                    # bandeirola
     P.rbox("Roof1", (x + 0.5, -z, h + 3.2), (1.0, 0.05, 0.6), radius=0.02, segs=1)
@@ -206,8 +206,8 @@ def coaster_s(s):
     platform(X(17.5), -24, 3, 3, 4.0, accent=False)
     ramp_up(X(12), -24, 8, 3, "x", 4.0, 6.0, up=-s)
     platform(X(5), -24, 6, 4, 6.0)                                                               # posto lá em cima
-    tall_wall(X(2.3), -24.8, 0.6, 2.4, h=2.2, z0=6.0); low_wall(X(2.3), -22.9, 0.6, 1.4, h=0.9, z0=6.0)   # esconderijo com fresta
-    low_wall(X(5), -21.7, 5.4, 0.5, h=0.9, z0=6.0)
+    tall_wall(X(2.3), -24.8, 0.6, 2.4, h=2.2, z0=6.0); low_wall(X(2.3), -22.9, 0.6, 1.4, h=0.9, z0=6.0, solid=True)   # esconderijo com fresta
+    low_wall(X(5), -21.7, 5.4, 0.5, h=0.9, z0=6.0, solid=True)
     # carris vermelhos e pilares (só visuais): um em cada borda da rampa, sem se cruzarem
     outer = [(8, -12.4, 0.0), (16, -12.4, 2.0), (19.1, -12.4, 2.0), (19.1, -15.5, 2.0), (19.1, -22.5, 4.0), (19.1, -25.6, 4.0), (16, -25.6, 4.0), (8, -25.6, 6.0)]
     inner = [(8, -15.6, 0.0), (15.9, -15.6, 2.0), (15.9, -22.4, 4.0), (8, -22.4, 6.0)]

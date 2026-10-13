@@ -1,8 +1,8 @@
 import { MOTION, createMotionState, stepMotion, collisionFeedback } from "./player-motion.js";
 import { resolveCollisions } from "./collisions.js";
-import { floorAt, ceilingAt, jumpableAhead, ladderState, ladderAt, hugLadder, surfaceEffects } from "./surfaces.js";
+import { floorAt, ceilingAt, jumpableAhead, ladderState, ladderAt, hugLadder, surfaceEffects, inside, topAt, standingOn, inWater } from "./surfaces.js";
 import { animateCharacter, visualY } from "./character-animator.js";
-import { CONFIG, BOT_PRESETS } from "./game-config.js";
+import { CONFIG, BOT_PRESETS, aimY, eyeY, muzzleY, BODY_H } from "./game-config.js";
 import { COLORS, PRIMARIES, SECONDARIES, ingredients } from "./colors.js";
 
 /* ============================================================
@@ -15,6 +15,8 @@ import { COLORS, PRIMARIES, SECONDARIES, ingredients } from "./colors.js";
    Cada bot é também um "combatente" (hp, cor, vivo/morto...) para o CombatWorld.
    ============================================================ */
 const rand = (a, b) => a + Math.random() * (b - a);
+const lad0 = (b) => b.motion.climbing;
+const STEP_SAFE = 1.2;                                                   // desnível que um bot aceita ao procurar a descida
 
 export class Bot {
   constructor({ team, index, characterId, model, pos, facing, role, colorId, difficulty = "media", passive = false }) {
@@ -53,10 +55,24 @@ export class Bot {
   }
   _speedCfg() {
     const k = this.speedMul || 1;
-    if (k === 1) return MOTION;
+    if (k === 1 && !this.crouching) return MOTION;
     this._sc = this._sc || { ...MOTION };
-    this._sc.walk = MOTION.walk * k; this._sc.run = MOTION.run * k;
+    this._sc.walk = (this.crouching ? CONFIG.player.crouchWalk : MOTION.walk) * k; this._sc.run = (this.crouching ? CONFIG.player.crouchWalk : MOTION.run) * k;
     return this._sc;
+  }
+
+  // Há um murete baixo (que tapa um boneco agachado, mas não um de pé) entre mim e o adversário, mesmo à minha frente?
+  _lowCoverToward(map, e) {
+    const p = this.pos, dx = e.pos.x - p.x, dz = e.pos.z - p.z, d = Math.hypot(dx, dz) || 1;
+    for (const k of [0.8, 1.3, 1.8]) {
+      const x = p.x + (dx / d) * k, z = p.z + (dz / d) * k;
+      for (const c of map.colliders) {
+        if (!inside(c, x, z, 0)) continue;
+        const h = topAt(c, x, z) - p.y;
+        if (h > BODY_H * 0.45 && h < BODY_H * 0.75) return true;
+      }
+    }
+    return false;
   }
 
   get lowAmmo() { return PRIMARIES.reduce((s, c) => s + this.ammo[c], 0) < this.cfg.lowAmmoAt; }
@@ -113,7 +129,7 @@ export class Bot {
       const d = Math.hypot(e.pos.x - p.x, e.pos.z - p.z);
       if (d >= cfg.sight) continue;
       if (e.hidden && d > 4) continue;                          // invisível: só o veem de muito perto
-      if (!world.los(p.x, p.z, e.pos.x, e.pos.z, 1.3, p.y, e.pos.y)) continue;
+      if (!world.los(p.x, p.z, e.pos.x, e.pos.z, BODY_H * 0.7, p.y, e.pos.y, aimY(e) - e.pos.y)) continue;
       let score = -d;
       if (cfg.smart >= 2) {
         const mates = world.combatants.filter((c) => c.team === this.team && c !== this && c.alive && c.enemy === e).length;
@@ -128,7 +144,7 @@ export class Bot {
   // ---- itens: cura, invisibilidade e granada (o quão bem depende da dificuldade) ----
   _useItems(world) {
     const cfg = this.cfg, mode = cfg.items, e = this.enemy, p = this.pos, hpF = this.hp / this.maxHp;
-    const ed = e ? Math.hypot(e.pos.x - p.x, e.pos.z - p.z) : 1e9, seen = e && world.los(p.x, p.z, e.pos.x, e.pos.z, 1.3, p.y, e.pos.y);
+    const ed = e ? Math.hypot(e.pos.x - p.x, e.pos.z - p.z) : 1e9, seen = e && world.los(p.x, p.z, e.pos.x, e.pos.z, BODY_H * 0.7, p.y, e.pos.y, aimY(e) - e.pos.y);
     if (this.items.health > 0 && this.hp < this.maxHp) {
       const use = mode === "random" ? Math.random() < 0.12
         : mode === "some" ? hpF < 0.6 && Math.random() < 0.6
@@ -175,7 +191,8 @@ export class Bot {
   _shoot(world) {
     const p = this.pos, e = this.enemy, cfg = this.cfg;
     if (this.invisibleT > 0) this.invisibleT = 0;                 // disparar revela
-    const o = { x: p.x + Math.sin(this.facing) * 0.8, y: 1.25, z: p.z + Math.cos(this.facing) * 0.8 };
+    this.crouching = false;                                       // levanta-se para disparar (espreitar por cima da cobertura)
+    const o = { x: p.x + Math.sin(this.facing) * 0.75, y: muzzleY(this), z: p.z + Math.cos(this.facing) * 0.75 };
     if (this.shotFor !== e.colorId || !this.shotColor) {         // escolhe a cor: certa com a probabilidade da dificuldade
       this.shotFor = e.colorId;
       const chance = PRIMARIES.includes(e.colorId) ? cfg.correctColorChance : cfg.correctSecondaryChance;      // cor misturada é mais difícil de adivinhar
@@ -192,7 +209,7 @@ export class Bot {
     if (gm) { gm.color.setHex(COLORS[this.shotColor].hex); gm.emissive.setHex(COLORS[this.shotColor].hex).multiplyScalar(0.25); }
     const lead = (Math.hypot(e.pos.x - o.x, e.pos.z - o.z) / CONFIG.weapon.projectileSpeed) * (cfg.lead || 0);   // antecipa o movimento do alvo
     let vx = e.pos.x + this._vel.x * lead - o.x, vz = e.pos.z + this._vel.z * lead - o.z;
-    const vy0 = e.pos.y + 1.3 - o.y, dist = Math.hypot(vx, vz);
+    const vy0 = aimY(e) - o.y, dist = Math.hypot(vx, vz);
     const err = ((cfg.aimErrorDeg * Math.PI) / 180) * (Math.random() * 2 - 1), c = Math.cos(err), s = Math.sin(err);
     [vx, vz] = [vx * c - vz * s, vx * s + vz * c];
     const vy = vy0 + (Math.random() - 0.5) * 0.05 * dist;
@@ -237,7 +254,7 @@ export class Bot {
         this.running = false;
         faceYaw = Math.atan2(ex, ez);
         const canFire = !stealth || ed <= 8;
-        if (canFire && this.seen >= cfg.reaction && this.fireCd <= 0 && world.los(p.x, p.z, e.pos.x, e.pos.z, 1.3, p.y, e.pos.y)) {
+        if (canFire && this.seen >= cfg.reaction && this.fireCd <= 0 && world.los(p.x, p.z, e.pos.x, e.pos.z, BODY_H * 0.7, p.y, e.pos.y, aimY(e) - e.pos.y)) {
           this._shoot(world);
           this.fireCd = cfg.fireInterval * rand(0.8, 1.35) * (this.fireMul || 1);
         }
@@ -278,13 +295,65 @@ export class Bot {
     const dl = Math.hypot(dx, dz);
     if (dl > 1) { dx /= dl; dz /= dl; }
     const wantsMove = dl > 0.05;
+    // lá em cima e preso (ex.: varanda de uma torre rodeada de quedas): procura a descida a andar (rampa / degraus) e segue-a
+    if (this.escapeT > 0) { this.escapeT -= dt; dx = this.escape.x; dz = this.escape.z; }
+    else if (p.y > 2.5 && this.stuck > 0.6 && this.motion.onGround) {
+      let best = null, bestH = p.y;
+      for (let k = 0; k < 8; k++) {
+        const a = (k * Math.PI) / 4, ex = Math.cos(a), ez = Math.sin(a);
+        const f1 = floorAt(map.colliders, p.x + ex * 0.9, p.z + ez * 0.9, p.y), f2 = floorAt(map.colliders, p.x + ex * 1.8, p.z + ez * 1.8, f1);
+        if (p.y - f1 > STEP_SAFE || f1 - f2 > STEP_SAFE) continue;                   // sem quedas pelo caminho
+        if (f2 < bestH - 0.1) { bestH = f2; best = { x: ex, z: ez }; }
+      }
+      if (best) { this.escape = best; this.escapeT = 1.2; this.stuck = 0; dx = best.x; dz = best.z; }
+    }
+    // preso contra uma parede: contorna-a de lado durante um bocado (em vez de ficar a empurrar)
+    if (this.escapeT > 0) { /* a descer: sem desvios */ } else if (this.detourT > 0) {
+      this.detourT -= dt;
+      const sg = this.detourSign, ndx = -dz * sg, ndz = dx * sg;
+      dx = dx * 0.25 + ndx; dz = dz * 0.25 + ndz;
+      const l2 = Math.hypot(dx, dz) || 1; dx /= l2; dz /= l2;
+    } else if (wantsMove && this.stuck > 0.35 && this.motion.onGround && !lad0(this)) {
+      this.detourT = 0.8; this.detourSign = this.detourSign ? -this.detourSign : (Math.random() < 0.5 ? 1 : -1);
+    }
 
-    if (wantsMove && this.stuck > 0.4 && this.motion.onGround && Math.random() < 0.05) this.jump = true;
+    if (wantsMove && this.stuck > 0.4 && this.motion.onGround && !(this.atEdge > 0) && Math.random() < 0.05) this.jump = true;
+    if (this.ladderExit > 0) {                                                        // acabou de subir uma escada de mão: primeiro entra na plataforma
+      this.ladderExit -= dt; dx = -this.lastLadder.nx; dz = -this.lastLadder.nz;
+    } else if (this.motion.onGround && p.y > 3) {                                     // parado mesmo na borda (com o centro já fora): recua para dentro
+      const c = standingOn(map.colliders, p.x, p.z, p.y);
+      if (c && !inside(c, p.x, p.z, -0.2)) {
+        const cx = c.r !== undefined ? c.x : (c.minX + c.maxX) / 2, cz = c.r !== undefined ? c.z : (c.minZ + c.maxZ) / 2, d = Math.hypot(cx - p.x, cz - p.z) || 1;
+        dx = (cx - p.x) / d; dz = (cz - p.z) / d;
+      }
+    }
+    const onGate = this.motion.onGround ? standingOn(map.colliders, p.x, p.z, p.y) : null;
+    if (onGate && onGate.gate && !onGate.safe) { dx = onGate.exit.x; dz = onGate.exit.z; this.running = true; }   // a ponte-levadiça vai subir: sai para a margem
+    if (wantsMove && this.motion.onGround && map.waters && map.waters.length) {       // não entra no rio (nem salta para lá), nem numa ponte-levadiça que vai subir
+      const ux = dx / Math.max(dl, 1e-6), uz = dz / Math.max(dl, 1e-6), ah = { x: p.x + ux * 1.3, y: 0, z: p.z + uz * 1.3 };
+      const ahc = standingOn(map.colliders, ah.x, ah.z, p.y);
+      ah.y = ahc ? topAt(ahc, ah.x, ah.z) : 0;
+      if (inWater(map.waters, ah, true) || (ahc && ahc.gate && !ahc.safe && !(onGate && onGate.gate))) { dx = 0; dz = 0; this.motion.vx *= 0.2; this.motion.vz *= 0.2; this.atEdge = 0.4; if (!this.enemy) { this.pickTarget(map); this.wait = 0.2; } }
+    }
     if (wantsMove && this.motion.onGround && p.y > 1) {                                // lá em cima: não se atira de uma borda alta (queda mortal)
       const ux = dx / Math.max(dl, 1e-6), uz = dz / Math.max(dl, 1e-6);
-      if (p.y - floorAt(map.colliders, p.x + ux * 1.1, p.z + uz * 1.1, p.y) >= CONFIG.fallDeath * 0.7) { dx = 0; dz = 0; this.stuck += 0.5; }
+      if (p.y - floorAt(map.colliders, p.x + ux * 1.4, p.z + uz * 1.4, p.y) >= CONFIG.fallDeath * 0.7) {   // trava, muda de destino e não salta
+        dx = 0; dz = 0; this.motion.vx *= 0.2; this.motion.vz *= 0.2; this.atEdge = 0.6;
+        if (!this.enemy) { this.pickTarget(map); this.wait = 0.3; }
+      }
     }
+    if (this.atEdge > 0) { this.atEdge -= dt; this.jump = false; }
     if (wantsMove && this.motion.onGround && jumpableAhead(map.colliders, p.x, p.z, p.y, dx / Math.max(dl, 1e-6), dz / Math.max(dl, 1e-6))) this.jump = true;   // caixote / plataforma ao alcance à frente: salta para cima
+    if (this.jump && map.waters && map.waters.length && wantsMove) {                 // não salta se houver água logo à frente (murete da margem)
+      const ux = dx / (Math.hypot(dx, dz) || 1), uz = dz / (Math.hypot(dx, dz) || 1);
+      for (const k of [1.0, 1.8, 2.6]) if (inWater(map.waters, { x: p.x + ux * k, y: 0, z: p.z + uz * k }, true)) { this.jump = false; break; }
+    }
+    if (this.jump && p.y > 3) {                                                       // num sítio alto não salta se houver uma queda perigosa por perto
+      for (let k = 0; k < 8 && this.jump; k++) {
+        const ang = (k * Math.PI) / 4;
+        if (p.y - floorAt(map.colliders, p.x + Math.cos(ang) * 1.5, p.z + Math.sin(ang) * 1.5, p.y) >= CONFIG.fallDeath * 0.7) this.jump = false;
+      }
+    }
     if (this.jump) this.holdJump = true; else if (this.motion.vy <= 0) this.holdJump = false;   // segura o salto enquanto sobe (salto completo)
     const before = { x: p.x, z: p.z };
     const ladder = ladderState(map.ladders, p, { x: dx, z: dz }, this.motion.onGround);
@@ -295,11 +364,15 @@ export class Bot {
     collisionFeedback(this.motion, before, p, dt);
     surfaceEffects(map.colliders, p, this.motion, dt);                                  // tapetes, carrosséis e trampolins
     if (ev.fall >= CONFIG.fallDeath && this.alive && world) world.eliminate(this, null, this.colorId, false, "fall");   // queda de muito alto
+    if (this.alive && world && inWater(map.waters, p, this.motion.onGround)) world.eliminate(this, null, this.colorId, false, "water");   // caiu ao rio
 
     const speed = Math.hypot(this.motion.vx, this.motion.vz);
     this.stuck = wantsMove && speed < 1.2 ? this.stuck + dt : Math.max(0, this.stuck - dt * 2);
     const lad = this.motion.climbing ? ladderAt(map.ladders, p) : null;
-    if (lad) hugLadder(lad, p, this.motion, dt);                                       // centrado na escada
+    if (lad) { hugLadder(lad, p, this.motion, dt); this.lastLadder = lad; if (this.motion.vy > 0 && p.y > lad.top - 0.6) this.ladderExit = 0.45; }   // centrado na escada
+    // agachar: atrás de um murete, os bots (a partir do Médio) baixam-se enquanto a arma recarrega e levantam-se para disparar
+    if (this.enemy && cfg.smart >= 1 && this.motion.onGround && !lad && this.fireCd > 0.25 && this._lowCoverToward(map, this.enemy)) this.crouching = true;
+    else if (!this.enemy || this.fireCd <= 0.25 || !this.motion.onGround) this.crouching = false;
     const want = lad ? Math.atan2(-lad.nx, -lad.nz) : faceYaw !== null ? faceYaw : speed > 0.6 ? Math.atan2(this.motion.vx, this.motion.vz) : null;   // na escada: virado para ela
     if (want !== null) {
       const d = Math.atan2(Math.sin(want - this.facing), Math.cos(want - this.facing));
@@ -308,7 +381,7 @@ export class Bot {
     if (this.model) {
       this.model.position.set(p.x, visualY(this.model, p.y, this.motion.onGround, dt), p.z);
       this.model.rotation.y = this.facing;
-      animateCharacter(this.model, { speed: lad ? 0 : speed, maxSpeed: MOTION.run, onGround: this.motion.onGround, vy: this.motion.vy, landed: ev.landed, impact: ev.impact, climbing: !!lad }, dt, t);
+      animateCharacter(this.model, { speed: lad ? 0 : speed, maxSpeed: MOTION.run, onGround: this.motion.onGround, vy: this.motion.vy, landed: ev.landed, impact: ev.impact, climbing: !!lad, crouching: !!this.crouching }, dt, t);
     }
   }
 }

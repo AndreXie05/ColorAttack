@@ -226,6 +226,34 @@
   .mapCard .icon { font-size: 54px; line-height: 1.1; }
   .mapCard .name { font-size: 22px; font-weight: 900; margin: 6px 0 4px; text-shadow: 0 2px 0 #00000055; }
   .mapCard .desc { font-size: 13px; opacity: .95; text-shadow: 0 1px 0 #00000055; }
+  /* mapas com imagem: inclinam para o rato, a imagem aproxima-se e aparece "Jogar" */
+  .mapCard:first-child { grid-column: 1 / -1; justify-self: center; width: min(100%, 320px); padding: 10px 14px; }
+  .mapCard:first-child .icon { font-size: 40px; }
+  .mapCard.pic {
+    position: relative; overflow: hidden; padding: 0; aspect-ratio: 16 / 11; text-align: left;
+    transform: perspective(700px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+    transition: transform .15s, box-shadow .2s; animation: cardIn .45s backwards;
+  }
+  .mapCard.pic:nth-child(2) { animation-delay: .04s; } .mapCard.pic:nth-child(3) { animation-delay: .08s; } .mapCard.pic:nth-child(4) { animation-delay: .12s; }
+  .mapCard.pic:nth-child(5) { animation-delay: .16s; } .mapCard.pic:nth-child(6) { animation-delay: .2s; } .mapCard.pic:nth-child(7) { animation-delay: .24s; }
+  @keyframes cardIn { from { opacity: 0; transform: translateY(24px) scale(.94); } }
+  .mapCard.pic:hover { transform: perspective(700px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) translateY(-6px) scale(1.04); box-shadow: 0 14px 0 #00000066, 0 0 0 4px var(--c1), 0 0 30px var(--c1); }
+  .mapCard.pic .shot { position: absolute; inset: 0; background-size: cover; background-position: center; transition: transform .4s; }
+  .mapCard.pic:hover .shot { transform: scale(1.12); }
+  .mapCard.pic .info {
+    position: absolute; left: 0; right: 0; bottom: 0; padding: 26px 14px 12px;
+    background: linear-gradient(to top, color-mix(in srgb, var(--c2) 92%, #000) 0%, color-mix(in srgb, var(--c2) 70%, transparent) 60%, transparent);
+  }
+  .mapCard.pic .icon { font-size: 26px; vertical-align: -3px; }
+  .mapCard.pic .name { margin: 0 0 2px; }
+  .mapCard.pic .desc { max-height: 0; overflow: hidden; transition: max-height .25s; }
+  .mapCard.pic:hover .desc, .mapCard.pic:focus-visible .desc { max-height: 40px; }
+  .mapCard.pic .go {
+    position: absolute; top: 12px; right: 12px; padding: 6px 14px; border-radius: 999px; background: #fff; color: #1a1033;
+    font-weight: 900; font-size: 14px; opacity: 0; transform: scale(.7); transition: opacity .2s, transform .2s;
+  }
+  .mapCard.pic:hover .go { opacity: 1; transform: scale(1); }
+  @media (max-width: 700px) { #mapGrid { grid-template-columns: repeat(2, 1fr); } }
   #matchPick { z-index: 2; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; color: #fff; font-weight: 800; }
   #matchPick > span { display: inline-flex; gap: 8px; align-items: center; } #matchPick .mpGap { margin-left: 18px; }
   #diffPick { z-index: 2; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; color: #fff; font-weight: 800; }

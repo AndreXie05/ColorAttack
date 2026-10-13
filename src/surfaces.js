@@ -9,6 +9,7 @@
      push    { x, z }  tapete rolante: quem está em cima é empurrado (m/s)
      spin    rad/s     plataforma redonda que roda (carrossel): quem está em cima roda com ela
      bounce  m/s       trampolim: quem pousa em cima é atirado ao ar com esta velocidade
+     solid   true      não se pode pôr os pés em cima (muretes do rio, parapeitos): bloqueia sempre, nem a saltar se sobe
    Escadas de mão (map.ladders: { minX, maxX, minZ, maxZ, top }): zonas onde se sobe ao andar contra a escada.
    Como na realidade:
      - degraus até STEP sobem-se a andar (e no ar agarras a borda se o topo estiver a menos de STEP dos pés);
@@ -39,7 +40,7 @@ export function topAt(c, x, z) {
 export function standingOn(colliders, x, z, y) {
   let best = null, bh = 0;
   for (const c of colliders) {
-    if (!inside(c, x, z, FOOT)) continue;
+    if (c.solid || !inside(c, x, z, FOOT)) continue;
     const h = topAt(c, x, z);
     if (h > bh && h <= y + STEP && (c.bottom || 0) <= y + STEP) { bh = h; best = c; }
   }
@@ -74,6 +75,7 @@ export function jumpableAhead(colliders, x, z, y, dx, dz, dist = 0.9) {
   let top = 0;
   for (const c of colliders) {
     if (!inside(c, px, pz, 0) || (c.bottom || 0) > y + HEAD) continue;
+    if (c.solid) return false;                                            // muro onde não se sobe: não vale a pena saltar
     top = Math.max(top, topAt(c, px, pz));
   }
   return top > y + STEP && top <= y + REACH;
@@ -107,6 +109,23 @@ export function hugLadder(l, pos, m, dt) {
   m.vx -= vt * tx; m.vz -= vt * tz;
   const vn = m.vx * l.nx + m.vz * l.nz;                                                   // e a de se afastar da parede
   if (vn > 0) { m.vx -= vn * l.nx; m.vz -= vn * l.nz; }
+}
+
+// Água (rio): quem pousa os pés dentro é eliminado. map.waters = [{ minX, maxX, minZ, maxZ, top }]
+export function inWater(waters, pos, onGround) {
+  if (!waters || !onGround) return false;
+  for (const w of waters) if (pos.x > w.minX && pos.x < w.maxX && pos.z > w.minZ && pos.z < w.maxZ && pos.y <= (w.top || 0) + 0.05) return true;
+  return false;
+}
+
+// Ponte-levadiça: ângulo (0 = em baixo, a servir de ponte; PI/2 = levantada, a tapar a passagem) ao longo do tempo.
+// g = { period, open (s em baixo), move (s a subir/descer), phase }: em baixo -> sobe -> levantada -> desce
+export function gateAngle(g, t) {
+  const P = g.period, D = g.open, M = g.move, c = (((t + g.phase) % P) + P) % P;
+  if (c < D) return 0;
+  if (c < D + M) return ((c - D) / M) * Math.PI / 2;
+  if (c < P - M) return Math.PI / 2;
+  return ((P - c) / M) * Math.PI / 2;
 }
 
 // Depois do movimento: tapetes rolantes empurram, carrosséis rodam quem está em cima, trampolins atiram ao ar.

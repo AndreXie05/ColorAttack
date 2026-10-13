@@ -1,8 +1,8 @@
 import * as THREE from "three";
-import { CONFIG, TEAM, ARENA, BOT_PRESETS, DIFFICULTIES, setDifficulty, MATCH_TO_WIN, ROUND_MINUTES, setMatchOptions } from "./game-config.js";
+import { aimY, eyeY, muzzleY, CONFIG, TEAM, ARENA, BOT_PRESETS, DIFFICULTIES, setDifficulty, MATCH_TO_WIN, ROUND_MINUTES, setMatchOptions } from "./game-config.js";
 import { MAPS } from "./map-definitions.js";
 import { resolveCollisions } from "./collisions.js";
-import { floorAt, topAt, ceilingAt, ladderState, ladderAt, hugLadder, surfaceEffects } from "./surfaces.js";
+import { floorAt, topAt, ceilingAt, ladderState, ladderAt, hugLadder, surfaceEffects, inWater } from "./surfaces.js";
 import { openChest, updateChests, resetChests } from "./chests-and-loot.js";
 import { createDummy, setDummyAmmo, setDummyGhost, setDummyColor } from "./test-dummy.js";
 import { ColorSelector } from "./color-selector.js";
@@ -121,7 +121,17 @@ function buildMapCards() {
     const el = document.createElement("button");
     el.className = "mapCard";
     el.style.setProperty("--c1", m.c1); el.style.setProperty("--c2", m.c2);
-    el.innerHTML = `<div class="icon">${m.icon}</div><div class="name">${m.name}</div><div class="desc">${m.desc}</div>`;
+    if (m.id === "random") el.innerHTML = `<div class="icon">${m.icon}</div><div class="name">${m.name}</div><div class="desc">${m.desc}</div>`;
+    else {                                             // cartão com a imagem do mapa (assets/previews), que se aproxima ao passar o rato
+      el.classList.add("pic");
+      el.innerHTML = `<div class="shot" style="background-image:url(assets/previews/${m.id}.jpg)"></div>
+        <div class="info"><div class="name"><span class="icon">${m.icon}</span> ${m.name}</div><div class="desc">${m.desc}</div></div><div class="go">Jogar ▶</div>`;
+      el.addEventListener("pointermove", (e) => {      // inclina para o lado do rato
+        const r = el.getBoundingClientRect(), x = (e.clientX - r.left) / r.width - 0.5, y = (e.clientY - r.top) / r.height - 0.5;
+        el.style.setProperty("--rx", `${-y * 10}deg`); el.style.setProperty("--ry", `${x * 12}deg`);
+      });
+      el.addEventListener("pointerleave", () => { el.style.setProperty("--rx", "0deg"); el.style.setProperty("--ry", "0deg"); });
+    }
     el.addEventListener("click", () => {
       const def = m.id === "random" ? MAPS[Math.floor(Math.random() * MAPS.length)] : m;
       startMap(def);
@@ -240,7 +250,7 @@ function refreshPips() {
 // É esta a função que o sistema de tiro vai chamar quando alguém for eliminado.
 const KILL_MS = Number(new URLSearchParams(location.search).get("killms")) || 5500;   // ?killms=60000 deixa as linhas mais tempo (testes)
 // Queda de muito alto (sem ninguém a eliminar)
-function reportFall(victim) {
+function reportFall(victim, via) {
   setPlayerOut(victim.team, victim.index, true);
   const c = CHARACTERS.find((x) => x.id === state.rosters[victim.team][victim.index]) || CHARACTERS[0];
   const url = portraitUrl(c.id, TEAM[victim.team].color), col = hex6(TEAM[victim.team].color);
@@ -248,7 +258,7 @@ function reportFall(victim) {
   row.className = "killRow bad";
   row.innerHTML = `
     <div class="kfIcons"><span class="kfColor" style="font-size:26px">💥</span><span class="kfFace victim" style="--c:${col}">${url ? `<img src="${url}" alt="">` : ""}</span></div>
-    <div class="kfText"><b>${victim.isPlayer ? "Tu" : c.name}</b> caiu de muito alto<small>⬇️ Queda de ${CONFIG.fallDeath} m ou mais</small></div>`;
+    <div class="kfText"><b>${victim.isPlayer ? "Tu" : c.name}</b> ${via === "water" ? "caiu ao rio" : "caiu de muito alto"}<small>${via === "water" ? "🌊 Cair à água elimina" : `⬇️ Queda de ${CONFIG.fallDeath} m ou mais`}</small></div>`;
   const feed = $("killfeed");
   feed.appendChild(row);
   while (feed.children.length > 5) feed.firstChild.remove();
@@ -726,6 +736,7 @@ window.addEventListener("keyup", (e) => { if (e.code === "Tab") { e.preventDefau
 window.addEventListener("keydown", (e) => {
   if (state.screen !== "viewer") return;
   keys.add(e.code);
+  if (e.code === "CapsLock" && !e.repeat) toggleCrouch();         // Caps Lock: carrega uma vez para agachar, outra para levantar
   if (e.code === "Space" || e.code.startsWith("Arrow")) e.preventDefault();
   if (e.repeat) return;
   if (state.upgradeChoices) { const k = { Digit1: 0, Digit2: 1, Digit3: 2 }[e.code]; if (k !== undefined) { pickUpgrade(k); lockMouse(); } return; }
@@ -752,7 +763,7 @@ window.addEventListener("keydown", (e) => {
     applyQuality(QUALITY_IDS[(QUALITY_IDS.indexOf(state.quality) + 1) % QUALITY_IDS.length]);
     showToast(`Qualidade: ${QUALITY[state.quality].label}`, "#9be7ff");
   }
-  else if (e.code === "KeyC") {                                   // muda o clima (para ver os efeitos)
+  else if (e.code === "KeyB") {                                   // muda o clima (para ver os efeitos)
     state.weatherId = WEATHER_IDS[(WEATHER_IDS.indexOf(state.weatherId) + 1) % WEATHER_IDS.length];
     state.weather.setMode(state.weatherId);
     showToast(`${WEATHERS[state.weatherId].icon} ${WEATHERS[state.weatherId].name}`, "#9be7ff");
@@ -760,6 +771,7 @@ window.addEventListener("keydown", (e) => {
 });
 window.addEventListener("keyup", (e) => {
   keys.delete(e.code);
+  if (e.code === "CapsLock" && IS_MAC && state.screen === "viewer") toggleCrouch();   // no Mac o Caps Lock só dá "keyup" quando se desliga
 
   if (e.code === "KeyG") releaseGrenade();
   if (state.colors && (e.code === "Digit1" || e.code === "Digit2" || e.code === "Digit3")) state.colors.release(PRIMARIES[Number(e.code.slice(5)) - 1]);
@@ -819,6 +831,11 @@ canvas.addEventListener("mousedown", (e) => {
 });
 window.addEventListener("mouseup", (e) => { if (e.button === 0) state.firing = false; else if (e.button === 2) setAds(false); });
 canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+function toggleCrouch() {
+  if (state.dead || state.paused || state.cam.aerial) return;
+  state.crouch = !state.crouch;
+}
 function setAds(on) {
   if (state.ads === on) return;
   state.ads = on;
@@ -1064,7 +1081,7 @@ function botOpenChest(bot, c) {
 function setupCombat(map) {
   if (state.world) state.world.dispose();
   state.ammo = { vermelho: CONFIG.ammo.start, azul: CONFIG.ammo.start, amarelo: CONFIG.ammo.start };
-  Object.assign(state, { dead: false, deathInfo: null, gameTime: 0, firing: false, fireCd: 0, hurtT: 0, hpShown: -1 });
+  Object.assign(state, { dead: false, deathInfo: null, gameTime: 0, firing: false, fireCd: 0, hurtT: 0, hpShown: -1, crouch: false });
   const world = new CombatWorld({
     scene, map, paint: state.paint,
     callbacks: {
@@ -1079,9 +1096,9 @@ function setupCombat(map) {
         else if (hit.includes(state.me)) showToast("💣 Uma granada mudou a tua cor!", "#ff8a1f");
       },
       onKill: (k, v, shot, byColor, via) => {
-        if (!k) {                                                                         // caiu de muito alto: o ponto vai para a outra equipa
-          reportFall(v);
-          if (v.isPlayer) { setAds(false); if (!state.tutorial) { Stats.recordDeath(); rerollTracked(); } state.dead = true; state.firing = false; state.deathInfo = { by: "A queda", byColor: false }; }
+        if (!k) {                                                                         // caiu de muito alto ou ao rio: o ponto vai para a outra equipa
+          reportFall(v, via);
+          if (v.isPlayer) { setAds(false); if (!state.tutorial) { Stats.recordDeath(); rerollTracked(); } state.dead = true; state.firing = false; state.deathInfo = { by: via === "water" ? "O rio" : "A queda", byColor: false }; }
           const other = v.team === "A" ? "B" : "A";
           if (!state.over && !state.tutorial) { state.round.kills[other]++; updateScoreUi(); if (state.round.sudden) endRound(other); }
           return;
@@ -1132,11 +1149,11 @@ function aimAssist(c, dir, maxAng = 0.06) {
   const p = state.player.pos;
   for (const q of state.world.enemiesOf(state.me)) {
     if (q.hidden) continue;
-    const vx = q.pos.x - c.x, vy = q.pos.y + 1.3 - c.y, vz = q.pos.z - c.z, d = Math.hypot(vx, vy, vz);
+    const vx = q.pos.x - c.x, vy = aimY(q) - c.y, vz = q.pos.z - c.z, d = Math.hypot(vx, vy, vz);
     const cos = (vx * dir.x + vy * dir.y + vz * dir.z) / d;
     if (cos <= 0 || d > CONFIG.weapon.range) continue;
     const ang = Math.acos(Math.min(1, cos));
-    if (ang < bestAng && state.world.los(p.x, p.z, q.pos.x, q.pos.z, 1.3, p.y, q.pos.y)) { best = q; bestAng = ang; }
+    if (ang < bestAng && state.world.los(p.x, p.z, q.pos.x, q.pos.z, eyeY(state.me) - p.y, p.y, q.pos.y, aimY(q) - q.pos.y)) { best = q; bestAng = ang; }
   }
   return best;
 }
@@ -1154,10 +1171,10 @@ function tryFire() {
   const cp = { x: camera.position.x, y: camera.position.y, z: camera.position.z };
   let hit = state.world.raycast(cp, _aimDir, CONFIG.weapon.range, "A");
   const assist = aimAssist(cp, _aimDir);
-  if (assist) hit = { x: assist.pos.x, y: assist.pos.y + 1.3, z: assist.pos.z };
+  if (assist) hit = { x: assist.pos.x, y: aimY(assist), z: assist.pos.z };
   const p = state.player.pos, yaw = Math.atan2(hit.x - p.x, hit.z - p.z);
   state.player.facing = yaw; state.player.aimLock = 0.35;                          // o boneco vira-se para onde apontas
-  const m = { x: p.x + Math.sin(yaw) * 0.9, y: p.y + 1.25, z: p.z + Math.cos(yaw) * 0.9 };
+  const m = { x: p.x + Math.sin(yaw) * 0.75, y: muzzleY(state.me), z: p.z + Math.cos(yaw) * 0.75 };
   Stats.current.shots++;
   const proj = state.world.fire(state.me, m, { x: hit.x - m.x, y: hit.y - m.y, z: hit.z - m.z }, col);
   state.lastShot = { hit, muzzle: m, fired: !!proj, assisted: !!assist };
@@ -1193,7 +1210,7 @@ function releaseGrenade() {
   if (state.dead || !state.loot.grenade) return;
   const t = grenadeTarget(), p = state.player.pos, yaw = Math.atan2(t.x - p.x, t.z - p.z), col = state.grenadeColor;
   state.player.facing = yaw; state.player.aimLock = 0.4;
-  const o = { x: p.x + Math.sin(yaw) * 0.8, y: p.y + 1.5, z: p.z + Math.cos(yaw) * 0.8 };
+  const o = { x: p.x + Math.sin(yaw) * 0.7, y: eyeY(state.me), z: p.z + Math.cos(yaw) * 0.7 };
   const col2 = state.grenadeColor2;
   state.world.throwGrenade(state.me, o, t, col, col2);
   addLoot("grenade", -1); Stats.current.used.grenade++;
@@ -1206,10 +1223,10 @@ function releaseGrenade() {
 const platformFloor = (x, z, y) => floorAt(state.map.colliders, x, z, y);
 const platformCeil = (x, z, y) => ceilingAt(state.map.colliders, x, z, y);
 const _speedCfg = { ...MOTION };
-function speedCfg() {                                                                // melhoria: mais velocidade
-  const k = FX().speedMul;
-  if (k === 1) return MOTION;
-  _speedCfg.walk = MOTION.walk * k; _speedCfg.run = MOTION.run * k;
+function speedCfg() {                                                                // melhoria: mais velocidade; agachado anda devagar
+  const k = FX().speedMul, crouch = state.me && state.me.crouching;
+  if (k === 1 && !crouch) return MOTION;
+  _speedCfg.walk = crouch ? CONFIG.player.crouchWalk * k : MOTION.walk * k; _speedCfg.run = crouch ? CONFIG.player.crouchWalk * k : MOTION.run * k;
   return _speedCfg;
 }
 
@@ -1487,12 +1504,15 @@ function update(dt, t) {
   const jumpHeld = keys.has("Space") && !st.dead, jumpPressed = jumpHeld && !p.jumpWasHeld;
   p.jumpWasHeld = jumpHeld;
   const before = { x: p.pos.x, z: p.pos.z };
+  if (st.dead || jumpPressed || p.motion.climbing || st.cam.aerial) st.crouch = false;   // saltar, escada de mão, morrer: levanta-se
+  if (st.me) st.me.crouching = st.crouch && p.motion.onGround;
   const ladder = st.dead ? 0 : ladderState(map.ladders, p.pos, { x: mx, z: mz }, p.motion.onGround);
   const ev = stepMotion(p.motion, p.pos, { x: mx, z: mz }, { run, jumpPressed, jumpHeld, floor: platformFloor, ceil: platformCeil, ladder }, dt, speedCfg());
   resolveCollisions(p.pos, CONFIG.player.radius, map.colliders);
   collisionFeedback(p.motion, before, p.pos, dt);
   if (!st.dead && surfaceEffects(map.colliders, p.pos, p.motion, dt) === "bounce") showToast("🤸 Boing!", "#ffd21f");   // tapetes, carrosséis e trampolins
   if (!st.dead && ev.fall >= CONFIG.fallDeath && st.me && st.me.alive) st.world.eliminate(st.me, null, st.me.colorId, false, "fall");   // queda de muito alto
+  if (!st.dead && st.me && st.me.alive && inWater(map.waters, p.pos, p.motion.onGround)) st.world.eliminate(st.me, null, st.me.colorId, false, "water");   // caiu ao rio
   if (!st.dead && !st.tutorial) Stats.current.distance += Math.hypot(p.pos.x - before.x, p.pos.z - before.z);
 
   // o boneco olha para onde se move
@@ -1511,7 +1531,7 @@ function update(dt, t) {
   if (lad) { hugLadder(lad, p.pos, p.motion, dt); p.facing = lerpAngle(p.facing, Math.atan2(-lad.nx, -lad.nz), Math.min(1, dt * 25)); }   // na escada: centrado e virado para ela
   dummy.position.set(p.pos.x, visualY(dummy, p.pos.y, p.motion.onGround, dt), p.pos.z);
   dummy.rotation.y = p.facing;
-  animateCharacter(dummy, { speed: lad ? 0 : gspeed, maxSpeed: MOTION.run, onGround: p.motion.onGround, vy: p.motion.vy, landed: ev.landed, impact: ev.impact, climbing: !!lad }, dt, t);
+  animateCharacter(dummy, { speed: lad ? 0 : gspeed, maxSpeed: MOTION.run, onGround: p.motion.onGround, vy: p.motion.vy, landed: ev.landed, impact: ev.impact, climbing: !!lad, crouching: !!(st.me && st.me.crouching) }, dt, t);
 
   // bots
   const agents = [{ pos: p.pos }, ...st.bots];
@@ -1587,10 +1607,11 @@ function update(dt, t) {
   const pitch = aerial ? 1.3 : Math.max(cam.pitch, LOW_PITCH), want = aerial ? 88 : cam.dist;
   const cp = Math.cos(pitch);
   const dirx = Math.sin(cam.yaw) * cp, diry = Math.sin(pitch), dirz = Math.cos(cam.yaw) * cp;
-  if (!cam.ready) { cam.focus.set(p.pos.x, p.pos.y + 1.4, p.pos.z); cam.curDist = want; cam.ready = true; }
+  const focusH = st.me ? eyeY(st.me) - p.pos.y : 1.4 * CONFIG.player.scale;           // a câmara aponta para a cabeça (desce ao agachar)
+  if (!cam.ready) { cam.focus.set(p.pos.x, p.pos.y + focusH, p.pos.z); cam.curDist = want; cam.ready = true; }
   const kxz = 1 - Math.exp(-dt * 16), ky = 1 - Math.exp(-dt * 9);
   cam.focus.x += (p.pos.x - cam.focus.x) * kxz; cam.focus.z += (p.pos.z - cam.focus.z) * kxz;
-  cam.focus.y += (p.pos.y + 1.4 - cam.focus.y) * ky;
+  cam.focus.y += (p.pos.y + focusH - cam.focus.y) * ky;
   const tx = aerial ? 0 : cam.focus.x, ty = aerial ? 0 : cam.focus.y, tz = aerial ? 0 : cam.focus.z;
   let dist = want;
   if (!aerial) {
@@ -1602,8 +1623,9 @@ function update(dt, t) {
   camera.lookAt(tx, ty, tz);
   if (st.ads) {                                                                    // mirar (botão direito): vista em 1.ª pessoa, a partir dos olhos do boneco
     const cpt = Math.cos(cam.pitch);
-    camera.position.set(p.pos.x, p.pos.y + 1.75, p.pos.z);
-    camera.lookAt(p.pos.x - Math.sin(cam.yaw) * cpt, p.pos.y + 1.75 - Math.sin(cam.pitch), p.pos.z - Math.cos(cam.yaw) * cpt);
+    const ey = st.me ? eyeY(st.me) : p.pos.y + 1.75 * CONFIG.player.scale;
+    camera.position.set(p.pos.x, ey, p.pos.z);
+    camera.lookAt(p.pos.x - Math.sin(cam.yaw) * cpt, ey - Math.sin(cam.pitch), p.pos.z - Math.cos(cam.yaw) * cpt);
   }
   if (!aerial && !st.ads && cam.pitch < LOW_PITCH) camera.rotateX(LOW_PITCH - cam.pitch);   // olhar para cima
   const fovWant = st.ads ? ADS_FOV : aerial ? 60 : 60 + 9 * clamp01((gspeed - MOTION.walk) / (MOTION.run - MOTION.walk));

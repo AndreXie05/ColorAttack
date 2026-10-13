@@ -5,7 +5,8 @@ Corre dentro do Blender: exec(open(este_ficheiro).read()).
   LINEUP = True   -> constrói os 5 lado a lado para os ver
   EXPORT_DIR = "/caminho/assets/characters"   -> exporta robin.glb, starfire.glb, cyborg.glb, raven.glb, beastboy.glb
 
-Convenções para o jogo (iguais ao boneco original): objetos Body, LegL, LegR, ArmL, ArmR (origem nas articulações);
+Convenções para o jogo (iguais ao boneco original): objetos Body, LegL, LegR, ArmL, ArmR (origem nas articulações)
+e ShinL, ShinR (canelas, filhas das coxas, origem no joelho: para dobrar os joelhos ao andar e agachar);
 material "Paint" = cor do jogador (peça grande em cada personagem); "AmmoTank" = cor da munição.
 """
 import math
@@ -78,25 +79,38 @@ def back_tank(b):
         b.tube("Black", [(sx * 0.13, 0.2, 1.62), (sx * 0.2, 0.28, 1.45), (sx * 0.19, 0.3, 1.22)], [0.03, 0.03, 0.03], sides=8, per_seg=6)
 
 
+KNEE = 0.36                     # distância da anca ao joelho (a canela vai do joelho até à sola: 0,42)
+
+
 def legs(col, prefix, x0, leg_mat, foot_mat, sole="Sole", accent=None, boot=False, cuff=None, thick=1.0):
-    out = []
+    """Pernas com joelho: LegL/LegR (coxa, origem na anca) e ShinL/ShinR (canela + pé, origem no joelho, filha da coxa).
+    Devolve [coxaL, coxaR, canelaL, canelaR]."""
+    out, shins = [], []
     for name, sx in (("LegL", -1), ("LegR", 1)):
-        p = Part(prefix + name)
         t = thick
-        p.tube(leg_mat, [(0, 0, 0.0), (0, 0, -0.18), (0, 0, -0.4), (0, 0, -0.56)], [0.1 * t, 0.092 * t, 0.078 * t, 0.072 * t], sides=18, per_seg=6)
+        th = Part(prefix + name)                                                           # coxa
+        th.tube(leg_mat, [(0, 0, 0.0), (0, 0, -0.18), (0, 0, -KNEE - 0.02)], [0.1 * t, 0.092 * t, 0.084 * t], sides=18, per_seg=6)
+        th.sphere(leg_mat, (0, 0, -KNEE), (0.084 * t, 0.084 * t, 0.084 * t), segs=16, rings=10)   # joelho (tapa a junta ao dobrar)
+        sh = Part(prefix + name.replace("Leg", "Shin"))                                   # canela e pé (coordenadas a partir do joelho)
+        k = KNEE
+        sh.tube(leg_mat, [(0, 0, 0.0), (0, 0, -0.04), (0, 0, -0.56 + k)], [0.082 * t, 0.078 * t, 0.072 * t], sides=18, per_seg=6)
         if boot:
-            p.tube(foot_mat, [(0, 0, -0.3), (0, 0, -0.5), (0, 0, -0.66)], [0.098 * t, 0.092 * t, 0.088 * t], sides=18, per_seg=5)
+            sh.tube(foot_mat, [(0, 0, -0.3 + k), (0, 0, -0.5 + k), (0, 0, -0.66 + k)], [0.098 * t, 0.092 * t, 0.088 * t], sides=18, per_seg=5)
             if cuff:
-                p.lathe(cuff, [(0.1 * t, 0.0), (0.108 * t, 0.04), (0.1 * t, 0.08)], loc=(0, 0, -0.34), segs=18, per_seg=3)
+                sh.lathe(cuff, [(0.1 * t, 0.0), (0.108 * t, 0.04), (0.1 * t, 0.08)], loc=(0, 0, -0.34 + k), segs=18, per_seg=3)
         else:
-            p.lathe("Sock", [(0.08 * t, 0.0), (0.085 * t, 0.06), (0.078 * t, 0.11)], loc=(0, 0, -0.62), segs=18, per_seg=3)
-        p.sphere(foot_mat, (0, -0.06, -0.675), (0.148 * t, 0.27, 0.125))
-        p.sphere(foot_mat, (0, 0.07, -0.65), (0.128 * t, 0.14, 0.14))
+            sh.lathe("Sock", [(0.08 * t, 0.0), (0.085 * t, 0.06), (0.078 * t, 0.11)], loc=(0, 0, -0.62 + k), segs=18, per_seg=3)
+        sh.sphere(foot_mat, (0, -0.06, -0.675 + k), (0.148 * t, 0.27, 0.125))
+        sh.sphere(foot_mat, (0, 0.07, -0.65 + k), (0.128 * t, 0.14, 0.14))
         if accent:
-            p.sphere(accent, (0, -0.2, -0.66), (0.1 * t, 0.1, 0.075))
-        p.sphere(sole, (0, -0.06, -0.755), (0.158 * t, 0.285, 0.045))
-        out.append(p.build(col, (x0 + sx * 0.13, 0, 0.78)))
-    return out
+            sh.sphere(accent, (0, -0.2, -0.66 + k), (0.1 * t, 0.1, 0.075))
+        sh.sphere(sole, (0, -0.06, -0.755 + k), (0.158 * t, 0.285, 0.045))
+        leg = th.build(col, (x0 + sx * 0.13, 0, 0.78))
+        shin = sh.build(col, (0, 0, 0))
+        shin.parent = leg
+        shin.location = (0, 0, -KNEE)                                                      # (relativo à coxa)
+        out.append(leg); shins.append(shin)
+    return out + shins
 
 
 def blaster(p):
@@ -283,7 +297,7 @@ if EXPORT_DIR:
             o.select_set(True)
         bpy.context.view_layer.objects.active = objs[0]
         names = sorted(o.name for o in objs)
-        assert names == ["ArmL", "ArmR", "Body", "LegL", "LegR"], "Nomes inesperados: %s" % names
+        assert names == ["ArmL", "ArmR", "Body", "LegL", "LegR", "ShinL", "ShinR"], "Nomes inesperados: %s" % names
         path = os.path.join(EXPORT_DIR, key + ".glb")
         bpy.ops.export_scene.gltf(filepath=path, export_format="GLB", use_selection=True, export_apply=True, export_yup=True, export_materials="EXPORT")
         for o in objs:

@@ -74,19 +74,26 @@ def build():
         b.tube("Vest", [(sx * 0.13, 0.2, 1.62), (sx * 0.2, 0.28, 1.45), (sx * 0.19, 0.3, 1.22)], [0.03, 0.03, 0.03], sides=8, per_seg=6)
     body = b.build(col)
 
-    # ===== PERNAS (origem na anca): coxa mais larga, canela fina, meia e ténis com atacadores =====
-    legs = []
+    # ===== PERNAS: coxa (LegL/LegR, origem na anca) e canela com ténis (ShinL/ShinR, origem no joelho, filha da coxa) =====
+    legs, shins = [], []
+    KNEE = 0.36
     for name, sx in (("LegL", -1), ("LegR", 1)):
-        p = Part(name)
-        p.tube("Skin", [(0, 0, 0.0), (0, 0, -0.18), (0, 0, -0.4), (0, 0, -0.56)], [0.1, 0.092, 0.075, 0.07], sides=18, per_seg=6)
-        p.lathe("Sock", [(0.08, 0.0), (0.085, 0.06), (0.078, 0.11)], loc=(0, 0, -0.62), segs=18, per_seg=3)
-        p.sphere("Shoe", (0, -0.06, -0.675), (0.145, 0.27, 0.125))                              # corpo do ténis
-        p.sphere("Shoe", (0, 0.07, -0.65), (0.125, 0.14, 0.14))                                 # calcanhar
-        p.sphere("Paint", (0, -0.2, -0.66), (0.1, 0.1, 0.075))                                  # biqueira colorida
-        p.sphere("Sole", (0, -0.06, -0.755), (0.155, 0.285, 0.045))                             # sola branca
-        for k in range(3):
-            p.sphere("Lace", (0, -0.07 - k * 0.055, -0.575 - k * 0.012), (0.075, 0.018, 0.012), rot=(rad(-25), 0, 0))
-        legs.append(p.build(col, (sx * 0.13, 0, 0.78)))
+        th = Part(name)
+        th.tube("Skin", [(0, 0, 0.0), (0, 0, -0.18), (0, 0, -KNEE - 0.02)], [0.1, 0.092, 0.08], sides=18, per_seg=6)
+        th.sphere("Skin", (0, 0, -KNEE), (0.08, 0.08, 0.08))                                    # joelho
+        sh = Part(name.replace("Leg", "Shin")); k = KNEE
+        sh.tube("Skin", [(0, 0, 0.0), (0, 0, -0.04), (0, 0, -0.56 + k)], [0.078, 0.075, 0.07], sides=18, per_seg=6)
+        sh.lathe("Sock", [(0.08, 0.0), (0.085, 0.06), (0.078, 0.11)], loc=(0, 0, -0.62 + k), segs=18, per_seg=3)
+        sh.sphere("Shoe", (0, -0.06, -0.675 + k), (0.145, 0.27, 0.125))                          # corpo do ténis
+        sh.sphere("Shoe", (0, 0.07, -0.65 + k), (0.125, 0.14, 0.14))                             # calcanhar
+        sh.sphere("Paint", (0, -0.2, -0.66 + k), (0.1, 0.1, 0.075))                              # biqueira colorida
+        sh.sphere("Sole", (0, -0.06, -0.755 + k), (0.155, 0.285, 0.045))                         # sola branca
+        for i in range(3):
+            sh.sphere("Lace", (0, -0.07 - i * 0.055, -0.575 - i * 0.012 + k), (0.075, 0.018, 0.012), rot=(rad(-25), 0, 0))
+        leg = th.build(col, (sx * 0.13, 0, 0.78))
+        shin = sh.build(col, (0, 0, 0)); shin.parent = leg; shin.location = (0, 0, -KNEE)
+        legs.append(leg); shins.append(shin)
+    legs += shins
 
     # ===== BRAÇOS (origem no ombro): manga comprida na cor, punho, mão; o direito leva a arma =====
     arms = []

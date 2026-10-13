@@ -99,6 +99,8 @@ def col_cyl(x, z, r, top, **extra):
     colliders.append(("cyl", x, z, r, top, extra))
 
 
+waters = []                    # água que elimina: (x, z, w, d, top)
+gates = []                     # pontes-levadiças: dict(gid, x, z, w, len, dx, dz, y, period, open, move, phase)
 ladders = []                   # escadas de mão: (x, z, w, d, top, nx, nz)  (coordenadas do jogo; nx, nz apontam da parede para fora)
 
 
@@ -320,12 +322,16 @@ def crate(x, z, s=1.6, h=None, z0=0.0, yaw=0.0):
     col_box(x, z, s, s, z0 + h, paint=True)
 
 
-def low_wall(x, z, w, d, h=1.1, z0=0.0, look=None):
-    """Murete de cobertura (protege as pernas e o corpo dos tiros rasteiros; dá para saltar para cima)."""
+def low_wall(x, z, w, d, h=1.1, z0=0.0, look=None, solid=False, bottom=None):
+    """Murete de cobertura (protege as pernas e o corpo dos tiros rasteiros; dá para saltar para cima).
+    solid=True: não se pode pôr os pés em cima (margens do rio, parapeitos de pontes)."""
     L = dict(LOOK, **(look or {}))
     RB(L["side"], x, z, w, d, h - 0.1, r=0.08, z0=z0, segs=1)
     RB(L["top"], x, z, w + 0.1, d + 0.1, 0.12, r=0.04, z0=z0 + h - 0.12, segs=1)
-    col_box(x, z, w, d, z0 + h, paint=True)
+    extra = {"solid": 1} if solid else {}
+    if bottom is not None:
+        extra["bottom"] = bottom
+    col_box(x, z, w, d, z0 + h, paint=not solid, **extra)
 
 
 def tall_wall(x, z, w, d, h=3.2, z0=0.0, look=None):
@@ -360,7 +366,7 @@ def spiral_tower(cx, cz, s=1, c=2.0, w=2.6, rise=1.4, hide=True, look=None):
         piece = (2 * c - 1.0) / 2
         for sz in (-1, 1):
             tall_wall(X(-c + 0.3), cz + sz * (0.5 + piece / 2), 0.6, piece, h=2.2, z0=top, look=look)
-        low_wall(X(-c + 0.3), cz, 0.6, 1.0, h=0.9, z0=top, look=look)                    # fresta: murete baixo, dispara-se por cima
+        low_wall(X(-c + 0.3), cz, 0.6, 1.0, h=0.9, z0=top, look=look, solid=True)        # fresta: murete baixo, dispara-se por cima (não se sobe)
     return top
 
 
@@ -371,7 +377,7 @@ def sniper_ledge(x0, x1, z, s=1, h=3.2, w=3.0, ledge=7.0, look=None):
     lx = s * (x1 + ledge / 2)
     sg = 1 if z > 0 else -1                                                             # lado do muro
     platform(lx, z, ledge, w + 1.0, h, look=look)
-    low_wall(lx, z - sg * ((w + 1.0) / 2 - 0.3), ledge - 0.4, 0.6, h=1.0, z0=h, look=look)     # murete virado para a arena: dispara-se por cima
+    low_wall(lx, z - sg * ((w + 1.0) / 2 - 0.3), ledge - 0.4, 0.6, h=1.0, z0=h, look=look, solid=True)   # murete virado para a arena: dispara-se por cima
     tall_wall(s * (x1 + ledge - 0.3), z, 0.6, w + 1.0, h=2.2, z0=h, look=look)          # parede ao fundo: esconderijo
     return h
 
@@ -508,6 +514,36 @@ def shelves(x, z, w, d, levels, z0=0.0, goods=("Tomato", "Cheese", "Label"), fac
     return top
 
 
+def drawbridge(gid, x, z, w, length, dx, dz, y, period=26.0, open_s=15.0, move=2.0, phase=0.0, mat="WoodDark", plank="Wood", iron="Iron"):
+    """Ponte-levadiça (x, z = dobradiça; desce no sentido (dx, dz) do jogo). Construída deitada (em baixo); o jogo roda-a
+    para cima e para baixo (anim "gate") e troca a colisão (ponte em baixo / parede levantada). Correntes só visuais."""
+    ex, ez = x + dx * length / 2, z + dz * length / 2
+    if dx:
+        axis, gw, gd = "y", length, w                                       # roda em volta do eixo z do jogo (= y do Blender)
+    else:
+        axis, gw, gd = "x", w, length
+    a = anim("Gate%d" % gid, x, z, y, kind="gate", axis=axis, speed=0.0)
+    a.rbox(mat, (ex, -ez, y - 0.15), (gw, gd, 0.3), radius=0.04, segs=1)
+    n = int(length / 0.55)
+    for k in range(n):                                                       # tábuas
+        u = (k + 0.5) / n * length
+        px, pz = x + dx * u, z + dz * u
+        a.rbox(plank, (px, -pz, y + 0.02), (0.48 if dx else w - 0.2, w - 0.2 if dx else 0.48, 0.06), radius=0.01, segs=1)
+    for sg in (-1, 1):                                                       # cintas de ferro
+        off = (w / 2 - 0.35) * sg
+        a.rbox(iron, (ex + (0 if dx else off), -(ez + (off if dx else 0)), y + 0.05), (gw if dx else 0.18, 0.18 if dx else gd, 0.06), radius=0.01, segs=1)
+    # sinal do ângulo para a ponte levantar para o lado da dobradiça (para cima), no sistema de eixos do Three
+    gsign = (1 if dx > 0 else -1) if dx else (-1 if dz > 0 else 1)
+    props = anim_defs[-1][2]
+    props.update({"period": float(period), "open": float(open_s), "move": float(move), "phase": float(phase), "gsign": float(gsign)})
+    gates.append(dict(gid=gid, x=x, z=z, w=w, len=length, dx=dx, dz=dz, y=y, period=period, open=open_s, move=move, phase=phase))
+
+
+def water(x, z, w, d, top=0.0):
+    """Zona de água que elimina quem lá pousa os pés (o desenho da água é feito à parte)."""
+    waters.append((x, z, w, d, top))
+
+
 # ---------- finalização ----------
 def finish_map(map_id, patrol, output, collection=None):
     """Cria a coleção, os objetos, os marcadores e exporta o .glb."""
@@ -560,6 +596,15 @@ def finish_map(map_id, patrol, output, collection=None):
         e.empty_display_type = "CUBE"; e.empty_display_size = 0.3
         e.location = (c[1], -c[2], 0)
         col.objects.link(e); objs.append(e)
+    for i, (x, z, w, d, top) in enumerate(waters):
+        e = bpy.data.objects.new("Col_Water_%d" % i, None)
+        e["w"], e["d"], e["top"] = float(w), float(d), float(top)
+        e.location = (x, -z, 0); col.objects.link(e); objs.append(e)
+    for i, g in enumerate(gates):
+        e = bpy.data.objects.new("Col_Gate_%d" % i, None)
+        for k in ("gid", "w", "len", "dx", "dz", "y", "period", "open", "move", "phase"):
+            e[k] = float(g[k])
+        e.location = (g["x"], -g["z"], 0); col.objects.link(e); objs.append(e)
     for i, (x, z, w, d, top, nx, nz) in enumerate(ladders):
         e = bpy.data.objects.new("Col_Ladder_%d" % i, None)
         e["w"], e["d"], e["top"], e["nx"], e["nz"] = float(w), float(d), float(top), float(nx), float(nz)

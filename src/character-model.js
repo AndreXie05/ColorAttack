@@ -6,7 +6,8 @@ import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.j
 
 /* ============================================================
    BONECO FEITO NO BLENDER (assets/character.glb)
-   Procura as partes pelo nome: Body, LegL, LegR, ArmL, ArmR (a origem de cada perna/braço é a articulação).
+   Procura as partes pelo nome: Body, LegL, LegR, ArmL, ArmR (a origem de cada perna/braço é a articulação)
+   e, se existirem, ShinL, ShinR (canelas com origem no joelho: dobrar os joelhos ao andar e agachar).
    Materiais com nome: "Paint" muda com a cor do jogador e "AmmoTank" com a cor da munição.
    Devolve um grupo com o mesmo `userData` do boneco simples (test-dummy.js), por isso o resto do jogo
    não precisa de saber qual dos dois está a usar. Se o ficheiro faltar ou falhar, devolve null.
@@ -46,9 +47,17 @@ export async function loadCharacter(url = "assets/character.glb") {
   sym.visible = CONFIG.ui.symbolAboveHead;
   root.add(sym);
 
-  root.userData = { legL, legR, armL, armR, sym, paint, gunMat, paintMat, fromModel: true };
+  const body = gltf.scene.getObjectByName("Body");
+  root.userData = { legL, legR, armL, armR, shinL: gltf.scene.getObjectByName("ShinL"), shinR: gltf.scene.getObjectByName("ShinR"), body,
+    rest: restPose(body, armL, armR), sym, paint, gunMat, paintMat, fromModel: true };
   collectTint(root, false);
   return root;
+}
+
+// Posição de repouso do tronco e dos braços (o tronco inclina-se a partir da anca ao agachar e os braços vão com ele)
+function restPose(body, armL, armR) {
+  const p = (o) => (o ? o.position.clone() : null);
+  return { body: p(body), armL: p(armL), armR: p(armR) };
 }
 
 // Cria outro boneco igual (para os bots) com materiais próprios, para cada um poder ter a sua cor
@@ -64,7 +73,8 @@ export function cloneCharacter(template) {
   });
   const find = (n) => root.getObjectByName(n);
   root.userData = {
-    legL: find("LegL"), legR: find("LegR"), armL: find("ArmL"), armR: find("ArmR"),
+    legL: find("LegL"), legR: find("LegR"), armL: find("ArmL"), armR: find("ArmR"), shinL: find("ShinL"), shinR: find("ShinR"), body: find("Body"),
+    rest: template.userData.rest || restPose(find("Body"), find("ArmL"), find("ArmR")),   // (a do modelo original: o clone pode ter sido feito a meio de uma pose)
     sym: root.children.find((c) => c.isSprite), paint, gunMat, paintMat, fromModel: true,
   };
   collectTint(root, true);

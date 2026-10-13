@@ -11,6 +11,7 @@ const MOVE_KEYS = [
   ["Rato", "Rodar a câmara (sem clicar)"],
   ["Shift", "Correr"],
   ["Espaço", "Saltar"],
+  ["Caps Lock", "Agachar: carrega uma vez para agachar e outra para te levantares"],
   ["1 · 2 · 3", "Escolher vermelho · azul · amarelo"],
   ["Duas teclas juntas", "Misturar (ex.: 1 + 2 = roxo), demora 0,1 s"],
   ["Clique esquerdo", "Disparar tinta com a cor que tens na mão (segura para continuar)"],
@@ -22,7 +23,7 @@ const OTHER_KEYS = [
   ["T", "Usar uma Cura (+40 de vida)"],
   ["F", "Usar a Invisibilidade (5 s)"],
   ["V", "Vista aérea do mapa"],
-  ["C · Q", "Mudar o clima · mudar a qualidade gráfica"],
+  ["B · Q", "Mudar o clima · mudar a qualidade gráfica"],
   ["Esc", "Pausa"],
   ["R", "Reiniciar o round (teste)"],
 ];
@@ -90,8 +91,9 @@ function buildPages() {
       Duram até ao fim do jogo e podem acumular (as marcadas com ★ só se escolhem uma vez).</p>
       <div class="upList">${UPGRADES.map((u) => `<div><b>${u.icon} ${u.name}${u.once ? " ★" : ""}</b><small>${u.desc}</small></div>`).join("")}</div>`),
 
-    card("🧗 Subir e cair", `
+    card("🧗 Subir, agachar e cair", `
       <ul>
+        <li><b>Agachar</b>: carrega no <kbd>Caps Lock</kbd> uma vez para te agachares e outra vez para te levantares (saltar também te levanta). Parado, pões um <b>joelho no chão</b>; a andar, vais de joelhos dobrados e mais devagar. Ficas mais baixo e mais difícil de acertar, e atrás de um <b>murete</b> só fica de fora a cabeça.</li>
         <li><b>Degraus</b> baixos sobem-se a andar; o que for mais baixo do que o boneco (até ~2 m) sobe-se a <b>saltar</b>. Muros altos não.</li>
         <li><b>Rampas e escadas</b> levam aos sítios altos: lá de cima vês e disparas por cima das coberturas, e há <b>esconderijos</b> com fresta.</li>
         <li><b>Escadas de mão</b>: anda contra a escada para subir; se a largares no ar, escorregas devagar.</li>

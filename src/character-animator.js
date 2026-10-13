@@ -23,6 +23,14 @@ export function visualY(dummy, y, onGround, dt) {
   return a.visY;
 }
 
+// Medidas da perna do modelo (unidades do Blender, antes da escala): anca a 0,78; coxa 0,36; canela até à sola 0,42
+const HIP = 0.78, THIGH = 0.36, SHIN = 0.42, TOE = 0.3;
+// Altura a que fica a anca com a coxa a um ângulo `hip` e o joelho dobrado `knee` (rad): o ponto mais baixo do pé toca no chão
+const legReach = (hip, knee) => {
+  const a = hip + knee;                                                   // ângulo da canela (positivo = para trás)
+  return THIGH * Math.cos(hip) + SHIN * Math.cos(a) + Math.max(0, TOE * Math.sin(a));   // com a canela para trás, a ponta do pé desce
+};
+
 // ctx = { speed (m/s no chão), maxSpeed, onGround, vy, landed, impact, climbing, crouching }
 export function animateCharacter(dummy, ctx, dt, t) {
   const u = dummy.userData;
@@ -30,67 +38,91 @@ export function animateCharacter(dummy, ctx, dt, t) {
   const a = u.anim || (u.anim = { phase: 0, amp: 0, air: 0, squash: 0, lean: 0 });
   a.wasGround = ctx.onGround;
   const kf = (rate) => 1 - Math.exp(-dt * rate);
-  const S = CONFIG.player.scale;
+  const S = CONFIG.player.scale, knees = !!(u.shinL && u.shinR);
 
   // --- passada: cadência ligada à velocidade (passos mais rápidos a correr), amplitude maior a correr do que a andar
   const run = clamp01(ctx.speed / ctx.maxSpeed);
   const moving = clamp01(ctx.speed / 1.5);                                    // 0 parado -> 1 a andar
-  a.crouch = lerp(a.crouch || 0, ctx.crouching ? 1 : 0, kf(14));
+  a.crouch = lerp(a.crouch || 0, ctx.crouching ? 1 : 0, kf(12));
   const cadence = 1.0 + ctx.speed * 0.17;                                     // passos/s por perna: andar ~2,2 Hz, correr ~2,9 Hz
   a.phase += dt * Math.PI * 2 * cadence * (moving > 0.05 ? 1 : 0.4);
-  const stride = lerp(0.42, 0.82, run) * lerp(1, 0.55, a.crouch);            // abertura das pernas (rad)
+  const stride = lerp(0.45, 0.85, run) * lerp(1, 0.35, a.crouch);            // abertura das pernas (rad)
   a.amp = lerp(a.amp, ctx.onGround ? moving * stride : 0, kf(12));
   a.air = lerp(a.air, ctx.onGround ? 0 : 1, kf(16));
-  a.lean = lerp(a.lean, ctx.onGround ? 0.03 + run * run * 0.2 : 0.1 + (ctx.vy < 0 ? 0 : 0.06), kf(8));
+  a.lean = lerp(a.lean, ctx.onGround ? 0.03 + run * run * 0.18 : 0.1 + (ctx.vy < 0 ? 0 : 0.06), kf(8));
   if (ctx.landed) a.squash = Math.min(1, ctx.impact / 16);
   a.squash *= Math.exp(-dt * 9);
 
-  const s = Math.sin(a.phase), c2 = Math.cos(a.phase * 2), breathe = Math.sin(t * 2.3);
+  const s = Math.sin(a.phase), c = Math.cos(a.phase), breathe = Math.sin(t * 2.3);
   const idle = 1 - clamp01(a.amp * 3);
-  // pernas: a que vai à frente estica mais do que a que fica atrás (passo natural); braço esquerdo balança ao contrário da perna esquerda
+  // ancas: a perna da frente estica mais do que a de trás; joelhos: dobram na perna que está a avançar (no ar)
   const swing = (v) => (v < 0 ? v * 1.15 : v * 0.8);
-  let lL = swing(s) * a.amp, lR = swing(-s) * a.amp;
-  let aL = -s * a.amp * lerp(0.75, 1.0, run) + breathe * 0.05 * idle;
-  let aR = -0.55 + s * a.amp * 0.18 + breathe * 0.03 * idle;                  // braço direito segura a arma (balança pouco)
-  // agachado: pernas dobradas para a frente, braço esquerdo a segurar a arma
-  lL = lerp(lL, lL - 0.55, a.crouch); lR = lerp(lR, lR - 0.25, a.crouch);
-  aL = lerp(aL, -0.95 + s * a.amp * 0.3, a.crouch); aR = lerp(aR, -0.95, a.crouch);
-  // pose no ar: braços para cima/lado, pernas encolhidas
+  let hipL = swing(s) * a.amp, hipR = swing(-s) * a.amp;
+  const kneeK = lerp(1.3, 1.9, run) * a.amp;
+  let kneeL = 0.06 + kneeK * Math.max(0, -c), kneeR = 0.06 + kneeK * Math.max(0, c);
+  let armL = -s * a.amp * lerp(0.75, 1.0, run) + breathe * 0.05 * idle;
+  let armR = -0.55 + s * a.amp * 0.18 + breathe * 0.03 * idle;                // braço direito segura a arma (balança pouco)
+  // agachar: parado = um joelho no chão (o direito, canela deitada para trás) e a perna esquerda à frente, com o pé no chão;
+  // a andar agachado = joelhos bem dobrados (não se anda de joelho no chão)
+  const cr = knees ? a.crouch : 0;
+  a.kneel = lerp(a.kneel || 0, ctx.crouching && moving < 0.15 ? 1 : 0, kf(10));
+  const kn = a.kneel * cr;
+  const cHipL = lerp(-1.55 + s * a.amp * 0.6, -1.5, a.kneel), cHipR = lerp(-1.35 - s * a.amp * 0.6, 0.12, a.kneel);
+  const cKneeL = lerp(2.7 + Math.max(0, -c) * a.amp, 1.5, a.kneel), cKneeR = lerp(2.5 + Math.max(0, c) * a.amp, 1.88, a.kneel);   // (canela de trás um pouco levantada: pé em bicos)
+  hipL = lerp(hipL, cHipL, cr); hipR = lerp(hipR, cHipR, cr);
+  kneeL = lerp(kneeL, cKneeL, cr); kneeR = lerp(kneeR, cKneeR, cr);
+  // no ar: pernas encolhidas, braços para cima
   const rising = ctx.vy > 0;
-  const airL = -0.45, airR = 0.5, airArmL = rising ? -2.3 : -1.2, airArmR = rising ? -1.9 : -1.0;
-  let legL = lerp(lL, airL, a.air), legR = lerp(lR, airR, a.air);
-  let armL = lerp(aL, airArmL, a.air), armR = lerp(aR, airArmR, a.air);
+  hipL = lerp(hipL, -0.6, a.air); hipR = lerp(hipR, 0.35, a.air);
+  kneeL = lerp(kneeL, 1.0, a.air); kneeR = lerp(kneeR, 0.6, a.air);
+  armL = lerp(armL, rising ? -2.3 : -1.2, a.air); armR = lerp(armR, rising ? -1.9 : -1.0, a.air);
 
-  // escada de mão: virado para a escada, braços bem acima da cabeça e pernas alternadas (mão esquerda com pé direito)
+  // escada de mão: virado para a escada, braços acima da cabeça e pernas alternadas (mão esquerda com pé direito)
   a.climb = lerp(a.climb || 0, ctx.climbing ? 1 : 0, kf(14));
   if (a.climb > 0.01) {
     a.cphase = (a.cphase || 0) + dt * (ctx.vy > 0 ? 9 : ctx.vy < 0 ? 4 : 0);
-    const c = Math.sin(a.cphase);
-    const cArmL = -2.75 + c * 0.45, cArmR = -2.75 - c * 0.45, cLegL = -0.75 - c * 0.55, cLegR = -0.75 + c * 0.55;
-    legL = lerp(legL, cLegL, a.climb); legR = lerp(legR, cLegR, a.climb);
-    armL = lerp(armL, cArmL, a.climb); armR = lerp(armR, cArmR, a.climb);
+    const k = Math.sin(a.cphase);
+    hipL = lerp(hipL, -0.75 - k * 0.55, a.climb); hipR = lerp(hipR, -0.75 + k * 0.55, a.climb);
+    kneeL = lerp(kneeL, 1.1 + k * 0.5, a.climb); kneeR = lerp(kneeR, 1.1 - k * 0.5, a.climb);
+    armL = lerp(armL, -2.75 + k * 0.45, a.climb); armR = lerp(armR, -2.75 - k * 0.45, a.climb);
   }
-  // agarrar a borda: um instante com os braços para a frente e uma perna a subir
+  // agarrar a borda: um instante com os braços para a frente e um joelho a subir
   a.mantle = (a.mantle || 0) * Math.exp(-dt * 7);
   if (a.mantle > 0.02) {
     armL = lerp(armL, -1.6, a.mantle); armR = lerp(armR, -1.6, a.mantle);
-    legL = lerp(legL, -1.1, a.mantle); legR = lerp(legR, 0.2, a.mantle);
+    hipL = lerp(hipL, -1.2, a.mantle); kneeL = lerp(kneeL, 1.6, a.mantle); hipR = lerp(hipR, 0.2, a.mantle);
   }
-  u.legL.rotation.x = legL; u.legR.rotation.x = legR;
-  u.armL.rotation.x = armL; u.armR.rotation.x = armR;
 
-  // corpo: inclinação para a frente (mais a correr e agachado), peso a passar de uma perna para a outra (rolar),
-  // anca a rodar com a passada e o corpo a subir e descer em cada passo (mais alto quando as pernas se cruzam)
+  // tronco: inclina-se um pouco a partir da anca ao agachar (os ombros vão com ele); os braços ficam com a arma apontada em frente
+  const bend = cr * lerp(0.38, 0.12, a.kneel);                               // de joelho no chão o tronco fica quase direito
+  armL = lerp(armL, -0.75, cr); armR = lerp(armR, -0.5, cr);
+  if (u.body && u.rest && u.rest.body) {
+    const tilt = (o, rest) => {                                            // roda à volta da anca (0, HIP, 0)
+      const y = rest.y - HIP, z = rest.z, cb = Math.cos(bend), sb = Math.sin(bend);
+      o.position.set(rest.x, HIP + y * cb - z * sb, y * sb + z * cb);
+    };
+    tilt(u.body, u.rest.body); u.body.rotation.x = bend;
+    if (u.rest.armL) tilt(u.armL, u.rest.armL);
+    if (u.rest.armR) tilt(u.armR, u.rest.armR);
+  }
+  u.legL.rotation.x = hipL; u.legR.rotation.x = hipR;
+  u.armL.rotation.x = armL; u.armR.rotation.x = armR;
+  if (knees) { u.shinL.rotation.x = kneeL; u.shinR.rotation.x = kneeR; }
+
+  // corpo: a anca desce o que as pernas dobradas mandam (no chão), o peso passa de uma perna para a outra e a anca roda com a passada
   const ground = (1 - a.air) * (1 - a.climb);
+  const legDrop = HIP - Math.max(legReach(hipL, kneeL), legReach(hipR, kneeR));
+  const drop = knees ? lerp(legDrop, HIP - (THIGH + 0.08), kn) * ground : 0;   // de joelho: a anca fica à altura da coxa + o joelho (no chão)
   dummy.rotation.order = "YXZ";
-  dummy.rotation.x = lerp(lerp(a.lean + a.crouch * 0.22, 0.02, a.climb), 0.3, a.mantle || 0);
+  dummy.rotation.x = lerp(lerp(a.lean * (1 - cr), 0.02, a.climb), 0.3, a.mantle || 0);
   dummy.rotation.z = s * 0.045 * a.amp * ground;
   dummy.rotation.y += s * 0.07 * a.amp * ground;
-  dummy.position.y += (c2 * 0.5 + 0.5) * 0.09 * a.amp * ground * S - a.crouch * 0.02;
+  dummy.position.y -= drop * S;
 
-  // esticar a subir, esmagar ao aterrar, respirar parado, encolher agachado; tudo à escala do boneco (CONFIG.player.scale)
+  // esticar a subir, esmagar ao aterrar, respirar parado; sem joelhos (boneco simples) agachar = encolher
+  const squat = knees ? 0 : a.crouch;
   const stretch = ctx.onGround || ctx.climbing ? 0 : clamp01(Math.abs(ctx.vy) / 14) * 0.07;
-  const sy = (1 + stretch - a.squash * 0.22 + breathe * 0.012 * idle) * lerp(1, 0.66, a.crouch);
-  const sxz = (1 - stretch * 0.5 + a.squash * 0.14) * lerp(1, 1.06, a.crouch);
+  const sy = (1 + stretch - a.squash * 0.22 + breathe * 0.012 * idle) * lerp(1, 0.66, squat);
+  const sxz = (1 - stretch * 0.5 + a.squash * 0.14) * lerp(1, 1.06, squat);
   dummy.scale.set(sxz * S, sy * S, sxz * S);
 }

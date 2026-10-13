@@ -164,12 +164,13 @@ export class MapBuilder {
       }
       return open >= 3;
     };
-    const ok = (x, z) => objs.every((c) => dist(x, z, c) >= R + 0.25) && roomy(x, z) &&
+    const wet = (x, z) => (this.waters || []).some((w) => x > w.minX - 2 && x < w.maxX + 2 && z > w.minZ - 2 && z < w.maxZ + 2);   // longe do rio
+    const ok = (x, z) => !wet(x, z) && objs.every((c) => dist(x, z, c) >= R + 0.25) && roomy(x, z) &&
       !(Math.abs(x) > 36 && Math.abs(z) < 10.5);                       // não em cima dos pontos de reaparecimento
     const cand = [];                                                   // {x, z, ry, wall}
     const off = R + 0.35;
     for (const c of objs) {
-      if (c.top < 1.4 || c.ramp || c.bottom || c.spin || c.bounce || c.push) continue;                             // baixos demais para servirem de encosto (e as rampas ficam livres)
+      if (c.top < 1.4 || c.ramp || c.bottom || c.spin || c.bounce || c.push || c.gate) continue;                             // baixos demais para servirem de encosto (e as rampas ficam livres)
       const spots = [];
       if (c.r !== undefined) {
         for (let a = 0; a < 6; a++) spots.push([c.x + Math.cos(a * Math.PI / 3) * (c.r + off), c.z + Math.sin(a * Math.PI / 3) * (c.r + off), Math.cos(a * Math.PI / 3), Math.sin(a * Math.PI / 3)]);
@@ -210,7 +211,7 @@ export class MapBuilder {
     }
     return {
       id: this.id, name: this.name, group: this.root, background: this.background, skyTop: this.skyTop,
-      colliders: this.colliders, ladders: this.ladders || [], chests: this.chests, updaters: this.updaters,
+      colliders: this.colliders, ladders: this.ladders || [], waters: this.waters || [], chests: this.chests, updaters: this.updaters,
       spawns: this.spawns, patrol: this.patrol, lights: this.lights, disposables: this.disposables,
     };
   }

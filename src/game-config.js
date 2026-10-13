@@ -73,7 +73,7 @@ export function setDifficulty(id) {
    ALTURAS DO BONECO (dependem do tamanho e de estar agachado)
    ============================================================ */
 export const BODY_H = 2.5 * CONFIG.player.scale;                 // altura de pé (m)
-export const CROUCH_K = 0.55;                                    // agachado fica com 55% da altura (um murete de 1,1 m tapa-o)
+export const CROUCH_K = 0.85;                                    // agachado (joelho no chão / joelhos dobrados) fica com ~85% da altura (medido no modelo: a cabeça é grande)
 export const bodyHeight = (c) => BODY_H * (c && c.crouching ? CROUCH_K : 1);
 export const aimY = (c) => c.pos.y + bodyHeight(c) * 0.52;      // centro do corpo (onde se aponta)
 export const eyeY = (c) => c.pos.y + bodyHeight(c) * 0.7;       // altura dos olhos / da câmara
