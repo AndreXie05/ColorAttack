@@ -6,13 +6,13 @@ import { floorAt, topAt, ceilingAt, ladderState, ladderAt, hugLadder, surfaceEff
 import { openChest, updateChests, resetChests, makeGolden } from "./chests-and-loot.js";
 import { createDummy, setDummyAmmo, setDummyGhost, setDummyColor } from "./test-dummy.js";
 import { ColorSelector } from "./color-selector.js";
-import { loadCharacter, cloneCharacter, setCharacterPaint, addHeldItems, setHeld } from "./character-model.js";
+import { loadCharacter, cloneCharacter, setCharacterPaint, addHeldItems, setHeld, setCharacterLod } from "./character-model.js";
 import { Bot } from "./bots.js";
 import { CombatWorld } from "./combat.js";
 import { symbolMaterial } from "./symbol-sprites.js";
 import { MOTION, createMotionState, stepMotion, collisionFeedback } from "./player-motion.js";
 import { animateCharacter, visualY } from "./character-animator.js";
-import { CHARACTERS, TITANS, buildRosters } from "./characters.js";
+import { CHARACTERS, PLAYABLE, buildRosters } from "./characters.js";
 import { buildPortraits, portraitUrl } from "./portraits.js";
 import { PickupManager } from "./pickups.js";
 import { createInstructions } from "./instructions-screen.js";
@@ -28,6 +28,7 @@ import { applyCosmetics, tickCosmetics } from "./cosmetics.js";
 import { createTrails } from "./trails.js";
 import { createLobby } from "./lobby.js";
 import * as Emotes from "./emotes.js";
+import { Replay } from "./replay.js";
 // import { PointerLockControls } from "three/addons/controls/PointerLockControls.js"; // fase da câmara em 1.ª pessoa
 
 /* ============================================================
@@ -39,7 +40,7 @@ const state = {
   cam: { yaw: 0, pitch: 0.35, dist: 9, aerial: false, prev: null, focus: new THREE.Vector3(), curDist: 9, fov: 60, ready: false },
   quality: (() => { try { const q = localStorage.getItem("colorattack.quality"); return ["alta", "media", "baixa", "silenciosa"].includes(q) ? q : "media"; } catch { return "media"; } })(), fpsAcc: 0, fpsFrames: 0, fpsTime: 0, lowFpsTime: 0, grace: 0,
   roundTime: CONFIG.roundSeconds, opened: 0, empty: 0, lastUiTimer: "",
-  invisible: 0, round: null, upg: {}, botUpg: {}, feedQueue: [], tutorial: null, tutorialMode: false, startTutorial: false, upgradeChoices: null, intermission: 0, over: false, bots: [], world: null, me: null, ammo: { vermelho: 0, azul: 0, amarelo: 0 }, playerColor: "vermelho", dead: false, deathInfo: null, firing: false, fireCd: 0, noAmmoMsg: 0, aimingGrenade: false, grenadeColor: "vermelho", grenadeColor2: null, grenadeSlot: 0, intenseT: 5, radarT: 0, ads: false, healingT: 0, tracked: [], aimRing: null, gameTime: 0, targetT: 0, targetKey: "", hpShown: -1, hurtT: 0, starting: false, shownCrossColor: "", characterId: "robin", rosters: null, pickups: null, pips: { A: [], B: [] }, loot: {}, paused: false, weather: null, paint: null, colors: null, shownColor: "", weatherId: "sol", weatherChoice: "random",
+  invisible: 0, round: null, upg: {}, botUpg: {}, feedQueue: [], tutorial: null, tutorialMode: false, startTutorial: false, upgradeChoices: null, intermission: 0, over: false, bots: [], world: null, me: null, ammo: { vermelho: 0, azul: 0, amarelo: 0 }, playerColor: "vermelho", dead: false, deathInfo: null, firing: false, fireCd: 0, noAmmoMsg: 0, aimingGrenade: false, grenadeColor: "vermelho", grenadeColor2: null, grenadeSlot: 0, intenseT: 5, radarT: 0, ads: false, healingT: 0, tracked: [], aimRing: null, gameTime: 0, targetT: 0, targetKey: "", hpShown: -1, hurtT: 0, starting: false, shownCrossColor: "", characterId: "pinta", rosters: null, pickups: null, pips: { A: [], B: [] }, loot: {}, paused: false, weather: null, paint: null, colors: null, shownColor: "", weatherId: "sol", weatherChoice: "random",
   countdown: 0, goT: 0, mixHintT: 0, mixHintKey: "", gameStats: {}, goldenDone: false, mode: "normal", secret: false, clues: {}, cannon: null,
 };
 const keys = new Set();
@@ -82,12 +83,13 @@ async function setCharacter(id) {
 
 // Qualidade gráfica: resolução, sombras, chuva e imagens por segundo (fps). Q muda; se os FPS ficarem baixos, desce sozinha.
 // shadowEvery: as sombras recalculam-se de X em X frames (o sol não se mexe; só as sombras dos bonecos atrasam um pouco)
+// paintMs: de quanto em quanto tempo a textura da tinta no chão é enviada para a placa gráfica (é grande: menos vezes = menos esforço)
 // Silenciosa: 30 fps, sem sombras e pouca chuva — o mínimo de esforço para a placa gráfica (menos calor e ventoinha)
 const QUALITY = {
-  alta:       { label: "Alta",       icon: "✨", pixelRatio: 2,    shadows: true,  shadowMap: 2048, rain: 1,    fps: 60, shadowEvery: 1 },
-  media:      { label: "Média",      icon: "⚖️", pixelRatio: 1.25, shadows: true,  shadowMap: 1024, rain: 0.6,  fps: 60, shadowEvery: 2 },
-  baixa:      { label: "Baixa",      icon: "🔋", pixelRatio: 1,    shadows: false, shadowMap: 512,  rain: 0.3,  fps: 60, shadowEvery: 2 },
-  silenciosa: { label: "Silenciosa", icon: "🔇", pixelRatio: 1,    shadows: false, shadowMap: 512,  rain: 0.15, fps: 30, shadowEvery: 2 },
+  alta:       { label: "Alta",       icon: "✨", pixelRatio: 2,    shadows: true,  shadowMap: 2048, rain: 1,    fps: 60, shadowEvery: 1, paintMs: 160 },
+  media:      { label: "Média",      icon: "⚖️", pixelRatio: 1.25, shadows: true,  shadowMap: 1024, rain: 0.6,  fps: 60, shadowEvery: 3, paintMs: 220 },
+  baixa:      { label: "Baixa",      icon: "🔋", pixelRatio: 1,    shadows: false, shadowMap: 512,  rain: 0.3,  fps: 60, shadowEvery: 2, paintMs: 300 },
+  silenciosa: { label: "Silenciosa", icon: "🔇", pixelRatio: 1,    shadows: false, shadowMap: 512,  rain: 0.15, fps: 30, shadowEvery: 2, paintMs: 400 },
 };
 renderer.shadowMap.autoUpdate = false;                                              // as sombras só se recalculam quando pedimos (ver frame)
 const QUALITY_IDS = Object.keys(QUALITY);
@@ -110,6 +112,7 @@ function applyQuality(id) {
     }
     if (shadowsChanged) scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; });
     if (state.weather) state.weather.rainScale = q.rain;
+    if (state.paint) state.paint.uploadMs = q.paintMs;
   }
 }
 function resize() {
@@ -206,6 +209,7 @@ const ITEM_KEYS = { health: "T", invisible: "F", grenade: "G", trap: "C" };
 function buildLootPanel() {
   const panel = $("lootRows");
   panel.innerHTML = "";
+  for (const k in ammoShown) delete ammoShown[k];                                       // linhas novas: volta a escrever as munições
   state.loot = {};
   const keys = [...PRIMARIES.map((c) => "ammo:" + c), ...CONFIG.rewards.filter((r) => r.id !== "ammo" && (!r.modes || r.modes.includes(state.mode))).map((r) => r.id)];   // (a armadilha só nos modos em que existe)
   for (const key of keys) {
@@ -231,12 +235,15 @@ function addAmmo(colorId, shots) {
   const row = $("loot-ammo-" + colorId);
   if (row) { row.classList.remove("flash"); void row.offsetWidth; row.classList.add("flash"); }
 }
+const ammoShown = {};                                                                // última quantidade mostrada de cada cor: o HTML só muda quando o número muda
 function updateAmmoUi() {
   for (const id of PRIMARIES) {
+    const n = Math.floor(state.ammo[id]);
+    if (ammoShown[id] === n) continue;
     const row = $("loot-ammo-" + id);
     if (!row) continue;
-    const n = Math.floor(state.ammo[id]), q = row.querySelector(".qty");
-    if (q.textContent !== String(n)) q.textContent = n;
+    ammoShown[id] = n;
+    row.querySelector(".qty").textContent = n;
     row.classList.toggle("empty", n < 1);
   }
 }
@@ -271,7 +278,7 @@ function labelPips() {
     });
   }
 }
-// Cada bolinha mostra a cara do personagem em campo (Robin, Raven, ...) com a cor da equipa
+// Cada bolinha mostra a cara do personagem em campo (Pinta, Gota, ...) com a cor da equipa
 function refreshPips() {
   if (!state.rosters) return;
   for (const t of ["A", "B"]) {
@@ -420,6 +427,7 @@ function updateTimerStyle() {
 function unloadMap() {
   const m = state.map;
   if (!m) return;
+  if (state.replaying) { replay.onDone = null; replay.skip(); state.replaying = false; $("replayBox").style.display = "none"; }
   clearGoldenBeams();
   trails.clear();
   if (state.features) { state.features.dispose(); state.features = null; }
@@ -468,7 +476,8 @@ async function startMap(def, keepMatch = false) {
   state.colors = new ColorSelector({ mixSeconds: CONFIG.mixSeconds });
   state.invisible = 0; state.radarT = 0; setDummyGhost(dummy, false);
   $("crosshair").style.display = CONFIG.ui.crosshair ? "" : "none";            // (a mira é escondida pelo atributo data-mode, não por aqui)
-  state.shownColor = ""; state.shownCrossColor = "";
+  state.paint = new PaintLayer(map.group, map.colliders);
+  state.paint.uploadMs = QUALITY[state.quality].paintMs;
   $("feed").innerHTML = ""; $("killfeed").innerHTML = "";
   state.paint = new PaintLayer(map.group, map.colliders);
   // o mapa começa sem tinta; a tinta desaparece 15 s depois de cair (ver paint-layer.js)
@@ -658,22 +667,39 @@ function endRound(winner) {
     state.over = true;
     const fin = r.wins.A === r.wins.B ? null : r.wins.A > r.wins.B ? "A" : "B";
     Stats.recordGame(fin, state.characterId);
-    showGameOver(fin);
+    withReplay(() => showGameOver(fin));
     return;
   }
-  const box = $("roundBox");
+  state.intermission = CONFIG.match.intermission;
+  withReplay(() => showRoundBox(winner));
+}
+function showRoundBox(winner) {
+  const r = state.round, box = $("roundBox");
   box.style.setProperty("--c", hex6(TEAM[winner].color));
   $("roundTitle").textContent = `${TEAM[winner].name} venceu o round ${r.n}!`;
   $("roundScore").textContent = `Eliminações: ${r.kills.A} – ${r.kills.B}   ·   Rounds: ${r.wins.A} – ${r.wins.B}`;
   state.lastHeat = heatmapURL();
   $("roundStats").innerHTML = roundStatsHTML() + heatHTML(state.lastHeat, true);
   box.style.display = "flex";
-  state.intermission = CONFIG.match.intermission;
   // só a equipa que ganhou o round recebe melhoria: tu escolhes (1 de 3) se ganhaste; senão só os bots vencedores a recebem
   grantBotUpgrades([winner]);
   if (winner === "A") showUpgradeChoices();
   else { $("upgradeCards").innerHTML = ""; $("upgradeHint").style.display = "none"; showToast("🤖 Só a equipa vencedora ganha melhorias", "#ffd21f"); }
 }
+// ---------- REPETIÇÃO DA MELHOR JOGADA (ver replay.js): passa antes do ecrã do round / do fim do jogo ----------
+const replay = new Replay({ camera });                                               // grava também a tua câmara: a repetição vê-se como a viste
+function withReplay(next) {
+  if (state.tutorial || !replay.has(state.gameTime)) { next(); return; }
+  const n = replay.kills;
+  $("replayTitle").textContent = n > 1 ? `🎬 Melhor jogada · ${n} eliminações seguidas!` : "🎬 Melhor jogada";
+  state.replaying = true; $("replayBox").style.display = "block";
+  replay.play(camera, () => { state.replaying = false; $("replayBox").style.display = "none"; next(); });
+}
+window.addEventListener("keydown", (e) => {                                          // Espaço, Enter ou Esc saltam a repetição
+  if (!state.replaying || !["Space", "Enter", "Escape"].includes(e.code)) return;
+  e.preventDefault(); e.stopImmediatePropagation(); replay.skip();
+}, true);
+$("replayBox").addEventListener("click", () => replay.skip());
 function startNextRound() {
   $("roundBox").style.display = "none";
   state.round.n++; state.round.kills = { A: 0, B: 0 }; state.round.sudden = false;
@@ -932,7 +958,7 @@ function newRound(announce = true) {
   state.pickups.clear();
   if (state.paint) state.paint.clear();
   resetPips();
-  if (state.world) { const s0 = CONFIG.ammo.start; state.world.resetAll(); state.ammo = { vermelho: s0, azul: s0, amarelo: s0 }; }
+  if (state.world) { const s0 = CONFIG.ammo.start; state.world.resetAll(); replay.reset(state.world, replay.actors); state.ammo = { vermelho: s0, azul: s0, amarelo: s0 }; }
   $("killfeed").innerHTML = "";
   state.roundTime = CONFIG.roundSeconds;
   state.goldenDone = false;
@@ -991,7 +1017,7 @@ window.addEventListener("keydown", (e) => {
   if (e.code === "CapsLock" && !e.repeat) toggleCrouch();         // Caps Lock: carrega uma vez para agachar, outra para levantar
   if (e.code === "Space" || e.code.startsWith("Arrow")) e.preventDefault();
   if (e.repeat) return;
-  if (state.upgradeChoices) { const k = { Digit1: 0, Digit2: 1, Digit3: 2 }[e.code]; if (k !== undefined) { pickUpgrade(k); lockMouse(); } return; }
+  if (state.upgradeChoices) { const k = { Digit1: 0, Digit2: 1, Digit3: 2 }[e.code]; if (k !== undefined && !state.paused) { pickUpgrade(k); lockMouse(); } return; }   // (na pausa não escolhe)
   if (state.tutorial && e.code === "KeyN") { state.tutorial.skip(); return; }               // N salta o passo do tutorial
   if (/^Digit[1-3]$/.test(e.code)) state.tutorial?.event("digit", e.code);
   if (e.code === "KeyX" && state.aimingGrenade && state.grenadeColor2) { state.grenadeSlot ^= 1; return; }
@@ -1043,9 +1069,12 @@ const MOUSE_SENS = 0.0025;
 const MIN_PITCH = -1.25;               // abaixo de 0.08 a câmara fica baixa e inclina-se para cima (ver o céu e o clima)
 const LOW_PITCH = 0.08;
 const ADS_FOV = 48;                   // campo de visão em 1.ª pessoa (botão direito): ligeiro zoom
+// Continuar: entre rounds (quadro das estatísticas / escolha da melhoria) o rato fica livre para clicar; no jogo volta a ficar preso
+function resumeGame() { if (state.intermission > 0 || state.upgradeChoices || state.over) setPaused(false); else lockMouse(); }
 function lockMouse() { document.activeElement?.blur?.(); canvas.requestPointerLock?.(); }       // tira o foco dos botões (senão o Espaço voltava a "clicar" neles)
 function setPaused(p) {
   state.paused = p;
+  document.body.classList.toggle("paused", p && state.screen === "viewer");
   if (p) setAds(false);
   if (p) { $("mmBox").classList.remove("big"); $("crosshair").dataset.mode = "none"; }       // na pausa não há mira
   $("deathBox").style.display = !p && state.dead && state.deathInfo ? "flex" : "none";       // "Foste eliminado!" some na pausa e volta ao continuar
@@ -1053,7 +1082,7 @@ function setPaused(p) {
   if (p) { state.firing = false; cancelGrenadeAim(); keys.clear(); if (state.colors) { state.colors.held = []; state.colors.mix = null; } }
   $("pause").style.display = p && state.screen === "viewer" ? "flex" : "none";
   $("hudFps").style.display = p && state.screen === "viewer" ? "block" : "none";          // fps e chamadas só aparecem na pausa
-  if (p && state.round && state.me) renderPausePanel();
+  if (p && state.round && state.me && state.world) renderPausePanel();          // (a carregar o mapa seguinte ainda não há equipas para mostrar)
 }
 function renderPausePanel() {
   const r = state.round, w = state.world;
@@ -1072,7 +1101,9 @@ function renderPausePanel() {
   $("pwVal").textContent = WEATHERS[state.weatherId].name;
 }
 document.addEventListener("pointerlockchange", () => {
-  if (state.screen === "viewer" && !state.over && !state.upgradeChoices && !(state.intermission > 0)) setPaused(document.pointerLockElement !== canvas);   // (a escolha da melhoria não abre a pausa)
+  if (state.screen !== "viewer") return;
+  if (document.pointerLockElement === canvas) { if (state.paused) setPaused(false); }
+  else if (!state.over && !state.upgradeChoices && !(state.intermission > 0)) setPaused(true);   // (a escolha da melhoria não abre a pausa)
 });
 document.addEventListener("pointerlockerror", () => { if (state.screen === "viewer") setPaused(true); });
 document.addEventListener("mousemove", (e) => {
@@ -1099,7 +1130,7 @@ function setAds(on) {
   state.ads = on;
   $("hud").classList.toggle("ads", on);
 }
-$("resumeBtn").addEventListener("click", lockMouse);
+$("resumeBtn").addEventListener("click", resumeGame);
 $("pauseMapsBtn").addEventListener("click", leaveViewer);
 let statsTab = null;
 function openStats(tab) {
@@ -1134,7 +1165,7 @@ window.addEventListener("keydown", (e) => {
   if (e.code !== "Escape" || e.repeat || state.screen !== "viewer") return;
   if (state.over) { if ($("goStage1").style.display !== "none") showSummary(); return; }          // fim de jogo: Esc abre o resumo
   if ($("statsScreen").style.display === "flex" || $("confirmBox").style.display === "flex") return;
-  if (state.paused) lockMouse();                                   // Esc outra vez: continua
+  if (state.paused) resumeGame();                                 // Esc outra vez: continua
   else { if (document.pointerLockElement) document.exitPointerLock(); setPaused(true); }
 });
 function toggleFullscreen() {
@@ -1431,6 +1462,7 @@ function setupCombat(map) {
       },
       onKill: (k, v, shot, byColor, via) => {
         Emotes.stop(v);
+        replay.kill(k, v, state.gameTime, byColor, via);                                  // para a repetição da melhor jogada
         state.heat.push({ x: v.pos.x, z: v.pos.z, mine: !!k?.isPlayer && k.team !== v.team, me: !!v.isPlayer });   // para o mapa de calor do fim do round
         if (k && !k.isPlayer && k.team !== v.team && k.alive && Math.random() < 0.35) Emotes.play(k, BOT_EMOTES[Math.floor(Math.random() * BOT_EMOTES.length)], now());   // os bots às vezes celebram
         if (!k) {                                                                         // caiu de muito alto ou ao rio: o ponto vai para a outra equipa
@@ -1476,6 +1508,7 @@ function setupCombat(map) {
   world.services = { pickups: state.pickups, openChest: botOpenChest };
   world.secret = state.secret;
   state.world = world; state.me = me;
+  replay.reset(world, world.combatants.map((c) => c.isPlayer ? { c, get model() { return dummy; } } : { c, model: c.model }));
   applyUpgrades();
   paintPlayer(me.colorId);
   // círculo que mostra onde a granada vai cair (tamanho = área do efeito)
@@ -1638,7 +1671,7 @@ function bakeMinimap(map) {
   rt.dispose();
   const flipped = new Uint8ClampedArray(px.length);                                  // a leitura vem de cabeça para baixo
   for (let y = 0; y < MM.h; y++) flipped.set(px.subarray((MM.h - 1 - y) * MM.w * 4, (MM.h - y) * MM.w * 4), y * MM.w * 4);
-  MM.base = document.createElement("canvas"); MM.base.width = MM.w; MM.base.height = MM.h;
+  MM.base = document.createElement("canvas"); MM.base.width = MM.w; MM.base.height = MM.h; MM.layer = null;                                   // (o fundo com tinta é refeito para o mapa novo)
   MM.base.getContext("2d").putImageData(new ImageData(flipped, MM.w, MM.h), 0, 0);
 }
 function mmImage(url) {
@@ -1648,16 +1681,24 @@ function mmImage(url) {
   return im.complete && im.naturalWidth ? im : null;
 }
 function updateMinimap(now) {
-  if (!MM.base || now - MM.last < 70) return;
+  if (!MM.base || now - MM.last < 100) return;                                       // 10 vezes por segundo chega
   MM.last = now;
-  const g = MM.canvas.getContext("2d"), X = (z) => ((z + ARENA.halfZ) / (ARENA.halfZ * 2)) * 322, Y = (x) => ((ARENA.halfX - x) / (ARENA.halfX * 2)) * 460;       // recebem (z) e (x) do jogo
-  g.setTransform(MM.w / 322, 0, 0, MM.h / 460, 0, 0);                                   // desenha em coordenadas 322x460 (o canvas tem o dobro da resolução)
-  g.clearRect(0, 0, 322, 460);
-  g.drawImage(MM.base, 0, 0, 322, 460);
-  if (state.paint) {                                                                 // a tinta é rodada 90° para acompanhar o mapa
-    const pc = state.paint.canvas;
-    g.save(); g.globalAlpha = 0.92; g.setTransform(0, -MM.h / pc.width, MM.w / pc.height, 0, 0, MM.h); g.drawImage(pc, 0, 0); g.restore();
+  // fundo = mapa + tinta, numa imagem à parte que só é refeita quando a tinta muda (no máximo ~3 vezes por segundo):
+  // rodar e encolher a textura grande da tinta em cada atualização era o que mais custava no minimapa
+  const paintAt = state.paint?.sentAt || 0;
+  if (!MM.layer || (paintAt !== MM.layerPaint && now - MM.layerAt > 300)) {
+    const L = MM.layer || (MM.layer = Object.assign(document.createElement("canvas"), { width: MM.w, height: MM.h })), lg = L.getContext("2d");
+    lg.setTransform(1, 0, 0, 1, 0, 0); lg.clearRect(0, 0, MM.w, MM.h); lg.drawImage(MM.base, 0, 0, MM.w, MM.h);
+    if (state.paint) {                                                               // a tinta é rodada 90° para acompanhar o mapa
+      const pc = state.paint.canvas;
+      lg.globalAlpha = 0.92; lg.setTransform(0, -MM.h / pc.width, MM.w / pc.height, 0, 0, MM.h); lg.drawImage(pc, 0, 0); lg.globalAlpha = 1;
+    }
+    MM.layerPaint = paintAt; MM.layerAt = now;
   }
+  const g = MM.canvas.getContext("2d"), X = (z) => ((z + ARENA.halfZ) / (ARENA.halfZ * 2)) * 322, Y = (x) => ((ARENA.halfX - x) / (ARENA.halfX * 2)) * 460;       // recebem (z) e (x) do jogo
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.clearRect(0, 0, MM.w, MM.h); g.drawImage(MM.layer, 0, 0);
+  g.setTransform(MM.w / 322, 0, 0, MM.h / 460, 0, 0);                                   // desenha em coordenadas 322x460 (o canvas tem o dobro da resolução)
   for (const c of state.world.combatants) {                                          // só os colegas de equipa
     if (c.team !== "A" || c.isPlayer || !c.alive) continue;
     const x = X(c.pos.z), y = Y(c.pos.x), r = 17, im = mmImage(portraitUrl(state.rosters.A[c.index], TEAM.A.color));
@@ -1769,9 +1810,10 @@ function updateCombatUi(dt, t) {
   const box = $("deathBox");
   if (state.dead && state.deathInfo) {
     const left = Math.max(0, Math.ceil(me.respawnAt - state.world.t));
-    $("deathText").textContent = `${state.deathInfo.by} eliminou-te${state.deathInfo.byColor ? " com a cor certa" : ""}. Voltas em ${left} s`;
-    box.style.display = "flex";
-  } else box.style.display = "none";
+    const txt = `${state.deathInfo.by} eliminou-te${state.deathInfo.byColor ? " com a cor certa" : ""}. Voltas em ${left} s`;
+    if (txt !== state.deathTxt) { state.deathTxt = txt; $("deathText").textContent = txt; }
+    if (box.style.display !== "flex") box.style.display = "flex";
+  } else if (box.style.display !== "none") { box.style.display = "none"; state.deathTxt = ""; }
   // piscar durante a proteção após reaparecer; escondido enquanto está eliminado
   const blink = Math.floor(t * 10) % 2 === 0, vis = (c) => !c.alive || state.world.t >= c.protectUntil || blink;
   dummy.visible = vis(me) && !state.ads;                                          // em 1.ª pessoa o boneco não se vê
@@ -1783,9 +1825,11 @@ function updateCombatUi(dt, t) {
 }
 
 // Quando é eliminado o boneco cai para trás; ao fim de 2 s vai ficando branco até reaparecer na base
+const nameTagOf = (model) => ("tag" in model.userData ? model.userData.tag : (model.userData.tag = model.getObjectByName("nameTag") || null));   // procurado uma vez só
+const LOD_FAR = 30, LOD_NEAR = 26;                                                   // metros: a partir daqui os bots usam a versão leve
 function deathFx(c, model, dt) {
   if (!model) return;
-  const ud = model.userData, tag = model.getObjectByName("nameTag");
+  const ud = model.userData, tag = nameTagOf(model);
   if (!c.alive) {
     c.deadT = (c.deadT || 0) + dt;
     const f = Math.min(1, c.deadT / 0.5), e = 1 - (1 - f) * (1 - f);
@@ -1803,12 +1847,12 @@ function deathFx(c, model, dt) {
 }
 
 const CHAR_BLURB = {
-  robin: "Líder ágil, de máscara e capa", starfire: "Cheia de energia, cabelo de fogo",
-  cyborg: "Metade máquina, o mais forte", raven: "Misteriosa, de capa e capuz", beastboy: "Verde e brincalhão",
+  pinta: "Sempre pronto para pintar tudo", salpico: "Rápida e com rabo de cavalo", borrao: "Calmo, mas não falha um tiro",
+  pincel: "Cabelo espetado e muita energia", gota: "Sonhadora, de cabelo pelos ombros",
 };
 function buildCharCards() {
   const grid = $("charGrid");
-  for (const id of TITANS) {
+  for (const id of PLAYABLE) {
     const c = CHARACTERS.find((x) => x.id === id);
     const el = document.createElement("button");
     el.className = "charCard" + (id === state.characterId ? " on" : "");
@@ -1848,7 +1892,7 @@ setCharacter(state.characterId);
 })();
 buildPortraits({ A: TEAM.A.color, B: TEAM.B.color }).then(() => {
   refreshPips(); refreshCharScreen();
-  $("titleHeroes").innerHTML = TITANS.map((id) => `<img alt="" src="${portraitUrl(id, TEAM.A.color)}">`).join("");      // os heróis no ecrã inicial
+  $("titleHeroes").innerHTML = PLAYABLE.map((id) => `<img alt="" src="${portraitUrl(id, TEAM.A.color)}">`).join("");      // os heróis no ecrã inicial
 });
 buildMapCards();
 buildTeamPips();
@@ -2021,7 +2065,11 @@ function update(dt, t) {
     }
     b.update(dt, t, map, agents, st.world);
     if (b.model) Emotes.apply(b.model, b, now());                                    // celebração depois de eliminar alguém
-    if (b.team !== "A") { const tag = b.model.getObjectByName("nameTag"); if (tag) tag.visible = Math.hypot(b.pos.x - p.pos.x, b.pos.z - p.pos.z) <= CONFIG.ui.enemyNameDist; }   // nomes dos adversários só de perto
+    if (b.model) {                                                                   // longe da câmara: versão leve (sem pormenores nem sombra); a margem evita piscar na fronteira
+      const d = Math.hypot(b.pos.x - camera.position.x, b.pos.z - camera.position.z), far = b.model.userData.lod?.far;
+      if (far ? d < LOD_NEAR : d > LOD_FAR) setCharacterLod(b.model, !far); else if (!b.model.userData.lod) setCharacterLod(b.model, false);
+    }
+    if (b.team !== "A") { const tag = nameTagOf(b.model); if (tag) tag.visible = Math.hypot(b.pos.x - p.pos.x, b.pos.z - p.pos.z) <= CONFIG.ui.enemyNameDist; }   // nomes dos adversários só de perto
     if (b.alive) for (const g of st.pickups.collectNear(b.pos)) {
       if (g.type === "ammo") b.ammo[g.color] = Math.min(CONFIG.ammo.max, b.ammo[g.color] + (g.shots ?? CONFIG.ammoBox.shots));
       else if (g.type in b.items) b.items[g.type]++;                       // cura, granada e invisibilidade: ficam com o bot (se o colega apanhar, tu não podes usar)
@@ -2033,7 +2081,7 @@ function update(dt, t) {
   st.fireCd -= dt;
   if (st.cannon && st.firing && !st.dead) cannonFire();                    // no canhão o clique lança bolas (não gasta munição)
   else if (st.firing && !st.dead && !cam.aerial && st.fireCd <= 0 && !frozen) tryFire();
-  if (!frozen) { st.gameTime += dt; st.world.update(dt, st.gameTime); st.features?.update(dt, performance.now()); }
+  if (!frozen) { st.gameTime += dt; st.world.update(dt, st.gameTime); st.features?.update(dt, performance.now()); if (!st.tutorial) replay.record(dt, st.gameTime); }
   updateTraps();
   updateAmmoUi();
   updateCombatUi(dt, t);
@@ -2158,7 +2206,8 @@ function frame(now) {
   lastDraw = now;
   const dt = Math.max(0, Math.min(0.05, (now - lastTime) / 1000));   // nunca negativo (o 1.º frame pode vir antes de lastTime)
   lastTime = now;
-  if (!state.paused) update(dt, now / 1000);
+  if (state.replaying) { replay.update(dt, now / 1000); tickCosmetics(dummy, now / 1000); }   // repetição da melhor jogada: o resto do jogo fica parado
+  else if (!state.paused) update(dt, now / 1000);
   trackPerformance(dt);
   renderer.render(scene, camera);
 }
@@ -2174,7 +2223,7 @@ async function lobbyCharacter(id) {
   setCharacter(id);
   lobby.setModel(await botTemplate(id));
 }
-const stepChar = (d) => { const i = TITANS.indexOf(state.characterId); lobbyCharacter(TITANS[(i + d + TITANS.length) % TITANS.length]); };
+const stepChar = (d) => { const i = Math.max(0, PLAYABLE.indexOf(state.characterId)); lobbyCharacter(PLAYABLE[(i + d + PLAYABLE.length) % PLAYABLE.length]); };
 $("lbPrev").addEventListener("click", () => stepChar(-1));
 $("lbNext").addEventListener("click", () => stepChar(1));
 $("lbShopBtn").addEventListener("click", () => lobby.openPanel("shop"));
@@ -2190,4 +2239,4 @@ lobbyCharacter(state.characterId);
 showScreen("title");                                                                // começa no ecrã inicial (logótipo); ENTRAR leva ao lobby
 
 // Modo de testes: abrir index.html?debug expõe o estado do jogo na consola (window.__ca)
-if (new URLSearchParams(location.search).has("debug")) window.__ca = { lobby, Progress, renderer, setAds, showGameOver, tryFire, flushUpgradeFeed, startTutorial, FX, addLoot, applyUpgrades, speedCfg, setPaused, endRound, pickUpgrade, state, camera, scene, tryOpenChest, nearestChest, setCharacter, reportKill, tryFire, paintBot };
+if (new URLSearchParams(location.search).has("debug")) window.__ca = { replay, lobby, Progress, renderer, setAds, showGameOver, tryFire, flushUpgradeFeed, startTutorial, FX, addLoot, applyUpgrades, speedCfg, setPaused, endRound, pickUpgrade, state, camera, scene, tryOpenChest, nearestChest, setCharacter, reportKill, tryFire, paintBot };

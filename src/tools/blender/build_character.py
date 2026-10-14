@@ -1,6 +1,6 @@
 """
 ColorAttack - constrói o boneco original no Blender (corre dentro do Blender: exec(open(este_ficheiro).read())).
-Utilitários (formas suaves, materiais) em common.py. Convenções para o jogo: ver common.py / build_titans.py.
+Utilitários (formas suaves, materiais) em common.py. Convenções para o jogo: ver common.py.
 """
 import os
 DECIMATE = 0.35                                    # fração de triângulos que fica ao exportar (o jogo fica mais leve)

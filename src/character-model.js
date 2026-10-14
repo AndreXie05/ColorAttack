@@ -3,6 +3,8 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { CONFIG } from "./game-config.js";
 import { symbolMaterial } from "./symbol-sprites.js";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
+import { buildLightCharacter, tintBaked } from "./light-character.js";
 
 /* ============================================================
    BONECO FEITO NO BLENDER (assets/character.glb)
@@ -16,7 +18,7 @@ const MODEL_HEIGHT = 2.7;                                  // altura de todos os
 export async function loadCharacter(url = "assets/character.glb") {
   let gltf;
   try {
-    gltf = await new GLTFLoader().loadAsync(url);
+    gltf = url.startsWith("light:") ? { scene: buildLightCharacter(url.slice(6)) } : await new GLTFLoader().loadAsync(url);   // bonecos leves: feitos em código
   } catch (err) {
     console.warn("Não foi possível carregar " + url + "; fica o boneco simples.", err);
     return null;
@@ -40,6 +42,10 @@ export async function loadCharacter(url = "assets/character.glb") {
     else if (name === "AmmoTank" || name === "GunBody") o.material = gunMat;            // a pistola toda tem a cor da munição
   });
 
+  mergeParts(gltf.scene);
+  paint.length = 0; gltf.scene.traverse((o) => { if (o.isMesh && o.material === paintMat) paint.push(o); });
+  // só as peças grandes fazem sombra (olhos, boca, solas... não se notavam na sombra, mas custavam uma passagem cada)
+  gltf.scene.traverse((o) => { if (o.isMesh) o.castShadow = !NO_SHADOW.test(o.material.name || ""); });
   const need = (n) => {
     const o = gltf.scene.getObjectByName(n);
     if (!o) throw new Error("Falta a parte '" + n + "' no modelo");
@@ -54,10 +60,42 @@ export async function loadCharacter(url = "assets/character.glb") {
 
   const body = gltf.scene.getObjectByName("Body");
   root.userData = { legL, legR, armL, armR, shinL: gltf.scene.getObjectByName("ShinL"), shinR: gltf.scene.getObjectByName("ShinR"), body,
-    rest: restPose(body, armL, armR), sym, paint, gunMat, paintMat, fromModel: true, k };
+    rest: restPose(body, armL, armR), sym, paint, gunMat, paintMat, fromModel: true, k, baked: bakedOf(gltf.scene) };
   collectTint(root, false);
   return root;
 }
+
+const NO_SHADOW = /^(Eye|Pupil|Cheek|Mouth|Gem|Sole|Lace|Fang|Mask|Belt|Gold|Sock)/;   // pormenores pequenos: sem sombra
+
+// Junta as peças do mesmo material que estão dentro da mesma parte do corpo (ex.: os olhos, as peças do cabelo, as da pistola):
+// o boneco mexe-se igual (cada braço/perna/tronco continua separado), mas com muito menos chamadas de desenho por boneco.
+const PARTS = new Set(["Body", "LegL", "LegR", "ArmL", "ArmR", "ShinL", "ShinR"]);
+function mergeParts(scene) {
+  const parents = new Set();
+  scene.traverse((o) => { if (o.isMesh && o.parent) parents.add(o.parent); });
+  for (const parent of parents) {
+    const groups = new Map();
+    for (const o of parent.children) {
+      if (!o.isMesh || o.children.length || PARTS.has(o.name) || Array.isArray(o.material)) continue;
+      const g = o.geometry, key = o.material.uuid + "|" + Object.keys(g.attributes).sort().join(",") + "|" + !!g.index;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(o);
+    }
+    for (const list of groups.values()) {
+      if (list.length < 2) continue;
+      const geos = list.map((o) => { o.updateMatrix(); return o.geometry.clone().applyMatrix4(o.matrix); });
+      const merged = mergeGeometries(geos, false);
+      geos.forEach((g) => g.dispose());
+      if (!merged) continue;
+      const m = new THREE.Mesh(merged, list[0].material);
+      m.name = list[0].name; m.castShadow = true;
+      for (const o of list) parent.remove(o);
+      parent.add(m);
+    }
+  }
+}
+
+const bakedOf = (root) => { const list = []; root.traverse((o) => { if (o.isMesh && o.material.name === "Baked") list.push(o); }); return list; };
 
 // Posição de repouso do tronco e dos braços (o tronco inclina-se a partir da anca ao agachar e os braços vão com ele)
 function restPose(body, armL, armR) {
@@ -71,8 +109,7 @@ export function cloneCharacter(template) {
   const paintMat = template.userData.paintMat.clone(), gunMat = template.userData.gunMat.clone();
   const paint = [];
   root.traverse((o) => {
-    if (!o.isMesh) return;
-    o.castShadow = true;
+    if (!o.isMesh) return;                                   // (a sombra fica como no original: só as peças grandes)
     if (o.material.name === "Paint") { o.material = paintMat; paint.push(o); }
     else if (o.material.name === "AmmoTank") o.material = gunMat;
   });
@@ -81,9 +118,31 @@ export function cloneCharacter(template) {
     legL: find("LegL"), legR: find("LegR"), armL: find("ArmL"), armR: find("ArmR"), shinL: find("ShinL"), shinR: find("ShinR"), body: find("Body"),
     rest: template.userData.rest || restPose(find("Body"), find("ArmL"), find("ArmR")),   // (a do modelo original: o clone pode ter sido feito a meio de uma pose)
     sym: root.children.find((c) => c.isSprite), paint, gunMat, paintMat, fromModel: true, k: template.userData.k || 1,
+    baked: bakedOf(root),
   };
+  for (const m of root.userData.baked) m.geometry = m.geometry.clone();              // boneco leve: cada um com as suas cores nos vértices
   collectTint(root, true);
   return root;
+}
+
+// ---------- NÍVEL DE DETALHE: um boneco ao longe esconde os pormenores (olhos, boca, bochechas, solas...) e não faz sombra ----------
+// Ao longe ocupam meio píxel, por isso não se nota nada, mas cada boneco passa a ter menos ~9 peças para desenhar.
+const DETAIL = /^(Eye|Pupil|Cheek|Mouth|Fang|Gem|Sole|Lace|Sock|Gold|Mask)/;
+export function setCharacterLod(model, far) {
+  const u = model.userData;
+  if (!u.lod) {
+    const guns = new Set(u.held?.gunMeshes || []);
+    u.lod = { far: false, details: [], casters: [] };
+    model.traverse((o) => {
+      if (!o.isMesh || guns.has(o)) return;
+      if (DETAIL.test(o.material.name || "")) u.lod.details.push(o);
+      if (o.castShadow) u.lod.casters.push(o);
+    });
+  }
+  if (u.lod.far === far) return;
+  u.lod.far = far;
+  for (const o of u.lod.details) o.visible = !far;
+  for (const o of u.lod.casters) o.castShadow = !far;
 }
 
 // Cor do boneco (a cor que os adversários têm de acertar para o eliminar)
@@ -93,6 +152,7 @@ export function setCharacterPaint(model, hex, fade = 0) {
   if (model.userData.paintMat) { model.userData.paintMat.color.setHex(hex); if (fade > 0) model.userData.paintMat.color.lerp(_white, fade); }
   if (model.userData.glow && model.userData.paintMat) model.userData.paintMat.emissive.copy(model.userData.paintMat.color).multiplyScalar(model.userData.glow);   // skins que brilham (Néon, Perolado): com a cor atual
   const k = CONFIG.ui.bodyTint;
+  if (model.userData.baked?.length) tintBaked(model.userData.baked, hex, k, fade);   // boneco leve: a cor vai para os vértices
   if (k > 0 && model.userData.tint) for (const t of model.userData.tint) {
     _tc.setHex(hex); if (t.dark) _tc.multiplyScalar(0.5); t.m.color.copy(t.base).lerp(_tc, k);
     if (fade > 0) t.m.color.lerp(_white, fade);
@@ -105,7 +165,7 @@ const _tc = new THREE.Color();
 function collectTint(root, own) {
   const seen = new Map(), tint = [];
   root.traverse((o) => {
-    if (!o.isMesh || o.material.name === "Paint" || o.material.name === "AmmoTank") return;
+    if (!o.isMesh || o.material.name === "Paint" || o.material.name === "AmmoTank" || o.material.name === "Baked") return;   // (as peças "Baked" são tingidas nos vértices)
     let m = seen.get(o.material);
     if (!m) {
       m = own ? o.material.clone() : o.material; seen.set(o.material, m);

@@ -40,6 +40,7 @@ export class PaintLayer {
     if (this.tops) parent.add(this.tops);
     this.records = [];                                    // { x, z, colorId, radius, seed, t0 }
     this.t = 0; this.dirty = false; this.lastRedraw = 0; this.seedCounter = 1;
+    this.uploadMs = 160;                                  // de quanto em quanto tempo a textura vai para a placa gráfica (a qualidade muda isto)
   }
 
   get count() { return this.records.length; }
@@ -119,10 +120,14 @@ export class PaintLayer {
   update(dt) {
     this.t += dt;
     const life = CONFIG.paint.lifeSeconds * (this.lifeMul ?? 1), fade = Math.min(CONFIG.paint.fadeSeconds, life * 0.3);   // lifeMul: a chuva lava a tinta mais depressa
+    // as manchas estão por ordem de criação: as que acabam e as que se esbatem são sempre as primeiras (sem criar listas novas em cada frame)
     const before = this.records.length;
-    this.records = this.records.filter((r) => this.t - r.t0 < life);
-    const fading = this.records.some((r) => this.t - r.t0 > life - fade);
-    if ((this.records.length !== before || fading) && this.t - this.lastRedraw > 0.12) {
+    let gone = 0;
+    while (gone < this.records.length && this.t - this.records[gone].t0 >= life) gone++;
+    if (gone) this.records.splice(0, gone);
+    const fading = this.records.length > 0 && this.t - this.records[0].t0 > life - fade;
+    // redesenhar tudo custa: a esbater, 4 vezes por segundo chega (os olhos não notam a diferença)
+    if ((this.records.length !== before || fading) && this.t - this.lastRedraw > 0.25) {
       this.lastRedraw = this.t;
       this.ctx.clearRect(0, 0, this.w, this.h);
       for (const r of this.records) {
@@ -133,10 +138,10 @@ export class PaintLayer {
     }
   }
 
-  // Envia a textura para a placa gráfica no máximo ~6 vezes por segundo (é grande, 1400 x 980: enviá-la muitas vezes aquece a placa)
+  // Envia a textura para a placa gráfica no máximo de uploadMs em uploadMs (é grande, 1400 x 980: enviá-la muitas vezes aquece a placa)
   flush() {
     const now = performance.now();
-    if (this.dirty && now - (this.sentAt || 0) > 160) { this.tex.needsUpdate = true; this.dirty = false; this.sentAt = now; }
+    if (this.dirty && now - (this.sentAt || 0) > this.uploadMs) { this.tex.needsUpdate = true; this.dirty = false; this.sentAt = now; }
   }
 
   clear() { this.records = []; this.ctx.clearRect(0, 0, this.w, this.h); this.dirty = true; }

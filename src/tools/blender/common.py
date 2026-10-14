@@ -1,5 +1,5 @@
 """
-ColorAttack - utilitários partilhados (formas suaves, materiais, Part). Usado por build_character.py e build_titans.py.
+ColorAttack - utilitários partilhados (formas suaves, materiais, Part). Usado por build_character.py.
 
 (Originalmente:) constrói o boneco no Blender (corre dentro do Blender: exec(open(este_ficheiro).read())).
 

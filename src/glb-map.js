@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { MapBuilder, baseSetup } from "./map-builder.js";
 import { gateAngle } from "./surfaces.js";
 
@@ -106,10 +107,42 @@ export function mapFromGltf(gltf, { id, name, background, skyTop, lighting }) {
     }
     o.parent.remove(o);
   }
+  mergeStatic(root, b);
   b.root.add(root);
   baseSetup(b);                                          // placas das equipas, bandeiras e reaparecimentos
   b.scatterChests();                                     // baús junto a objetos/paredes, espalhados
   return b.finish();
+}
+
+// Tudo o que não mexe é juntado numa malha por material: centenas de peças passam a poucas dezenas de chamadas de desenho
+// (é o que mais pesa na placa gráfica). Ficam soltos: objetos animados (e o que está dentro deles), os "Anim_*" e os transparentes.
+function mergeStatic(root, b) {
+  root.updateMatrixWorld(true);
+  const keep = new Set();
+  root.traverse((o) => { if (o.userData?.anim || o.name.startsWith("Anim_")) o.traverse((c) => keep.add(c)); });
+  const groups = new Map(), inv = root.matrixWorld.clone().invert(), _m = new THREE.Matrix4();
+  root.traverse((o) => {
+    if (!o.isMesh || keep.has(o) || Array.isArray(o.material) || o.material.transparent || o.isSkinnedMesh || o.morphTargetInfluences) return;
+    const g = o.geometry, key = o.material.uuid + "|" + Object.keys(g.attributes).sort().join(",") + "|" + !!g.index + "|" + o.castShadow;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(o);
+  });
+  for (const meshes of groups.values()) {
+    if (meshes.length < 2) continue;
+    const geos = meshes.map((m) => { const g = m.geometry.clone(); g.applyMatrix4(_m.multiplyMatrices(inv, m.matrixWorld)); return g; });
+    const merged = mergeGeometries(geos, false);
+    geos.forEach((g) => g.dispose());
+    if (!merged) continue;
+    for (const m of meshes) m.parent.remove(m);
+    const mesh = new THREE.Mesh(merged, meshes[0].material);
+    mesh.castShadow = meshes[0].castShadow; mesh.receiveShadow = true;
+    root.add(mesh);
+    b.disposables.push(merged);
+  }
+  // os grupos que ficaram vazios saem da cena (menos objetos para percorrer em cada frame)
+  const empty = [];
+  root.traverse((o) => { if (o !== root && !o.isMesh && !keep.has(o) && o.children.length === 0) empty.push(o); });
+  for (const o of empty) o.parent?.remove(o);
 }
 
 export async function loadGlbMap(url, options) {

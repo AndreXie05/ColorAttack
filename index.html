@@ -460,7 +460,17 @@
   #killsBar small { font-family: "Titan One", "Fredoka", sans-serif; font-size: 12px; opacity: .85; margin-left: 4px; }
   #killsBar.intense { border-color: #ff8a1f; box-shadow: 0 0 14px #ff8a1fcc; } #killsBar.intense small { color: #ffb347; opacity: 1; }
   #killsBar.sudden { border-color: #ff3b4a; animation: pulse .5s ease-in-out infinite alternate; } #killsBar.sudden small { color: #ff7b86; opacity: 1; }
-  #roundBox { position: absolute; top: 32%; left: 50%; transform: translateX(-50%); display: none; flex-direction: column; align-items: center; gap: 8px; padding: 18px 44px; border-radius: 22px; background: #0d0b1fee; border: 5px solid var(--c, #fff); text-align: center; }
+  body.paused #roundBox, body.paused #replayBox { visibility: hidden; }          /* na pausa só se vê o menu da pausa */
+  /* repetição da melhor jogada: barras de cinema e letreiro */
+  #replayBox { position: absolute; inset: 0; display: none; pointer-events: auto; cursor: pointer; }
+  #replayBox .rbBar { position: absolute; left: 0; right: 0; height: 9vh; background: #000; animation: rbIn .35s ease-out; }
+  #replayBox .rbBar.top { top: 0; } #replayBox .rbBar.bot { bottom: 0; }
+  #replayTag { position: absolute; top: calc(9vh + 14px); left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 26px; border-radius: 16px; background: #0d0b1f99; border: 3px solid #ffd21f; }
+  #replayTag b { font-family: var(--display); font-weight: 400; font-size: 26px; letter-spacing: .04em; color: #ffd21f; }
+  #replayTag span { font-size: 13px; opacity: .85; letter-spacing: .08em; }
+  #replayTag span::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #ff3b4a; margin-right: 7px; animation: rbRec 1s steps(2) infinite; }
+  @keyframes rbIn { from { height: 0; } } @keyframes rbRec { 50% { opacity: 0; } }
+  #roundBox { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: max-content; max-width: 96vw; max-height: 94vh; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #ffffff55 transparent; box-sizing: border-box; display: none; flex-direction: column; align-items: center; gap: 8px; padding: 16px 40px; border-radius: 22px; background: #0d0b1fee; border: 5px solid var(--c, #fff); text-align: center; }
   #roundBox b { font-family: var(--display); font-weight: 400; font-size: 34px; letter-spacing: .04em; } #roundBox span { font-size: 18px; opacity: .92; }
   #upgradeCards { display: flex; gap: 14px; margin-top: 8px; pointer-events: auto; }
   .upCard { cursor: pointer; transition: transform .1s; position: relative; width: 190px; padding: 22px 12px 12px; border-radius: 18px; background: linear-gradient(165deg, #3a2c7a, #1b1445); border: 4px solid #ffd21f; display: flex; flex-direction: column; align-items: center; gap: 4px; box-shadow: 0 5px 0 #0007; }
@@ -484,6 +494,8 @@
   .heatBox { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px; border-radius: 14px; background: #ffffff10; border: 2px solid #ffffff2e; }
   .heatBox b { color: #ffd21f; } .heatBox img { width: 200px; height: auto; border-radius: 10px; border: 3px solid #1a1033; } .heatBox small { font-size: 11px; opacity: .85; }
   .heatBox.small img { width: 130px; }
+  #roundStats { flex-wrap: nowrap; align-items: flex-start; }                         /* quadro do round: as 2 tabelas e o mapa de calor lado a lado (cabe no ecrã) */
+  #roundStats .heatBox { padding: 6px; } #roundStats .heatBox b { font-size: 15px; } #roundStats .heatBox img { width: 112px; }
   .rsTable { border-collapse: collapse; font-size: 15px; min-width: 300px; }
   .rsTable th { font-weight: 400; font-size: 12px; opacity: .75; padding: 2px 6px; text-align: center; } .rsTable th:first-child { text-align: left; color: var(--c); font-size: 15px; opacity: 1; }
   .rsTable td { padding: 3px 6px; border-top: 2px solid #ffffff1f; text-align: center; } .rsTable td:first-child { text-align: left; }
@@ -854,7 +866,7 @@
     <button id="fsBtn" class="lbIcon fs" title="Ecrã inteiro"><svg viewBox="0 0 24 24"><path class="ln" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><span>Ecrã inteiro</span></button>
   </div>
   <div id="lbBottom">
-    <div id="lbChar"><button id="lbPrev" class="lbArrow">&#9664;</button><div class="lbWho"><b id="lbName">Robin</b><small id="lbBlurb"></small></div><button id="lbNext" class="lbArrow">&#9654;</button></div>
+    <div id="lbChar"><button id="lbPrev" class="lbArrow">&#9664;</button><div class="lbWho"><b id="lbName">Pinta</b><small id="lbBlurb"></small></div><button id="lbNext" class="lbArrow">&#9654;</button></div>
     <button id="playBtn">JOGAR &#9654;</button>
   </div>
   <div id="lbPanel">
@@ -992,6 +1004,7 @@
     </div>
   </div>
   <div id="targetInfo"></div>
+  <div id="replayBox"><i class="rbBar top"></i><i class="rbBar bot"></i><div id="replayTag"><b id="replayTitle"></b><span>REPETIÇÃO · <kbd>Espaço</kbd> para saltar</span></div></div>
   <div id="roundBox"><b id="roundTitle"></b><span id="roundScore"></span><div id="roundStats" class="rsWrap"></div><div id="upgradeCards"></div><span id="upgradeHint">Escolhe uma melhoria: clica nela ou carrega em <kbd>1</kbd>, <kbd>2</kbd> ou <kbd>3</kbd></span></div>
   <div id="gameOver">
     <div id="goStage1">

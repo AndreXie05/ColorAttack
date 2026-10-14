@@ -1,3 +1,4 @@
+import { CHARACTERS } from "./characters.js";
 /* ============================================================
    CLASSIFICAÇÕES: estatísticas do jogador guardadas no navegador (localStorage), separadas por dificuldade dos bots
    ============================================================ */
@@ -61,7 +62,8 @@ export function resetStats() { for (const d of DIFFICULTIES) data[d] = EMPTY(); 
 export function profile() {
   const t = DIFFICULTIES.reduce((acc, d) => { for (const k in acc) acc[k] += data[d][k]; return acc; }, EMPTY()), x = data.extra;
   const top = (o) => Object.entries(o).sort((a, b) => b[1] - a[1])[0] || null;
-  return { ...t, favChar: top(x.charGames), favColor: top(x.colorShots), bestKills: x.bestKills, winStreak: x.winStreak, bestWinStreak: x.bestWinStreak };
+  const known = Object.fromEntries(Object.entries(x.charGames).filter(([id]) => CHARACTERS.some((c) => c.id === id)));   // (personagens que já não existem não contam)
+  return { ...t, favChar: top(known), favColor: top(x.colorShots), bestKills: x.bestKills, winStreak: x.winStreak, bestWinStreak: x.bestWinStreak };
 }
 export const winStreak = () => data.extra.winStreak;
 

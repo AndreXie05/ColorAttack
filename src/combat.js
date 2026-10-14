@@ -380,6 +380,11 @@ export class CombatWorld {
       e.mesh.scale.setScalar(Math.max(0.01, e.R * k)); e.mesh.material.opacity = Math.max(0, 0.8 * (1 - k));
       if (e.life <= 0) { this.group.remove(e.mesh); e.mesh.geometry.dispose(); e.mesh.material.dispose(); this.effects.splice(i, 1); }
     }
+    this.updateParticles(dt);
+  }
+
+  // Salpicos (também usado pela repetição da melhor jogada, que não corre o resto do combate)
+  updateParticles(dt) {
     for (const q of this.particles) {
       if (!q.active) continue;
       q.life -= dt; q.vy -= 18 * dt; q.x += q.vx * dt; q.y += q.vy * dt; q.z += q.vz * dt;

@@ -109,8 +109,8 @@ export function setDummyGhost(dummy, on) {
   _ghost = _ghost || new THREE.MeshStandardMaterial({ color: 0xcfe0ff, emissive: 0x7088ff, emissiveIntensity: 0.4, transparent: true, opacity: 0.28, roughness: 0.4, depthWrite: false });
   dummy.traverse((o) => {
     if (!o.isMesh) return;
-    if (o.userData.orig === undefined) o.userData.orig = o.material;
+    if (o.userData.orig === undefined) { o.userData.orig = o.material; o.userData.shadow = o.castShadow; }
     o.material = on ? _ghost : o.userData.orig;
-    o.castShadow = !on;
+    o.castShadow = !on && o.userData.shadow;                   // (repõe a sombra como era: os pormenores pequenos não fazem sombra)
   });
 }

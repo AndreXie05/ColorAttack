@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { ARENA, PAL, TEAM } from "./game-config.js";
 import { mat, G, checkerTexture, soften } from "./materials-and-geometry.js";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 
 /* ============================================================
    3. CONSTRUTOR DE MAPAS
@@ -119,17 +120,21 @@ export class MapBuilder {
   chest(x, z, ry = 0) {
     const prevVivid = this.vivid; this.vivid = true;           // baús sempre vivos
     const g = this.begin(x, z, ry, 0, 0.9);
-    const body = this.box(0, 0, 0, 1.9, 1.0, 1.3, 0x9a5b2e);
-    this.box(-0.6, 0, 0, 0.18, 1.02, 1.32, 0xffc61a);
-    this.box( 0.6, 0, 0, 0.18, 1.02, 1.32, 0xffc61a);
-    this.box(0, 0.5, 0.67, 0.34, 0.34, 0.1, 0xffc61a);
+    const body = bakeColors(g, [
+      this.box(0, 0, 0, 1.9, 1.0, 1.3, 0x9a5b2e),
+      this.box(-0.6, 0, 0, 0.18, 1.02, 1.32, 0xffc61a),
+      this.box( 0.6, 0, 0, 0.18, 1.02, 1.32, 0xffc61a),
+      this.box(0, 0.5, 0.67, 0.34, 0.34, 0.1, 0xffc61a),
+    ], this);
     const pivot = new THREE.Group();
     pivot.position.set(0, 1.0, -0.65);
     g.add(pivot);
     this.enter(pivot);
-    this.box(0, 0, 0.65, 1.9, 0.45, 1.3, 0xb8723a);
-    this.box(-0.6, 0, 0.65, 0.18, 0.47, 1.32, 0xffc61a);
-    this.box( 0.6, 0, 0.65, 0.18, 0.47, 1.32, 0xffc61a);
+    bakeColors(pivot, [
+      this.box(0, 0, 0.65, 1.9, 0.45, 1.3, 0xb8723a),
+      this.box(-0.6, 0, 0.65, 0.18, 0.47, 1.32, 0xffc61a),
+      this.box( 0.6, 0, 0.65, 0.18, 0.47, 1.32, 0xffc61a),
+    ], this);
     this.end();
     const gem = this._mesh(G.octa(0.38), mat(PAL.yellow, { emissive: 0xb08a00 }), 0, 2.4, 0);
     this.solidCircle(0, 0, 1.1, 1.0);
@@ -215,6 +220,28 @@ export class MapBuilder {
       spawns: this.spawns, patrol: this.patrol, lights: this.lights, disposables: this.disposables,
     };
   }
+}
+
+// Junta várias peças (filhas diretas de `parent`) numa malha só, com a cor de cada peça guardada nos vértices.
+// Ex.: um baú tinha 8 peças (8 chamadas de desenho); assim fica com 3. Devolve a malha nova.
+const BAKED = new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.5, metalness: 0 });
+function bakeColors(parent, meshes, b) {
+  const geos = meshes.map((m) => {
+    m.updateMatrix();
+    const g = (m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone()).applyMatrix4(m.matrix);
+    const n = g.attributes.position.count, col = new Float32Array(n * 3), c = m.material.color;
+    for (let i = 0; i < n; i++) { col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; }
+    g.setAttribute("color", new THREE.BufferAttribute(col, 3));
+    for (const k of Object.keys(g.attributes)) if (!["position", "normal", "color"].includes(k)) g.deleteAttribute(k);   // (sem uv: não usam texturas)
+    parent.remove(m);
+    return g;
+  });
+  const geo = mergeGeometries(geos, false);
+  geos.forEach((g) => g.dispose());
+  const mesh = new THREE.Mesh(geo, BAKED);
+  mesh.castShadow = true; mesh.receiveShadow = true;
+  parent.add(mesh); b.disposables.push(geo);
+  return mesh;
 }
 
 /* ============================================================

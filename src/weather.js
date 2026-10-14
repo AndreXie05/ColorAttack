@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { G } from "./materials-and-geometry.js";
 
 /* ============================================================
@@ -38,6 +39,8 @@ function playThunder(strength = 1) {
     src.start();
   } catch (e) { /* sem áudio: ignora */ }
 }
+
+const _c1 = new THREE.Color(), _c2 = new THREE.Color(), _bg = new THREE.Color(), _flashC = new THREE.Color(0xdfe8ff);   // reutilizadas em cada frame (sem lixo para o coletor de memória)
 
 export class WeatherSystem {
   constructor(map, scene) {
@@ -82,18 +85,20 @@ export class WeatherSystem {
     // nuvens cartoon fofas: aglomerados de esferas achatadas (perto e ao longe, para dar profundidade)
     this.cloudMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xb8b8b8, roughness: 1 });
     this.clouds = [];
+    // cada nuvem é uma malha só (as bolas juntas): ~170 chamadas de desenho passam a 28
+    this.cloudGeos = [];
+    const mx = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), ps = new THREE.Vector3();
     const makeCloud = (x, y, z, k) => {
-      const c = new THREE.Group();
-      const parts = 5 + Math.floor(Math.random() * 3);
+      const parts = 5 + Math.floor(Math.random() * 3), geos = [];
       for (let i = 0; i < parts; i++) {
         const r = Math.round((6 + Math.random() * 5) * k * 2) / 2;
-        const m = new THREE.Mesh(G.sphere(r), this.cloudMat);
-        m.position.set((i - parts / 2) * 6.5 * k, Math.sin(i * 1.7) * 2.5 * k, (Math.random() - 0.5) * 5 * k);
-        m.scale.y = 0.62;
-        c.add(m);
+        ps.set((i - parts / 2) * 6.5 * k, Math.sin(i * 1.7) * 2.5 * k, (Math.random() - 0.5) * 5 * k); sc.set(1, 0.62, 1);
+        geos.push(G.sphere(r).clone().applyMatrix4(mx.compose(ps, q, sc)));
       }
+      const geo = mergeGeometries(geos, false); geos.forEach((g) => g.dispose());
+      const c = new THREE.Mesh(geo, this.cloudMat);
       c.position.set(x, y, z);
-      this.group.add(c); this.clouds.push(c);
+      this.group.add(c); this.clouds.push(c); this.cloudGeos.push(geo);
     };
     for (let i = 0; i < 12; i++) makeCloud((Math.random() * 2 - 1) * 130, 55 + Math.random() * 14, (Math.random() * 2 - 1) * 100, 1);
     for (let i = 0; i < 16; i++) {                                       // nuvens grandes no horizonte
@@ -149,7 +154,7 @@ export class WeatherSystem {
   update(dt, t) {
     const T = this.target, C = this.cur, k = 1 - Math.exp(-dt * 1.6);
     for (const key of ["hemi", "sun", "skyMix", "fogNear", "fogFar", "rain", "wind"]) C[key] += (T[key] - C[key]) * k;
-    this.cloudColor.lerp(new THREE.Color(T.cloud), k);
+    this.cloudColor.lerp(_c1.set(T.cloud), k);
     this.cloudMat.color.copy(this.cloudColor);
 
     // relâmpagos e trovões
@@ -165,9 +170,9 @@ export class WeatherSystem {
     // luz, céu e nevoeiro
     this.hemi.intensity = this.base.hemi * C.hemi + this.flash * 1.8;
     this.sun.intensity = this.base.sun * C.sun + this.flash * 0.8;
-    const bg = this.base.bg.clone().lerp(this.skyColor, C.skyMix).lerp(new THREE.Color(0xdfe8ff), this.flash * 0.6);
+    const bg = _bg.copy(this.base.bg).lerp(this.skyColor, C.skyMix).lerp(_flashC, this.flash * 0.6);
     if (this.scene.background && this.scene.background.isColor) this.scene.background.copy(bg);
-    const wTop = T.top === null || T.top === undefined ? this.skyTopBase : new THREE.Color(T.top);
+    const wTop = T.top === null || T.top === undefined ? this.skyTopBase : _c2.set(T.top);
     this.skyMat.uniforms.top.value.copy(this.skyTopBase).lerp(wTop, C.skyMix);
     this.skyMat.uniforms.bottom.value.copy(bg);
     if (this.scene.fog) { this.scene.fog.color.copy(bg); this.scene.fog.near = C.fogNear; this.scene.fog.far = C.fogFar; }
@@ -186,7 +191,7 @@ export class WeatherSystem {
 
     // nuvens à deriva (escondidas na vista aérea, senão tapam o mapa)
     for (const c of this.clouds) {
-      c.visible = this.cloudsVisible;
+      if (c.visible !== this.cloudsVisible) c.visible = this.cloudsVisible;
       c.position.x += dt * (1.5 + wind * 0.6);
       if (c.position.x > 320) c.position.x = -320;
     }
@@ -197,5 +202,6 @@ export class WeatherSystem {
     this.rain.geometry.dispose(); this.rainMat.dispose();
     this.boltGeo.dispose(); this.boltMat.dispose(); this.cloudMat.dispose();
     this.sky.geometry.dispose(); this.skyMat.dispose();
+    for (const g of this.cloudGeos) g.dispose();
   }
 }
