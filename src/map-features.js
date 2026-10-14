@@ -23,7 +23,7 @@ import { floorAt } from "./surfaces.js";
      até à tua base: +2 pontos. Quem a leva anda mais devagar e aparece no minimapa; se for eliminado, a lata cai.
      Um adversário que lhe toque devolve-a à base (e ao fim de 20 s no chão volta sozinha).
    - Pinta e Conquista (modo "zonas"): 3 zonas no chão. A equipa com mais tinta (dos seus tiros e granadas, de qualquer cor) dentro
-     de uma zona fica com ela. A tinta seca em 10 s, por isso é preciso repintar. De 30 em 30 s cada zona dá +1 ponto.
+     de uma zona conquista-a e fica com ela até os adversários pintarem mais. A tinta seca em 10 s. De 15 em 15 s cada zona dá +1 ponto.
    Tudo é leve: poucas malhas simples, criadas uma vez por mapa, e sem trabalho quando nada está a acontecer.
    ============================================================ */
 export const FEATURES = {
@@ -462,7 +462,7 @@ function makeTerritory(group, disposables, ctx) {
           }
           z.pct.A = Math.round((n.A / z.pts.length) * 100); z.pct.B = Math.round((n.B / z.pts.length) * 100);
           const lead = z.pct.A > z.pct.B ? "A" : "B", top = z.pct[lead], next = z.pct[lead === "A" ? "B" : "A"];
-          const owner = top < TERR.minPct ? null : top > next ? lead : z.owner;                // empate: fica como estava
+          const owner = top >= TERR.minPct && top > next ? lead : z.owner;                     // conquistada: continua tua (mesmo com a tinta seca) até os adversários pintarem mais
           if (owner !== z.owner) {
             z.owner = owner;
             if (owner) ctx.toast(`🗺️ ${did(owner, "conquistou", "conquistaram")} a zona ${z.name}`, teamCss(owner));

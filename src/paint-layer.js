@@ -133,10 +133,10 @@ export class PaintLayer {
     }
   }
 
-  // Envia a textura para a placa gráfica no máximo ~12 vezes por segundo (é grande: enviá-la em todos os frames pesa muito)
+  // Envia a textura para a placa gráfica no máximo ~6 vezes por segundo (é grande, 1400 x 980: enviá-la muitas vezes aquece a placa)
   flush() {
     const now = performance.now();
-    if (this.dirty && now - (this.sentAt || 0) > 80) { this.tex.needsUpdate = true; this.dirty = false; this.sentAt = now; }
+    if (this.dirty && now - (this.sentAt || 0) > 160) { this.tex.needsUpdate = true; this.dirty = false; this.sentAt = now; }
   }
 
   clear() { this.records = []; this.ctx.clearRect(0, 0, this.w, this.h); this.dirty = true; }

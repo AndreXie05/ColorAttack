@@ -24,6 +24,10 @@ import * as Stats from "./stats.js";
 import { Tutorial, STEPS as TUT_STEPS } from "./tutorial.js";
 import { COLORS, PRIMARIES, SECONDARIES, symbolSVG, chipHTML, ingredients, mixColors, COLOR_RULES, TERTIARY, paletteColors, hitDamage, shuffleMixes, resetMixes } from "./colors.js";
 import * as Progress from "./progress.js";
+import { applyCosmetics, tickCosmetics } from "./cosmetics.js";
+import { createTrails } from "./trails.js";
+import { createLobby } from "./lobby.js";
+import * as Emotes from "./emotes.js";
 // import { PointerLockControls } from "three/addons/controls/PointerLockControls.js"; // fase da câmara em 1.ª pessoa
 
 /* ============================================================
@@ -33,12 +37,13 @@ const state = {
   screen: "title", map: null, def: null,
   player: { pos: new THREE.Vector3(), motion: createMotionState(), facing: 0 },
   cam: { yaw: 0, pitch: 0.35, dist: 9, aerial: false, prev: null, focus: new THREE.Vector3(), curDist: 9, fov: 60, ready: false },
-  quality: "media", fpsAcc: 0, fpsFrames: 0, fpsTime: 0, lowFpsTime: 0, grace: 0,
+  quality: (() => { try { const q = localStorage.getItem("colorattack.quality"); return ["alta", "media", "baixa", "silenciosa"].includes(q) ? q : "media"; } catch { return "media"; } })(), fpsAcc: 0, fpsFrames: 0, fpsTime: 0, lowFpsTime: 0, grace: 0,
   roundTime: CONFIG.roundSeconds, opened: 0, empty: 0, lastUiTimer: "",
   invisible: 0, round: null, upg: {}, botUpg: {}, feedQueue: [], tutorial: null, tutorialMode: false, startTutorial: false, upgradeChoices: null, intermission: 0, over: false, bots: [], world: null, me: null, ammo: { vermelho: 0, azul: 0, amarelo: 0 }, playerColor: "vermelho", dead: false, deathInfo: null, firing: false, fireCd: 0, noAmmoMsg: 0, aimingGrenade: false, grenadeColor: "vermelho", grenadeColor2: null, grenadeSlot: 0, intenseT: 5, radarT: 0, ads: false, healingT: 0, tracked: [], aimRing: null, gameTime: 0, targetT: 0, targetKey: "", hpShown: -1, hurtT: 0, starting: false, shownCrossColor: "", characterId: "robin", rosters: null, pickups: null, pips: { A: [], B: [] }, loot: {}, paused: false, weather: null, paint: null, colors: null, shownColor: "", weatherId: "sol", weatherChoice: "random",
   countdown: 0, goT: 0, mixHintT: 0, mixHintKey: "", gameStats: {}, goldenDone: false, mode: "normal", secret: false, clues: {}, cannon: null,
 };
 const keys = new Set();
+let lobby = null;                                                                   // ecrã principal (lobby.js); criado no fim deste ficheiro
 
 /* ============================================================
    11. RENDERIZAÇÃO
@@ -52,7 +57,8 @@ document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 600);
-let dummy = createDummy();                           // boneco simples; é trocado pelo do Blender quando o carregamento termina
+let dummy = createDummy();
+const trails = createTrails(scene);                                                 // rasto do jogador ao correr (loja)                           // boneco simples; é trocado pelo do Blender quando o carregamento termina
 
 const _modelCache = new Map();                        // id -> Promise do modelo (carregado uma só vez)
 async function setCharacter(id) {
@@ -69,20 +75,27 @@ async function setCharacter(id) {
   if (parent) { parent.remove(dummy); parent.add(model); }
   dummy = model;
   addHeldItems(dummy);
+  applyCosmetics(dummy, Progress.wallet.equip);                                     // skin, acessório e arma escolhidos no inventário
   setDummyGhost(dummy, state.invisible > 0);
   if (state.me) paintPlayer(state.playerColor);
 }
 
-// Qualidade gráfica: resolução, sombras e chuva. Q muda; se os FPS ficarem baixos, desce sozinha.
+// Qualidade gráfica: resolução, sombras, chuva e imagens por segundo (fps). Q muda; se os FPS ficarem baixos, desce sozinha.
+// shadowEvery: as sombras recalculam-se de X em X frames (o sol não se mexe; só as sombras dos bonecos atrasam um pouco)
+// Silenciosa: 30 fps, sem sombras e pouca chuva — o mínimo de esforço para a placa gráfica (menos calor e ventoinha)
 const QUALITY = {
-  alta:  { label: "Alta",  pixelRatio: 2,   shadows: true,  shadowMap: 2048, rain: 1 },
-  media: { label: "Média", pixelRatio: 1.25, shadows: true,  shadowMap: 1024, rain: 0.6 },
-  baixa: { label: "Baixa", pixelRatio: 1,   shadows: false, shadowMap: 512,  rain: 0.3 },
+  alta:       { label: "Alta",       icon: "✨", pixelRatio: 2,    shadows: true,  shadowMap: 2048, rain: 1,    fps: 60, shadowEvery: 1 },
+  media:      { label: "Média",      icon: "⚖️", pixelRatio: 1.25, shadows: true,  shadowMap: 1024, rain: 0.6,  fps: 60, shadowEvery: 2 },
+  baixa:      { label: "Baixa",      icon: "🔋", pixelRatio: 1,    shadows: false, shadowMap: 512,  rain: 0.3,  fps: 60, shadowEvery: 2 },
+  silenciosa: { label: "Silenciosa", icon: "🔇", pixelRatio: 1,    shadows: false, shadowMap: 512,  rain: 0.15, fps: 30, shadowEvery: 2 },
 };
+renderer.shadowMap.autoUpdate = false;                                              // as sombras só se recalculam quando pedimos (ver frame)
 const QUALITY_IDS = Object.keys(QUALITY);
 function applyQuality(id) {
   const q = QUALITY[id];
   state.quality = id;
+  try { localStorage.setItem("colorattack.quality", id); } catch { /* ignora */ }   // fica guardada
+  document.querySelectorAll("#qualityPick .chip").forEach((c) => c.classList.toggle("on", c.dataset.q === id));
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, q.pixelRatio));
   renderer.setSize(window.innerWidth, window.innerHeight);
   const shadowsChanged = renderer.shadowMap.enabled !== q.shadows;
@@ -112,7 +125,8 @@ resize();
    ============================================================ */
 function showScreen(name) {
   state.screen = name;
-  if (name === "title") refreshLevelBadge();
+  $("lobby").style.display = name === "lobby" ? "flex" : "none";
+  if (name === "lobby") { refreshLevelBadge(); lobby?.renderTop(); }
   $("titleScreen").style.display = name === "title" ? "flex" : "none";
   $("charSelect").style.display = name === "chars" ? "flex" : "none";
   $("mapSelect").style.display = name === "select" ? "flex" : "none";
@@ -407,6 +421,7 @@ function unloadMap() {
   const m = state.map;
   if (!m) return;
   clearGoldenBeams();
+  trails.clear();
   if (state.features) { state.features.dispose(); state.features = null; }
   state.cannon = null;
   showCountdown(""); state.countdown = 0; state.goT = 0;
@@ -431,6 +446,7 @@ async function startMap(def, keepMatch = false) {
   $("pauseMapsBtn").innerHTML = state.tutorialMode ? "<i>&#10005;</i>Sair do tutorial" : "<i>&#10005;</i>Sair da partida";
   const kept = keepMatch ? { loot: { ...state.loot } } : null;         // próximo round: o jogo continua (rounds, melhorias e itens ficam)
   if (!kept) state.mode = state.tutorialMode ? "normal" : CONFIG.mode;  // o modo fica igual até ao fim do jogo (o tutorial é sempre normal)
+  state.heat = [];                                                                     // eliminações deste round (mapa de calor)
   COLOR_RULES.triple = state.mode === "paleta"; state.secret = state.mode === "secreto"; state.clues = {};
   resetMixes(); state.mixT = MODES[state.mode]?.shuffleEvery || 0; state.mixWarned = false; renderMixTable();   // Mistura Relâmpago: cada round começa com as misturas de sempre
   lockMouse();                                            // tem de ser já, dentro do clique do utilizador
@@ -641,7 +657,7 @@ function endRound(winner) {
   if (decided) {
     state.over = true;
     const fin = r.wins.A === r.wins.B ? null : r.wins.A > r.wins.B ? "A" : "B";
-    Stats.recordGame(fin);
+    Stats.recordGame(fin, state.characterId);
     showGameOver(fin);
     return;
   }
@@ -649,7 +665,8 @@ function endRound(winner) {
   box.style.setProperty("--c", hex6(TEAM[winner].color));
   $("roundTitle").textContent = `${TEAM[winner].name} venceu o round ${r.n}!`;
   $("roundScore").textContent = `Eliminações: ${r.kills.A} – ${r.kills.B}   ·   Rounds: ${r.wins.A} – ${r.wins.B}`;
-  $("roundStats").innerHTML = roundStatsHTML();
+  state.lastHeat = heatmapURL();
+  $("roundStats").innerHTML = roundStatsHTML() + heatHTML(state.lastHeat, true);
   box.style.display = "flex";
   state.intermission = CONFIG.match.intermission;
   // só a equipa que ganhou o round recebe melhoria: tu escolhes (1 de 3) se ganhaste; senão só os bots vencedores a recebem
@@ -666,7 +683,7 @@ function startNextRound() {
 }
 // ---------- ESTATÍSTICAS DO ROUND (cada equipa, com o MVP) ----------
 // MVP = mais eliminações; empate: menos mortes, depois melhor precisão
-const mvpScore = (c) => c.rs.kills * 1000 - c.rs.deaths * 10 + (c.rs.shots ? c.rs.hits / c.rs.shots : 0);
+const mvpScore = (c) => c.rs.kills * 1000 + c.rs.assists * 100 - c.rs.deaths * 10 + (c.rs.shots ? c.rs.hits / c.rs.shots : 0);
 function roundStatsHTML() {
   if (!state.world) return "";
   const team = (t) => {
@@ -674,26 +691,62 @@ function roundStatsHTML() {
     const mvp = list[0] && list[0].rs.kills > 0 ? list[0] : null;                  // sem eliminações não há MVP
     const rows = list.map((c) => {
       const r = c.rs, fav = Object.entries(r.colors).sort((a, b) => b[1] - a[1])[0];
-      return `<tr class="${c.isPlayer ? "me" : ""}${c === mvp ? " mvp" : ""}"><td>${c === mvp ? "⭐ " : ""}${c.isPlayer ? "Tu" : nameOf(c)}</td><td>${r.kills}</td><td>${r.deaths}</td>
+      return `<tr class="${c.isPlayer ? "me" : ""}${c === mvp ? " mvp" : ""}"><td>${c === mvp ? "⭐ " : ""}${c.isPlayer ? "Tu" : nameOf(c)}</td><td>${r.kills}</td><td>${r.assists}</td><td>${r.deaths}</td>
         <td>${r.shots ? Math.round((r.hits / r.shots) * 100) + "%" : "–"}</td><td>${fav ? chipHTML(fav[0], 20) : "–"}</td></tr>`;
     }).join("");
-    return `<table class="rsTable" style="--c:${hex6(TEAM[t].color)}"><tr><th>${TEAM[t].name}</th><th>Elim.</th><th>Mortes</th><th>Precisão</th><th>Cor</th></tr>${rows}</table>`;
+    return `<table class="rsTable" style="--c:${hex6(TEAM[t].color)}"><tr><th>${TEAM[t].name}</th><th>Elim.</th><th>Assist.</th><th>Mortes</th><th>Precisão</th><th>Cor</th></tr>${rows}</table>`;
   };
   return team("A") + team("B");
+}
+
+// ---------- MAPA DE CALOR: onde houve mais eliminações no round (por cima do minimapa), com ✔ onde eliminaste e ✖ onde foste eliminado ----------
+const HEAT_PAL = [[0, 0, 0, 0], [47, 123, 255, 150], [71, 224, 106, 190], [255, 210, 31, 220], [255, 59, 74, 240]];   // frio → quente
+function heatmapURL() {
+  if (!MM.base || !state.heat) return "";
+  const W = 322, H = 460, X = (z) => ((z + ARENA.halfZ) / (ARENA.halfZ * 2)) * W, Y = (x) => ((ARENA.halfX - x) / (ARENA.halfX * 2)) * H;
+  const c = document.createElement("canvas"); c.width = W; c.height = H;
+  const g = c.getContext("2d");
+  g.drawImage(MM.base, 0, 0, W, H); g.fillStyle = "rgba(13,11,31,0.45)"; g.fillRect(0, 0, W, H);   // o mapa um pouco escurecido
+  // calor: soma de manchas suaves numa camada à parte e depois cor por intensidade
+  const hc = document.createElement("canvas"); hc.width = W; hc.height = H;
+  const hg = hc.getContext("2d"); hg.globalCompositeOperation = "lighter";
+  for (const e of state.heat) {
+    const x = X(e.z), y = Y(e.x), grd = hg.createRadialGradient(x, y, 0, x, y, 30);
+    grd.addColorStop(0, "rgba(255,255,255,0.58)"); grd.addColorStop(1, "rgba(255,255,255,0)");   // 1 eliminação = verde; várias juntas = amarelo/vermelho
+    hg.fillStyle = grd; hg.fillRect(x - 30, y - 30, 60, 60);
+  }
+  const img = hg.getImageData(0, 0, W, H), d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const v = Math.min(1, d[i + 3] / 255) * (HEAT_PAL.length - 1), a = Math.floor(v), b = Math.min(HEAT_PAL.length - 1, a + 1), f = v - a;
+    for (let k = 0; k < 4; k++) d[i + k] = HEAT_PAL[a][k] + (HEAT_PAL[b][k] - HEAT_PAL[a][k]) * f;
+  }
+  hg.putImageData(img, 0, 0); g.drawImage(hc, 0, 0);
+  g.font = "bold 18px sans-serif"; g.textAlign = "center"; g.textBaseline = "middle"; g.lineWidth = 4; g.strokeStyle = "#1a1033";
+  for (const e of state.heat) {                                                       // as tuas eliminações e onde foste eliminado
+    if (!e.mine && !e.me) continue;
+    const x = X(e.z), y = Y(e.x), t = e.me ? "✖" : "✔";
+    g.strokeText(t, x, y); g.fillStyle = e.me ? "#ff3b4a" : "#47e06a"; g.fillText(t, x, y);
+  }
+  return c.toDataURL("image/png");
+}
+function heatHTML(url, small = false) {
+  if (!url) return "";
+  return `<div class="heatBox${small ? " small" : ""}"><b>🔥 Mapa de calor</b><img src="${url}" alt=""><small><span style="color:#47e06a">✔</span> eliminaste · <span style="color:#ff3b4a">✖</span> foste eliminado</small></div>`;
 }
 
 // ---------- DESTAQUES DO JOGO: soma o round de cada jogador e, no fim, dá prémios aos melhores ----------
 function addRoundToGameStats() {
   if (!state.world || state.tutorial) return;
   for (const c of state.world.combatants) {
-    const g = state.gameStats[c.id] ||= { team: c.team, index: c.index, isPlayer: c.isPlayer, kills: 0, deaths: 0, killsSame: 0, grenadeKills: 0, grenades: 0, traps: 0, shots: 0, hits: 0, dist: 0, bestStreak: 0 };
-    for (const k of ["kills", "deaths", "killsSame", "grenadeKills", "grenades", "traps", "shots", "hits", "dist"]) g[k] += c.rs[k];
+    const g = state.gameStats[c.id] ||= { team: c.team, index: c.index, isPlayer: c.isPlayer, kills: 0, deaths: 0, assists: 0, killsSame: 0, grenadeKills: 0, grenades: 0, traps: 0, shots: 0, hits: 0, dist: 0, bestStreak: 0 };
+    for (const k of ["kills", "deaths", "assists", "killsSame", "grenadeKills", "grenades", "traps", "shots", "hits", "dist"]) g[k] += c.rs[k];
     g.bestStreak = Math.max(g.bestStreak, c.rs.bestStreak);
   }
 }
 const AWARDS = [
   { icon: "🎯", title: "Mestre das cores", desc: "mais eliminações com a cor certa", val: (g) => g.killsSame, fmt: (v) => `${v} com a cor certa` },
   { icon: "💣", title: "Rei das granadas", desc: "mais eliminações com granadas e armadilhas", val: (g) => g.grenadeKills * 100 + g.grenades + g.traps, fmt: (v, g) => `${g.grenadeKills} eliminações · ${g.grenades} granadas` },
+  { icon: "🤝", title: "Bom colega", desc: "mais assistências", val: (g) => g.assists, fmt: (v) => `${v} ${v === 1 ? "assistência" : "assistências"}` },
   { icon: "🔥", title: "Imparável", desc: "maior série sem morrer", val: (g) => g.bestStreak, fmt: (v) => `série de ${v}` },
   { icon: "🏹", title: "Pontaria afinada", desc: "melhor precisão (mín. 20 tiros)", val: (g) => (g.shots >= 20 ? g.hits / g.shots : 0), fmt: (v) => `${Math.round(v * 100)}% de acertos` },
   { icon: "🏃", title: "Maratonista", desc: "mais distância percorrida", val: (g) => g.dist, fmt: (v) => `${Math.round(v)} m` },
@@ -720,7 +773,7 @@ function showSummary() {
 function summaryHTML(final) {
   const c = Stats.current, r = state.round, f1 = (v) => (Math.round(v * 10) / 10).toString().replace(".", ",");
   const card = (label, value, sub = "", cls = "") => `<div class="stCard ${cls}"><b>${value}</b><span>${label}</span>${sub ? `<small>${sub}</small>` : ""}</div>`;
-  const rows = c.rows.map((x) => `<tr class="${x.won ? "won" : "lost"}"><td>Round ${x.n}</td><td>${x.won ? "🏆 Ganhaste" : "💔 Perdeste"}</td><td>${x.kills}</td><td>${x.deaths}</td></tr>`).join("");
+  const rows = c.rows.map((x) => `<tr class="${x.won ? "won" : "lost"}"><td>Round ${x.n}</td><td>${x.won ? "🏆 Ganhaste" : "💔 Perdeste"}</td><td>${x.kills}</td><td>${x.assists ?? 0}</td><td>${x.deaths}</td></tr>`).join("");
   const ups = Object.entries(state.upg).map(([id, n]) => { const u = UPGRADES.find((x) => x.id === id); return `<span class="sumUp">${u.icon} ${u.name}${n > 1 ? " ×" + n : ""}</span>`; }).join("") || "<span class=\"sumUp none\">nenhuma</span>";
   const itemRow = (icon, name, got, used) => `<tr><td>${icon} ${name}</td><td>${got}</td><td>${used}</td></tr>`;
   const dmgPerKill = c.kills > 0 ? f1(c.damage / c.kills) : "–";
@@ -730,17 +783,18 @@ function summaryHTML(final) {
     ${xpHTML(state.lastXP && state.xpDone ? state.lastXP : null)}
     ${awardsHTML()}
     <h4>Último round</h4>
-    <div class="rsWrap">${roundStatsHTML()}</div>
+    <div class="rsWrap">${roundStatsHTML()}${heatHTML(state.lastHeat || heatmapURL())}</div>
     <h4>Eliminações</h4>
     <div class="stGrid">
       ${card("Eliminações no jogo", c.kills)}
       ${card("Com a cor certa", c.killsSame, c.kills ? Math.round((c.killsSame / c.kills) * 100) + "%" : "", "good")}
       ${card("Sem a cor certa", c.killsOther, c.kills ? Math.round((c.killsOther / c.kills) * 100) + "%" : "")}
+      ${card("Assistências no jogo", c.assists)}
       ${card("Mortes no jogo", c.deaths)}
       ${card("Eliminações/mortes", c.deaths > 0 ? f1(c.kills / c.deaths) : c.kills ? "∞" : "–")}
     </div>
     <h4>Por round</h4>
-    <table class="sumTable"><tr><th>Round</th><th>Resultado</th><th>Eliminações</th><th>Mortes</th></tr>${rows || "<tr><td colspan=4>–</td></tr>"}</table>
+    <table class="sumTable"><tr><th>Round</th><th>Resultado</th><th>Eliminações</th><th>Assistências</th><th>Mortes</th></tr>${rows || "<tr><td colspan=5>–</td></tr>"}</table>
     <h4>Dano</h4>
     <div class="stGrid">${card("Dano total", Math.round(c.damage))}${card("Dano médio por eliminação", dmgPerKill)}${card("Tiros disparados", c.shots)}</div>
     <h4>Melhorias escolhidas</h4>
@@ -773,12 +827,14 @@ function xpHTML(x) {
   const up = x.after.level > x.before.level;
   return `<h4>Experiência</h4><div class="xpBox">
     <div class="xpRows">${x.rows.map(([t, v]) => `<div><span>${t}</span><b>+${v}</b></div>`).join("")}${x.mult !== 1 ? `<div><span>🤖 Dificuldade ${BOT_PRESETS[Stats.current.diff].name}</span><b>×${String(x.mult).replace(".", ",")}</b></div>` : ""}<div class="xpTot"><span>Total</span><b>+${x.total} XP</b></div></div>
+    <div class="xpLoot">🪙 +${x.coins} moedas${x.gems ? ` · 💎 +${x.gems} joias` : ""}</div>
     ${up ? `<div class="xpUp">🎉 Subiste para o nível ${x.after.level}!</div>` : ""}${xpBarHTML(x.after)}</div>`;
 }
 // Nível no ecrã inicial
 function refreshLevelBadge() {
   const el = $("levelBadge");
   if (el) el.innerHTML = xpBarHTML(Progress.levelInfo(), "mini");
+  lobby?.renderTop();
 }
 refreshLevelBadge();
 
@@ -790,7 +846,8 @@ function showGameOver(final) {
   const word = final === null ? "EMPATE!" : won ? "VITÓRIA!" : "DERROTA", rainbow = ["#ff3b4a", "#ffd21f", "#47e06a", "#2f7bff", "#a447ff", "#ff8a1f"];
   $("goTitle").className = won ? "win" : "lose";
   $("goTitle").innerHTML = [...word].map((ch, i) => `<span style="--c:${won ? rainbow[i % 6] : "#ff3b4a"};--d:${i * 0.08}s">${ch}</span>`).join("");
-  $("goSub").textContent = `${TEAM.A.name} ${r.wins.A} – ${r.wins.B} ${TEAM.B.name}` + (xp ? `   ·   ⭐ +${xp.total} XP${xp.after.level > xp.before.level ? ` · Nível ${xp.after.level}!` : ""}` : "");
+  const ws = state.tutorialMode ? 0 : Stats.winStreak(), streakTxt = state.tutorialMode ? "" : won ? `   ·   🔥 ${ws} ${ws === 1 ? "vitória seguida" : "vitórias seguidas"}!` : "   ·   série de vitórias perdida";
+  $("goSub").textContent = `${TEAM.A.name} ${r.wins.A} – ${r.wins.B} ${TEAM.B.name}` + streakTxt + (xp ? `   ·   ⭐ +${xp.total} XP · 🪙 +${xp.coins}${xp.gems ? ` · 💎 +${xp.gems}` : ""}${xp.after.level > xp.before.level ? ` · Nível ${xp.after.level}!` : ""}` : "");
   $("crosshair").dataset.mode = "none";
   $("summaryBody").innerHTML = summaryHTML(final);
   $("goStage1").style.display = "flex"; $("goStage2").style.display = "none";                // 1.º a faixa VITÓRIA/DERROTA; Esc ou o botão abrem o resumo
@@ -862,7 +919,8 @@ function updateZoneTable(dt) {
   state.zoneUiT = 0.25;
   const mine = state.me?.team || "A", theirs = mine === "A" ? "B" : "A", info = terr.info(), col = (t) => hex6(TEAM[t].color);
   const html = `<b>🖌️ Zonas · ponto em ${Math.ceil(info.next)} s</b>` + info.zones.map((z) =>
-    `<div class="ztRow"><span class="ztDot" style="${z.owner ? `background:${col(z.owner)}` : ""}"></span><span class="ztName">${z.label}</span><span class="ztPct"><span style="color:${col(mine)}">${z.pct[mine]}%</span> / <span style="color:${col(theirs)}">${z.pct[theirs]}%</span></span></div>`).join("");
+    `<div class="ztRow"><span class="ztDot" style="${z.owner ? `background:${col(z.owner)}` : ""}"></span><span class="ztName">${z.label}</span><span class="ztPct"><span style="color:${col(mine)}">${z.pct[mine]}%</span> / <span style="color:${col(theirs)}">${z.pct[theirs]}%</span></span>` +
+    `<span class="ztBar" title="${z.pct[mine] + z.pct[theirs]}% pintado"><i style="width:${z.pct[mine]}%;background:${col(mine)}"></i><i style="width:${z.pct[theirs]}%;background:${col(theirs)}"></i></span></div>`).join("");   // barra: nós | eles | por pintar (cinzento)
   if (html !== state.zoneHtml) { state.zoneHtml = html; box.innerHTML = html; }
   box.style.display = "flex";
   box.classList.toggle("soon", info.next <= 3);
@@ -948,6 +1006,7 @@ window.addEventListener("keydown", (e) => {
   else if (e.code === "KeyT") useCure();
   else if (e.code === "KeyG") startGrenadeAim();
   else if (e.code === "KeyC") placeTrap();
+  else if (e.code === "KeyZ") celebrate();
   else if (e.code === "KeyJ") {                                   // teste: simula uma eliminação (quem eliminou quem, cor e se foi com a cor certa)
     const kt = Math.random() < 0.5 ? "A" : "B", vt = kt === "A" ? "B" : "A", rnd = () => Math.floor(Math.random() * 5);
     const ids = Object.keys(COLORS);
@@ -1059,7 +1118,7 @@ $("statsReset").addEventListener("click", () => {
   $("confirmBox").style.display = "flex"; $("cfInput").focus();
 });
 $("cfInput").addEventListener("input", () => {
-  const ok = $("cfInput").value.trim() === "CONFIRMAR";
+  const ok = $("cfInput").value.trim().toUpperCase() === "CONFIRMAR";              // com ou sem Caps Lock
   $("cfYes").disabled = !ok; $("cfInput").classList.toggle("ok", ok);
 });
 $("cfInput").addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Enter" && !$("cfYes").disabled) $("cfYes").click(); if (e.key === "Escape") closeConfirm(); });
@@ -1099,17 +1158,18 @@ renderer.domElement.addEventListener("wheel", (e) => {
   state.cam.dist = Math.max(4, Math.min(110, state.cam.dist * (e.deltaY > 0 ? 1.1 : 0.9)));
 }, { passive: false });
 
-$("playBtn").addEventListener("click", () => { refreshCharScreen(); showScreen("chars"); });
+$("playBtn").addEventListener("click", () => showScreen("select"));                // o personagem escolhe-se no lobby
 $("tutorialBtn").addEventListener("click", startTutorial);
 $("goSummaryBtn").addEventListener("click", showSummary);
 $("goAgain").addEventListener("click", () => { $("gameOver").style.display = "none"; startMap(state.def); });
 $("goMenu").addEventListener("click", () => { $("gameOver").style.display = "none"; leaveViewer(); });
-$("charBack").addEventListener("click", () => showScreen("title"));
+$("charBack").addEventListener("click", () => showScreen("lobby"));
+$("enterBtn").addEventListener("click", () => showScreen("lobby"));                 // ecrã inicial → lobby
 $("charNext").addEventListener("click", () => showScreen("select"));
-$("backBtn").addEventListener("click", () => showScreen("chars"));
+$("backBtn").addEventListener("click", () => showScreen("lobby"));
 const instructions = createInstructions({
   content: $("howContent"), prev: $("howPrev"), next: $("howNext"), dots: $("howDots"), nav: $("howNav"), back: $("howBack"),
-  onClose: () => showScreen("title"),
+  onClose: () => showScreen("lobby"),
 });
 $("howBtn").addEventListener("click", () => { instructions.reset(); showScreen("howto"); });
 $("howBack").addEventListener("click", () => instructions.back());            // dentro de um tema volta aos temas; no menu sai
@@ -1172,6 +1232,18 @@ buildModeChips();
 buildWeatherChips();
 buildDifficultyChips();
 buildMatchChips();
+function buildQualityChips() {                                                      // gráficos (fica guardado): a Silenciosa poupa a placa gráfica e a ventoinha
+  const box = $("qualityPick"), tips = { alta: "O mais bonito (pesa mais)", media: "Equilíbrio entre bonito e leve", baixa: "Sem sombras, 60 fps", silenciosa: "30 fps, sem sombras: o mínimo de esforço para o PC (menos ventoinha)" };
+  for (const id of QUALITY_IDS) {
+    const b = document.createElement("button");
+    b.className = "chip" + (id === state.quality ? " on" : ""); b.dataset.q = id; b.title = tips[id];
+    b.textContent = `${QUALITY[id].icon} ${QUALITY[id].label}`;
+    b.addEventListener("click", () => applyQuality(id));
+    box.appendChild(b);
+  }
+}
+buildQualityChips();
+applyQuality(state.quality);
 
 // ---------- bots: 4 aliados + 5 inimigos, cada um com o seu personagem (todos diferentes dentro da equipa) ----------
 const _botTemplates = new Map();
@@ -1337,6 +1409,11 @@ function setupCombat(map) {
         if (v.isPlayer) showToast("⚠️ Armadilha! Foge!", "#ff3b4a");
         else if (tr.owner.isPlayer) showToast(`🪤 ${nameOf(v)} acionou a tua armadilha!`, hex6(hexOf(tr.colorId)));
       },
+      onAssist: (a, v, k) => {                                                         // ajudaste um colega a eliminar alguém
+        if (!a.isPlayer || state.tutorial) return;
+        Stats.recordAssist();
+        showToast(`🤝 Assistência! Ajudaste ${nameOf(k)} a eliminar ${nameOf(v)}`, "#4da8ff");
+      },
       onReveal: (c) => { if (c.isPlayer) paintPlayer(c.colorId); else paintBot(c); },
       onGrenade: (k, x, z, colorId, hit, via) => {
         if (via === "cannon") {
@@ -1353,6 +1430,9 @@ function setupCombat(map) {
         else if (hit.includes(state.me)) showToast("💣 Uma granada mudou a tua cor!", "#ff8a1f");
       },
       onKill: (k, v, shot, byColor, via) => {
+        Emotes.stop(v);
+        state.heat.push({ x: v.pos.x, z: v.pos.z, mine: !!k?.isPlayer && k.team !== v.team, me: !!v.isPlayer });   // para o mapa de calor do fim do round
+        if (k && !k.isPlayer && k.team !== v.team && k.alive && Math.random() < 0.35) Emotes.play(k, BOT_EMOTES[Math.floor(Math.random() * BOT_EMOTES.length)], now());   // os bots às vezes celebram
         if (!k) {                                                                         // caiu de muito alto ou ao rio: o ponto vai para a outra equipa
           if (via === "water") state.world.burst(v.pos.x, 0.3, v.pos.z, "azul", 18);        // salpico na água
           reportFall(v, via);
@@ -1440,7 +1520,7 @@ function tryFire() {
   const p = state.player.pos, yaw = Math.atan2(hit.x - p.x, hit.z - p.z);
   state.player.facing = yaw; state.player.aimLock = 0.35;                          // o boneco vira-se para onde apontas
   const m = { x: p.x + Math.sin(yaw) * 0.75, y: muzzleY(state.me), z: p.z + Math.cos(yaw) * 0.75 };
-  Stats.current.shots++;
+  Stats.current.shots++; Stats.current.colors[col] = (Stats.current.colors[col] || 0) + 1;   // (cor preferida no perfil)
   const proj = state.world.fire(state.me, m, { x: hit.x - m.x, y: hit.y - m.y, z: hit.z - m.z }, col);
   state.lastShot = { hit, muzzle: m, fired: !!proj, assisted: !!assist };
   if (state.invisible > 0) { state.invisible = 0; showToast("👻 Disparar revela-te!", "#9be7ff"); }
@@ -1501,6 +1581,14 @@ function cannonFire() {
   camera.getWorldDirection(_aimDir);
   const hit = state.world.raycast({ x: camera.position.x, y: camera.position.y, z: camera.position.z }, _aimDir, CONFIG.cannon.range + 10, "A");
   if (cn.fire(hit.x, hit.z, state.colors.current)) { state.player.facing = cn.yaw; if (state.invisible > 0) state.invisible = 0; }
+}
+
+// ---------- celebração (Z): a que tens equipada no inventário ----------
+const now = () => performance.now();
+const BOT_EMOTES = Object.keys(Emotes.EMOTES);
+function celebrate() {
+  if (state.dead || !state.me || state.countdown > 0 || state.cannon || state.paused) return;
+  Emotes.play(state.me, Progress.wallet.equip.emote || "emote_aceno", now());
 }
 
 // Chão onde os pés pousam: o topo de qualquer objeto ao alcance (degraus sobem-se a andar, o resto a saltar; ver surfaces.js)
@@ -1916,6 +2004,12 @@ function update(dt, t) {
   dummy.position.set(p.pos.x, visualY(dummy, p.pos.y, p.motion.onGround, dt), p.pos.z);
   dummy.rotation.y = p.facing;
   animateCharacter(dummy, { speed: lad ? 0 : gspeed, maxSpeed: MOTION.run, onGround: p.motion.onGround, vy: p.motion.vy, landed: ev.landed, impact: ev.impact, climbing: !!lad, crouching: !!(st.me && st.me.crouching) }, dt, t);
+  if (st.me) {                                                                       // celebração (Z): para se te mexeres, disparares ou fores eliminado
+    if (Emotes.playing(st.me, now()) && (gspeed > 1.5 || st.firing || st.dead || st.aimingGrenade)) Emotes.stop(st.me);
+    Emotes.apply(dummy, st.me, now());
+  }
+  tickCosmetics(dummy, t);                                                           // hélice, asas, capa, chamas do jetpack...
+  trails.update(dt, p.pos, gspeed, Progress.wallet.equip.rasto, !st.dead && st.invisible <= 0 && !frozen && !st.ads);   // (invisível: sem rasto, senão denunciava-te)
 
   // bots
   const agents = [{ pos: p.pos }, ...st.bots];
@@ -1926,6 +2020,7 @@ function update(dt, t) {
       continue;
     }
     b.update(dt, t, map, agents, st.world);
+    if (b.model) Emotes.apply(b.model, b, now());                                    // celebração depois de eliminar alguém
     if (b.team !== "A") { const tag = b.model.getObjectByName("nameTag"); if (tag) tag.visible = Math.hypot(b.pos.x - p.pos.x, b.pos.z - p.pos.z) <= CONFIG.ui.enemyNameDist; }   // nomes dos adversários só de perto
     if (b.alive) for (const g of st.pickups.collectNear(b.pos)) {
       if (g.type === "ammo") b.ammo[g.color] = Math.min(CONFIG.ammo.max, b.ammo[g.color] + (g.shots ?? CONFIG.ammoBox.shots));
@@ -2036,7 +2131,7 @@ function trackPerformance(dt) {
   if (state.fpsTime < 0.5) return;
   const fps = state.fpsFrames / state.fpsTime;
   if (!state.paused) $("hudFps").textContent = `${Math.round(fps)} fps · ${renderer.info.render.calls} chamadas · ${QUALITY[state.quality].label}`;
-  state.lowFpsTime = fps < 40 && state.grace <= 0 && !state.paused ? state.lowFpsTime + state.fpsTime : 0;
+  state.lowFpsTime = fps < QUALITY[state.quality].fps * 0.66 && state.grace <= 0 && !state.paused ? state.lowFpsTime + state.fpsTime : 0;
   state.fpsFrames = 0; state.fpsTime = 0;
   const i = QUALITY_IDS.indexOf(state.quality);
   if (state.lowFpsTime >= 3 && i < QUALITY_IDS.length - 1) {          // 3 s seguidos abaixo de 40 fps
@@ -2054,9 +2149,12 @@ function syncOverlay() {
 function frame(now) {
   requestAnimationFrame(frame);
   syncOverlay();
+  if (state.screen === "lobby") { renderer.shadowMap.needsUpdate = true; lobby?.render(now); return; }   // lobby: o boneco no palco 3D (30 fps)
   if (state.screen !== "viewer" || !state.map) return;
-  // limita a 60 fps (ecrãs de 120/144 Hz gastavam o dobro) e, em pausa, só redesenha 10 vezes por segundo: menos calor e ruído da ventoinha
-  if (now - lastDraw < (state.paused ? 100 : 1000 / 60 - 1.5)) return;
+  // limita os fps (60 nas qualidades Alta/Média, 45 na Baixa, 30 na Silenciosa) e, em pausa, só redesenha 10 vezes por segundo: menos calor e ruído da ventoinha
+  const Q = QUALITY[state.quality];
+  if (now - lastDraw < (state.paused ? 100 : 1000 / Q.fps - 1.5)) return;
+  if (Q.shadows && (state.frameN = (state.frameN || 0) + 1) % Q.shadowEvery === 0) renderer.shadowMap.needsUpdate = true;
   lastDraw = now;
   const dt = Math.max(0, Math.min(0.05, (now - lastTime) / 1000));   // nunca negativo (o 1.º frame pode vir antes de lastTime)
   lastTime = now;
@@ -2066,5 +2164,30 @@ function frame(now) {
 }
 requestAnimationFrame(frame);
 
+// ---------- LOBBY: escolher o personagem (setas), loja e inventário ----------
+lobby = createLobby({ renderer, template: null, onEquip: () => { applyCosmetics(dummy, Progress.wallet.equip); if (state.me) paintPlayer(state.playerColor); },
+  onPanel: (t) => { for (const [id, on] of [["lbHomeBtn", !t], ["lbShopBtn", t === "shop"], ["lbInvBtn", t === "inv"], ["lbProfBtn", t === "profile"]]) $(id).classList.toggle("on", on); } });   // separador ativo
+$("lbHomeBtn").addEventListener("click", () => lobby.closePanel());
+async function lobbyCharacter(id) {
+  const c = CHARACTERS.find((x) => x.id === id);
+  $("lbName").textContent = c.name; $("lbBlurb").textContent = CHAR_BLURB[id] || "";
+  setCharacter(id);
+  lobby.setModel(await botTemplate(id));
+}
+const stepChar = (d) => { const i = TITANS.indexOf(state.characterId); lobbyCharacter(TITANS[(i + d + TITANS.length) % TITANS.length]); };
+$("lbPrev").addEventListener("click", () => stepChar(-1));
+$("lbNext").addEventListener("click", () => stepChar(1));
+$("lbShopBtn").addEventListener("click", () => lobby.openPanel("shop"));
+$("lbInvBtn").addEventListener("click", () => lobby.openPanel("inv"));
+$("lbProfBtn").addEventListener("click", () => lobby.openPanel("profile"));
+window.addEventListener("keydown", (e) => {
+  if (state.screen !== "lobby") return;
+  if (e.code === "Escape" && lobby.panelOpen) lobby.closePanel();
+  else if (e.code === "ArrowLeft" && !lobby.panelOpen) stepChar(-1);
+  else if (e.code === "ArrowRight" && !lobby.panelOpen) stepChar(1);
+});
+lobbyCharacter(state.characterId);
+showScreen("title");                                                                // começa no ecrã inicial (logótipo); ENTRAR leva ao lobby
+
 // Modo de testes: abrir index.html?debug expõe o estado do jogo na consola (window.__ca)
-if (new URLSearchParams(location.search).has("debug")) window.__ca = { renderer, setAds, showGameOver, tryFire, flushUpgradeFeed, startTutorial, FX, addLoot, applyUpgrades, speedCfg, setPaused, endRound, pickUpgrade, state, camera, scene, tryOpenChest, nearestChest, setCharacter, reportKill, tryFire, paintBot };
+if (new URLSearchParams(location.search).has("debug")) window.__ca = { lobby, Progress, renderer, setAds, showGameOver, tryFire, flushUpgradeFeed, startTutorial, FX, addLoot, applyUpgrades, speedCfg, setPaused, endRound, pickUpgrade, state, camera, scene, tryOpenChest, nearestChest, setCharacter, reportKill, tryFire, paintBot };

@@ -24,6 +24,7 @@ const OTHER_KEYS = [
   ["T", "Usar uma Cura (+40 de vida)"],
   ["F", "Usar a Invisibilidade (5 s)"],
   ["C", "Pousar uma Armadilha de tinta com a cor da arma (só nos modos Cores Secretas e Paleta Completa)"],
+  ["Z", "Celebrar: aceno, dança, mortal… (escolhe a celebração no Inventário do lobby)"],
   ["V", "Vista aérea do mapa"],
   ["B · Q", "Mudar o clima · mudar a qualidade gráfica"],
   ["Esc", "Pausa"],
@@ -57,7 +58,7 @@ function buildPages() {
       <p>Antes de jogar escolhes a <b>dificuldade dos bots</b>: Fácil, Médio, Difícil ou Impossível. Vale para os <b>9 bots</b>, os teus colegas e os adversários, que ficam sempre do mesmo nível. Os bots também apanham e usam itens, e os bots da equipa que ganha cada round ganham melhorias. És novo? Faz o <b>Tutorial</b> no ecrã inicial.</p>
       <p>Quando uma equipa chega a <b>${CONFIG.match.intenseAt} rounds ganhos</b> entra o <b>modo intenso</b>: as cores de toda a gente mudam de 5 em 5 segundos até haver um vencedor. A cada round o mapa muda.</p>
       <p>Os adversários têm cores. <b>Só os eliminas com a cor certa</b>, que tu misturas na arma.</p>
-      <p><b>⭐ Níveis:</b> no fim de cada partida ganhas XP (eliminações, cor certa, rounds ganhos e vitória; mais XP nas dificuldades altas) e vais subindo de nível. O teu nível aparece no ecrã inicial.</p>`),
+`),
 
     card("🎨 As cores", `
       <p><b>Primárias</b></p><div class="colorGrid">${prim}</div>
@@ -83,7 +84,8 @@ function buildPages() {
       <div class="eq">${chipHTML("vermelho", 56)}<span>acerta em</span>${chipHTML("amarelo", 56)}<span>→</span>${chipHTML(example.newColor, 56)}</div>
       <p><b>Como sei a cor deles?</b> O boneco fica <b>todo da cor</b> que tem. Nomes <b>azuis</b> = aliados, <b>vermelhos</b> = adversários.</p>
       <p>Quem é eliminado volta 5 s depois, num dos 5 lugares da base, com 2 s de proteção. Durante a proteção fica <b>branco</b>: ninguém sabe a cor dele até a proteção acabar. No canto direito vês quem eliminou quem.</p>
-      <p><b>Série:</b> ${CONFIG.streak.kills} eliminações seguidas sem morrer dão um radar de ${CONFIG.streak.radarSeconds} s e +${CONFIG.streak.grenades} granada.</p>`),
+      <p><b>Série:</b> ${CONFIG.streak.kills} eliminações seguidas sem morrer dão um radar de ${CONFIG.streak.radarSeconds} s e +${CONFIG.streak.grenades} granada.</p>
+      <p><b>🤝 Assistências:</b> se acertaste num adversário (ou o pintaste com uma granada) nos 6 segundos antes de um colega o eliminar, ganhas uma assistência.</p>`),
 
     card("🟣 Poças de tinta", `
       <p>Cada eliminação deixa uma <b>poça da cor</b> do jogador eliminado, que dura ${CONFIG.paint.lifeSeconds} segundos.
@@ -106,11 +108,11 @@ function buildPages() {
 
     card("🎮 Modos para jogar", `
       <p>Escolhes o modo na página <b>Prepara a partida</b>, depois de escolheres o mapa. Todos funcionam em qualquer mapa.</p>
-      <div class="tiles">
+      <div class="tiles wide">
       <div class="tile wide"><b class="tt">🎨 Normal</b>As regras de sempre: baús com granadas, curas e invisibilidade.</div>
       ${tile("🥫", "", "Rouba-Latas", `Cada equipa tem uma <b>lata de tinta</b> na sua base. Vai à base adversária, passa por cima da lata deles para a apanhares e leva-a até à <b>lata da tua equipa</b>: cada entrega vale <b>+2 pontos</b>.<br>
         Enquanto a levas andas mais devagar e todos te veem no minimapa. Se fores eliminado, a lata cai: um colega pode apanhá-la de novo, mas se um adversário lhe tocar ela volta para a base deles.`)}
-      ${tile("🖌️", "", "Pinta e Conquista", `Há <b>zonas</b> marcadas no chão. Toda a tinta que disparas, de qualquer cor, conta para a tua equipa. Conta só a tinta <b>que se vê</b>: se pintares por cima da dos adversários, a percentagem deles desce. Quem tiver mais numa zona fica com ela, e a cada <b>15 segundos</b> cada zona vale <b>+1 ponto</b>.<br>
+      ${tile("🖌️", "", "Pinta e Conquista", `Há <b>zonas</b> marcadas no chão. Toda a tinta que disparas, de qualquer cor, conta para a tua equipa. Conta só a tinta <b>que se vê</b>: se pintares por cima da dos adversários, a percentagem deles desce. Quem tiver mais numa zona <b>conquista-a</b> e fica com ela, mesmo quando a tinta seca, até os adversários pintarem mais. A cada <b>15 segundos</b> cada zona vale <b>+1 ponto</b> para quem a tem.<br>
         Um quadro à esquerda mostra a percentagem de cada zona: <b>a tua equipa primeiro</b> (ex.: 25% / 20%). A tinta <b>seca em 10 segundos</b> e cada caixa de munição dá <b>25 balas</b>.`)}
       </div>`),
 
@@ -156,13 +158,17 @@ function buildPages() {
 
     card("⌨️ Outros comandos", keyTable2(OTHER_KEYS) + `
       <p><b>Placar:</b> está sempre no topo do ecrã. Os rounds ganhos ficam ao lado do relógio (tua equipa à esquerda) e as eliminações do round por baixo.</p>`),
+
+    card("⭐ Níveis, loja e perfil", `
+      <p>No fim de cada partida ganhas XP (eliminações, cor certa, rounds ganhos e vitória; mais XP nas dificuldades altas) e vais subindo de nível. Também ganhas <b>🪙 moedas</b> em cada partida e <b>💎 joias</b> sempre que sobes de nível: gasta-as na <b>Loja</b> do lobby (skins com acabamentos e padrões, coisas para a cabeça e para as costas, formatos de arma, celebrações e rastos ao correr; tudo só de visual) e equipa o que compraste no <b>Inventário</b>. No <b>Perfil</b> vês as tuas estatísticas de sempre e a tua personagem e cor preferidas.</p>
+      <p><b>🔥 Mapa de calor:</b> no fim de cada round vês no mapa onde houve mais eliminações, com ✔ onde eliminaste e ✖ onde foste eliminado.</p>      <p><b>🔥 Vitórias seguidas:</b> no lobby vês a quantas vitórias seguidas vais; perder um jogo acaba com a série. O teu recorde fica no Perfil.</p>`),
   ];
 }
 
 // Instruções página a página: Anterior / Seguinte (ou setas do teclado)
 // Temas do menu das instruções: cada um mostra só as suas páginas (índices das cartas de buildPages, pela ordem)
 const TOPICS = [
-  { icon: "🎯", name: "Objetivo",            desc: "Como se ganha",                  pages: [0] },
+  { icon: "🎯", name: "Objetivo",            desc: "Como se ganha, níveis e loja",   pages: [0, 16] },
   { icon: "🎨", name: "Cores e misturas",    desc: "As 6 cores e como misturar",     pages: [1, 2] },
   { icon: "💥", name: "Tiro e munição",      desc: "Tanques, acertos e vida",        pages: [3, 4] },
   { icon: "🟣", name: "Poças",               desc: "Mudam a cor e a velocidade",     pages: [5] },

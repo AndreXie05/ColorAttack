@@ -91,6 +91,7 @@ export function cloneCharacter(template) {
 export function setCharacterPaint(model, hex, fade = 0) {
   model.userData.hex = hex;
   if (model.userData.paintMat) { model.userData.paintMat.color.setHex(hex); if (fade > 0) model.userData.paintMat.color.lerp(_white, fade); }
+  if (model.userData.glow && model.userData.paintMat) model.userData.paintMat.emissive.copy(model.userData.paintMat.color).multiplyScalar(model.userData.glow);   // skins que brilham (Néon, Perolado): com a cor atual
   const k = CONFIG.ui.bodyTint;
   if (k > 0 && model.userData.tint) for (const t of model.userData.tint) {
     _tc.setHex(hex); if (t.dark) _tc.multiplyScalar(0.5); t.m.color.copy(t.base).lerp(_tc, k);

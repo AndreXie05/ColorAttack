@@ -11,6 +11,7 @@ import { COLORS, PRIMARIES, resolveHit, hitDamage } from "./colors.js";
    - Sem fogo amigo. Quem é eliminado deixa uma poça da sua cor e reaparece 5 s depois, com 2 s de proteção.
    - Pisar uma poça muda a velocidade durante uns segundos: cores quentes dão velocidade, cores frias abrandam.
    - Cada combatente conta, no round, eliminações, mortes, tiros, acertos e tiros por cor (para o ecrã de fim de round).
+   - Assistências: quem acertou (ou pintou com granada/armadilha) num adversário nos 6 s antes de um colega o eliminar.
    - Ao reaparecer fica branco (cor neutra, escondida) enquanto tem proteção; só depois se vê a cor.
    - Armadilhas de tinta: pousadas no chão, um adversário a menos de 2 m aciona-as e explodem 0,5 s depois (como uma granada pequena) e deixam uma poça da sua cor.
    - Clima: rangeMul (alcance dos tiros), sightMul (visão dos bots) e paintLifeMul (duração das poças).
@@ -60,7 +61,7 @@ export class CombatWorld {
   }
 
   add(c) {
-    Object.assign(c, { maxHp: c.maxHp ?? CONFIG.health.max, protectUntil: c.protectUntil ?? 0, respawnAt: 0, radius: c.radius ?? 0.62 * CONFIG.player.scale, height: bodyHeight(c), kills: 0, deaths: 0, streak: 0, puddleMul: 1, puddleUntil: 0, carryMul: 1 });
+    Object.assign(c, { maxHp: c.maxHp ?? CONFIG.health.max, protectUntil: c.protectUntil ?? 0, respawnAt: 0, radius: c.radius ?? 0.62 * CONFIG.player.scale, height: bodyHeight(c), kills: 0, deaths: 0, streak: 0, puddleMul: 1, puddleUntil: 0, carryMul: 1, assists: 0 });
     this.resetRoundStats(c);
     if (c.hp === undefined) c.hp = c.maxHp;
     if (c.alive === undefined) c.alive = true;
@@ -68,7 +69,9 @@ export class CombatWorld {
     return c;
   }
 
-  resetRoundStats(c) { c.rs = { kills: 0, deaths: 0, shots: 0, hits: 0, colors: {}, killsSame: 0, grenadeKills: 0, grenades: 0, traps: 0, bestStreak: 0, dist: 0 }; c.streak = 0; }
+  resetRoundStats(c) { c.rs = { kills: 0, deaths: 0, assists: 0, shots: 0, hits: 0, colors: {}, killsSame: 0, grenadeKills: 0, grenades: 0, traps: 0, bestStreak: 0, dist: 0 }; c.streak = 0; }
+  // regista quem tocou no alvo (para as assistências)
+  _touch(target, by) { if (by && by.team !== target.team) (target.touchedBy ||= new Map()).set(by, this.t); }
 
   enemiesOf(c) { return this.combatants.filter((q) => q.alive && q.team !== c.team); }
 
@@ -134,6 +137,7 @@ export class CombatWorld {
   hit(owner, target, shot) {
     const r = resolveHit(shot, target.colorId);
     if (owner?.rs) owner.rs.hits++;
+    this._touch(target, owner);
     this.burst(target.pos.x, aimY(target), target.pos.z, shot, 10);
     if (r.result === "kill") { this.eliminate(target, owner, shot, true); return; }
     const dmg = hitDamage(shot, target.colorId, { wrong: CONFIG.health.wrongHit, partial: CONFIG.health.partialHit }) * (owner?.damageMul || 1);
@@ -152,7 +156,13 @@ export class CombatWorld {
       killer.kills++; r.kills++; killer.streak++; r.bestStreak = Math.max(r.bestStreak, killer.streak);
       if (byColor) r.killsSame++;
       if (via === "grenade" || via === "trap" || via === "cannon") r.grenadeKills++;
+      for (const [a, at] of target.touchedBy || []) {                                // assistências: colegas do eliminador que lhe acertaram nos últimos 6 s
+        if (a === killer || a.team !== killer.team || this.t - at > 6) continue;
+        a.assists++; a.rs.assists++;
+        this.cb.onAssist?.(a, target, killer);
+      }
     }
+    target.touchedBy?.clear();
     this.splat(target.pos.x, target.pos.z, target.colorId, 2.2);                    // poça da cor do eliminado
     this._addPuddle({ x: target.pos.x, y: target.pos.y, z: target.pos.z, r: 1.8, colorId: target.colorId, t: this.t });   // só estas poças (e as das armadilhas) mudam a cor de quem as pisa
     this.burst(target.pos.x, aimY(target), target.pos.z, target.colorId, 16);
@@ -209,6 +219,7 @@ export class CombatWorld {
       if (Math.hypot(c.pos.x - g.x, c.pos.z - g.z) > R + c.radius * 0.5 || Math.abs(c.pos.y - g.y) > 2.6) continue;   // noutro nível (muito acima/abaixo): não apanha
       if (opts.enemiesOnly && g.owner && c.team === g.owner.team) continue;
       hit.push(c);
+      this._touch(c, g.owner);
       if (g.colors.includes(c.colorId) && g.owner && c.team !== g.owner.team) { this.eliminate(c, g.owner, c.colorId, true, via); continue; }   // adversário já de uma das cores: eliminado
       const nc = g.colors[Math.floor(Math.random() * g.colors.length)];
       if (c.colorId !== nc) { c.colorId = nc; this.cb.onColorChange?.(c, nc); }
