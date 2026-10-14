@@ -25,6 +25,9 @@ import { floorAt } from "./surfaces.js";
    - Pinta e Conquista (modo "zonas"): 3 zonas no chão. A equipa com mais tinta (dos seus tiros e granadas, de qualquer cor) dentro
      de uma zona conquista-a e fica com ela até os adversários pintarem mais. A tinta seca em 10 s. De 15 em 15 s cada zona dá +1 ponto.
    Tudo é leve: poucas malhas simples, criadas uma vez por mapa, e sem trabalho quando nada está a acontecer.
+   Com amigos (ctx.online) funciona tudo como contra bots. O PC do anfitrião decide
+   tudo e envia o estado (net) e os avisos (ctx.emit); no PC de um convidado (ctx.mirror) só se mostra o que chega (apply, onEvent).
+   ctx.flip: o convidado está na equipa B do anfitrião (vê as equipas trocadas); ctx.T(equipa) e ctx.byId(id) convertem o que chega.
    ============================================================ */
 export const FEATURES = {
   parque:  { fountains: [{ x: 0, z: 0, y: 1.2, top: 3.4, r: 7.5 }] },
@@ -43,8 +46,8 @@ export function setupMapFeatures(mapId, mode, ctx) {
   const group = new THREE.Group(); ctx.scene.add(group);
   const disposables = [];
   const fountains = (def.fountains || []).map((f, i) => makeFountain(f, i, group, disposables, ctx));
-  const bridges = (def.bridges || []).map((b) => makeBridge(b, group, disposables, ctx));
-  const cannons = (def.cannons || []).map((c) => makeCannon(c, group, disposables, ctx));
+  const bridges = (def.bridges || []).map((b, i) => makeBridge(b, i, group, disposables, ctx));
+  const cannons = (def.cannons || []).map((c, i) => makeCannon(c, i, group, disposables, ctx));
   ctx.world.cannons = cannons;
   const studio = def.studio ? makeStudio(group, disposables, ctx) : null;
   const cans = def.cans ? makeCans(group, disposables, ctx) : null;
@@ -58,6 +61,12 @@ export function setupMapFeatures(mapId, mode, ctx) {
     update(dt, now) { for (const f of fountains) f.update(dt, now); for (const b of bridges) b.update(dt, now); for (const c of cannons) c.update(dt, now); studio?.update(dt, now); for (const g of goals) g.update(dt, now); },
     nearCannon(pos) { return cannons.find((c) => Math.hypot(pos.x - c.x, pos.z - c.z) < 2.6 && Math.abs(pos.y - c.top) < 1.2) || null; },
     minimap(g, X, Y, now) { studio?.minimap(g, X, Y, now); for (const q of goals) q.minimap(g, X, Y, now); for (const c of cannons) { g.beginPath(); g.arc(X(c.z), Y(c.x), 8, 0, Math.PI * 2); g.fillStyle = c.ready() ? "#ff8a1f" : "#777"; g.fill(); g.lineWidth = 2.5; g.strokeStyle = "#1a1033"; g.stroke(); } },
+    net: () => ({ f: fountains.map((f) => f.net()), b: bridges.map((b) => b.net()), k: cannons.map((c) => c.net()), s: studio?.net(), c: cans?.net(), z: terr?.net() }),  // anfitrião → convidados
+    apply(st) {
+      st.f?.forEach((v, i) => fountains[i]?.apply(v)); st.b?.forEach((v, i) => bridges[i]?.apply(v)); st.k?.forEach((v, i) => cannons[i]?.apply(v));
+      if (st.s) studio?.apply(st.s); if (st.c) cans?.apply(st.c); if (st.z) terr?.apply(st.z);
+    },
+    onEvent(ev) { if (ev.k === "fo") fountains[ev.i]?.jet(ev.c); else if (ev.k === "br") bridges[ev.i]?.onEvent(ev); else if (ev.k === "can") cans?.onEvent(ev); else if (ev.k === "terr") terr?.onEvent(ev); },
     dispose() { for (const c of cannons) c.leave(); ctx.scene.remove(group); for (const d of disposables) d.dispose(); ctx.world.targets.length = 0; ctx.world.cannons = []; ctx.world.objective = null; for (const c of ctx.world.combatants) c.carryMul = 1; },
   };
 }
@@ -85,10 +94,11 @@ function makeFountain(f, i, group, disposables, ctx) {
         if (Math.hypot(p.x - f.x, p.z - f.z) < f.r + 6) ctx.toast(`⛲ A fonte vai lançar tinta ${COLORS[color].name}! Sai da praça (ou fica, se quiseres essa cor)`, css(color));
       }
       if (t > 0) return;
+      if (ctx.mirror) { t = 0; return; }                                              // convidado: o jato chega do anfitrião
       // jato: partículas para o ar, manchas no chão (só visuais) e quem está na praça fica desta cor
       const w = ctx.world;
-      w.burst(f.x, f.top + 1, f.z, color, 24);
-      for (let k = 0; k < 6; k++) { const a = (k / 6) * Math.PI * 2 + Math.random(); w.splat(f.x + Math.cos(a) * f.r * 0.6, f.z + Math.sin(a) * f.r * 0.6, color, 1.6, true); }
+      jet(color);
+      ctx.emit?.({ k: "fo", i, c: color });
       for (const c of w.combatants) {
         if (!c.alive || isProtected(c, w.t) || c.colorId === color) continue;
         if (Math.hypot(c.pos.x - f.x, c.pos.z - f.z) > f.r || Math.abs(c.pos.y - f.y) > 2.5) continue;
@@ -96,11 +106,19 @@ function makeFountain(f, i, group, disposables, ctx) {
       }
       t = FOUNTAIN.every; warned = false; color = pick(color); paintBall();
     },
+    net: () => [Math.round(t * 10) / 10, color],
+    apply([nt, c]) { t = nt; if (t > FOUNTAIN.warn) warned = false; if (c !== color) { color = c; paintBall(); } },
+    jet,
   };
+  function jet(c) {
+    const w = ctx.world;
+    w.burst(f.x, f.top + 1, f.z, c, 24);
+    for (let k = 0; k < 6; k++) { const a = (k / 6) * Math.PI * 2 + Math.random(); w.splat(f.x + Math.cos(a) * f.r * 0.6, f.z + Math.sin(a) * f.r * 0.6, c, 1.6, true); }
+  }
 }
 
 // ---------- ponte com interruptor ----------
-function makeBridge(b, group, disposables, ctx) {
+function makeBridge(b, i, group, disposables, ctx) {
   const B = BRIDGE, z = b.z;
   // rampas fixas nas duas margens (sobem do chão até ao tabuleiro)
   ctx.colliders.push({ minX: -B.halfX - B.ramp, maxX: -B.halfX, minZ: z - B.halfZ, maxZ: z + B.halfZ, top: B.top, ramp: { axis: "x", y0: 0, y1: B.top } });
@@ -131,16 +149,29 @@ function makeBridge(b, group, disposables, ctx) {
     return board;
   });
   const setBoards = (hex) => { for (const bd of boards) bd.material = mat(hex, { emissive: hex }); };
-  function hit(shot, owner) {
+  function hit(shot, owner) {                                                       // (só no anfitrião / sozinho: no convidado o tiro não acerta nas placas)
     if (open > 0) return;
-    if (shot !== color) { if (owner?.isPlayer) ctx.toast(`🎯 A placa só abre com ${COLORS[color].name}`, css(color)); return; }
+    if (shot !== color) { ctx.emit?.({ k: "br", i, e: "wrong", q: owner?.id || null }); if (owner?.isPlayer) ctx.toast(`🎯 A placa só abre com ${COLORS[color].name}`, css(color)); return; }
     open = B.open; setBoards(0xffffff);
-    if (owner?.isPlayer || Math.abs(ctx.playerPos().z - z) < 12) ctx.toast(`🌉 ${owner?.isPlayer ? "Abriste" : "Abriram"} a ponte sobre o rio durante ${B.open} s!`, "#ffd21f");
+    ctx.emit?.({ k: "br", i, e: "open", q: owner?.id || null });
+    tellOpen(owner);
   }
+  const tellOpen = (owner) => { if (owner?.isPlayer || Math.abs(ctx.playerPos().z - z) < 12) ctx.toast(`🌉 ${owner?.isPlayer ? "Abriste" : "Abriram"} a ponte sobre o rio durante ${B.open} s!`, "#ffd21f"); };
   const onDeck = (c) => c.alive && Math.abs(c.pos.x) < B.halfX && Math.abs(c.pos.z - z) < B.halfZ && c.pos.y > 0.3;
   let warned = false;
   const splash = () => { for (const x of [-2.4, 0, 2.4]) ctx.world.burst(x, 0.2, z, "azul", 8); };
   return {
+    net: () => [Math.round(open * 10) / 10, Math.round(up * 100) / 100, color],
+    apply([o, u, c]) {                                                               // convidado: o estado do anfitrião (entre mensagens continua a mexer-se sozinho)
+      if (o > 0 && open === 0) setBoards(0xffffff);
+      open = o; up = u;
+      if (c !== color) { color = c; if (open === 0) setBoards(COLORS[color].hex); }
+    },
+    onEvent(ev) {
+      const q = ctx.byId(ev.q);
+      if (ev.e === "open") tellOpen(q);
+      else if (ev.e === "wrong" && q?.isPlayer) ctx.toast(`🎯 A placa só abre com ${COLORS[color].name}`, css(color));
+    },
     update(dt, now) {
       if (open > 0) {
         open = Math.max(open - dt, 0);
@@ -163,7 +194,8 @@ function makeBridge(b, group, disposables, ctx) {
       if (warning) setBoards(Math.floor(now / 200) % 2 ? 0xffffff : 0xff3b4a);   // a piscar: vai afundar
       if (closing && up === 0) {                                                   // no fundo: placa com uma cor nova
         warned = false;
-        color = PRIMARIES[Math.floor(Math.random() * PRIMARIES.length)]; setBoards(COLORS[color].hex);
+        if (!ctx.mirror) color = PRIMARIES[Math.floor(Math.random() * PRIMARIES.length)];   // (convidado: a cor nova chega do anfitrião)
+        setBoards(COLORS[color].hex);
       }
     },
   };
@@ -185,7 +217,7 @@ function freeSpot(ctx, x0, z0, maxX = ARENA.halfX - 8, gapMin = 2.4) {          
   }
   return { x: x0, z: z0 };
 }
-function makeCannon(spec, group, disposables, ctx) {
+function makeCannon(spec, i, group, disposables, ctx) {
   const C = CONFIG.cannon, { x, z } = freeSpot(ctx, spec.x, spec.z), top = 0.4, w = ctx.world;
   ctx.colliders.push({ x, z, r: 1.3, top });                                                  // estrado redondo (sobe-se a andar)
   const baseGeo = new THREE.CylinderGeometry(1.3, 1.45, top, 24), barrelGeo = new THREE.CylinderGeometry(0.42, 0.55, 2.2, 16), wheelGeo = new THREE.CylinderGeometry(0.55, 0.55, 0.2, 16), ringGeo = new THREE.RingGeometry(1.5, 1.8, 32);
@@ -204,6 +236,7 @@ function makeCannon(spec, group, disposables, ctx) {
     left: () => Math.max(0, cn.until - w.t),
     mount(c) {
       if (!cn.ready() || !c.alive) return false;
+      if (ctx.mirror) { ctx.request({ i, a: "mount" }); return true; }                  // convidado: pede ao anfitrião (sobe quando ele confirmar)
       cn.user = c; cn.until = w.t + C.use; cn.fireCd = 0.3;
       if (!c.isPlayer) c.mounted = cn;
       ctx.onCannon?.(cn, c, true);
@@ -212,6 +245,7 @@ function makeCannon(spec, group, disposables, ctx) {
     leave() {
       const c = cn.user;
       if (!c) return;
+      if (ctx.mirror) { if (c.isPlayer) ctx.request({ i, a: "leave" }); return; }
       cn.user = null; cn.readyAt = w.t + C.cooldown;
       if (!c.isPlayer) { c.mounted = null; c.pos.x = x - Math.sin(cn.yaw) * 2.2; c.pos.z = z - Math.cos(cn.yaw) * 2.2; }   // desce para trás do canhão
       ctx.onCannon?.(cn, c, false);
@@ -222,6 +256,7 @@ function makeCannon(spec, group, disposables, ctx) {
       if (!cn.user || cn.fireCd > 0) return false;
       cn.fireCd = C.fireEvery; cn.color = col;
       cn.yaw = Math.atan2(tx - x, tz - z);
+      if (ctx.mirror) { ctx.request({ i, a: "fire", x: Math.round(tx * 10) / 10, z: Math.round(tz * 10) / 10, c: col }); pitchG.position.z = 0.25; return true; }   // convidado: a bola sai do anfitrião (todos a veem)
       const o = { x: x + Math.sin(cn.yaw) * 2.6, y: top + 1.3, z: z + Math.cos(cn.yaw) * 2.6 };
       w.throwGrenade(cn.user, o, { x: tx, z: tz }, col, null, { range: C.range, radius: C.radius, via: "cannon", size: 1.9, enemiesOnly: true });
       w.burst(o.x, o.y, o.z, col, 10);
@@ -229,11 +264,23 @@ function makeCannon(spec, group, disposables, ctx) {
       pitchG.position.z = 0.25;                                                                // recuo
       return true;
     },
+    // anfitrião → convidados: [quem está lá, tempo que falta, tempo para estar pronto, direção, inclinação, cor]
+    net: () => [cn.user?.id || null, Math.round(cn.left() * 10) / 10, Math.round(Math.max(0, cn.readyAt - w.t) * 10) / 10, Math.round(cn.yaw * 100) / 100, Math.round(cn.pitch * 100) / 100, cn.color],
+    apply([id, left, readyIn, yaw, pitch, col]) {
+      const prev = cn.user, u = ctx.byId(id) || null;
+      cn.user = u; cn.until = w.t + left; cn.readyAt = w.t + readyIn;
+      if (!u?.isPlayer) { cn.yaw = yaw; cn.pitch = pitch; }                           // (quem está no canhão aponta-o no próprio PC)
+      if (col !== cn.color) { cn.color = col; mouth.material = mat(COLORS[col].hex, { emissive: COLORS[col].hex }); }
+      if (prev !== u) {
+        if (prev?.isPlayer) ctx.onCannon?.(cn, prev, false);
+        if (u) { if (u.isPlayer) cn.fireCd = 0.3; ctx.onCannon?.(cn, u, true); }
+      }
+    },
     update(dt) {
       const c = cn.user;
-      if (c && (!c.alive || w.t >= cn.until)) cn.leave();
+      if (c && (!c.alive || w.t >= cn.until) && !ctx.mirror) cn.leave();
       cn.fireCd -= dt;
-      if (cn.user && !cn.user.isPlayer) botFire(cn, cn.user);
+      if (cn.user && !cn.user.isPlayer && !cn.user.puppet && !ctx.mirror) botFire(cn, cn.user);   // (um amigo no canhão dispara ele próprio)
       turret.rotation.y += Math.atan2(Math.sin(cn.yaw - turret.rotation.y), Math.cos(cn.yaw - turret.rotation.y)) * Math.min(1, dt * 12);
       pitchG.rotation.x = -Math.max(0.05, Math.min(0.6, cn.pitch));
       pitchG.position.z += (0.55 - pitchG.position.z) * Math.min(1, dt * 8);
@@ -241,7 +288,7 @@ function makeCannon(spec, group, disposables, ctx) {
       ring.visible = rdy || !!cn.user;
       ringMat.color.setHex(cn.user ? COLORS[cn.color].hex : 0xff8a1f);
       ringMat.opacity = cn.user ? 0.5 + 0.3 * Math.sin(w.t * 12) : 0.7;
-      if (!cn.user && rdy) recruit(cn, dt);
+      if (!cn.user && rdy && !ctx.mirror) recruit(cn, dt);
     },
   };
   // bot no canhão: aponta ao adversário visível mais próximo dentro do alcance, com a cor certa (conforme a dificuldade)
@@ -291,24 +338,53 @@ function makeStudio(group, disposables, ctx) {
     w.puddles.push(pd);
     return pd;
   });
-  const recolor = (pd, c) => { pd.colorId = c; pd.mesh.material.color.setHex(COLORS[c].hex); pd.mesh.material.emissive.setHex(COLORS[c].hex); w.burst(pd.x, 0.4, pd.z, c, 8); };
+  const recolor = (pd, c, fx = true) => { pd.colorId = c; pd.mesh.material.color.setHex(COLORS[c].hex); pd.mesh.material.emissive.setHex(COLORS[c].hex); if (fx) w.burst(pd.x, 0.4, pd.z, c, 8); };
   const blocked = (x, z) => Math.abs(x) > 34 || Math.abs(z) > ARENA.halfZ - 4 || floorAt(cols, x, z, 0.2) > 0.25 ||
     cols.some((c) => (c.r !== undefined ? Math.hypot(x - c.x, z - c.z) < c.r + STUDIO.r * 0.6 : x > c.minX - 1.5 && x < c.maxX + 1.5 && z > c.minZ - 1.5 && z < c.maxZ + 1.5));
   let elapsed = 0, shifted = false, warned = false, next = 0, side = Math.random() < 0.5 ? 1 : -1, halfColor = null, grow = 0, onHalf = false;
+  const state0 = () => w.combatants.find((c) => c.isPlayer);                           // o teu boneco
   const sideName = () => (side > 0 ? "direita" : "esquerda");                          // como se vê no minimapa (z > 0 = lado direito)
   const announce = () => {
     const mul = CONFIG.puddleFx.speed[halfColor] ?? 1;
     ctx.toast(`🎨 VIRAGEM! A metade da ${sideName()} do chão ficou ${COLORS[halfColor].name}: ${mul > 1 ? "⚡ mais rápido" : "🐌 mais lento"} lá dentro. As poças grandes estão a andar!`, css(halfColor));
   };
   function turn() {                                                                    // muda a metade pintada e a cor das poças
-    side = -side; halfColor = pick(halfColor); grow = 0;
-    half.position.set(0, 0.035, side * ARENA.halfZ / 2); halfMat.color.setHex(COLORS[halfColor].hex); half.visible = true;
+    side = -side; halfColor = pick(halfColor);
+    showHalf();
     for (const pd of pools) recolor(pd, pick(pd.colorId));
     next = STUDIO.every;
   }
+  function showHalf() { grow = 0; half.position.set(0, 0.035, side * ARENA.halfZ / 2); halfMat.color.setHex(COLORS[halfColor].hex); half.visible = true; }
   return {
+    // anfitrião → convidados: tempo, viragem, lado e cor do chão, e cada poça [x, z, cor]
+    net: () => ({ e: Math.round(elapsed * 10) / 10, sh: shifted ? 1 : 0, sd: side, hc: halfColor, p: pools.map((pd) => [Math.round(pd.x * 100) / 100, Math.round(pd.z * 100) / 100, pd.colorId]) }),
+    apply(st) {
+      elapsed = st.e;
+      if (st.sh && (!shifted || st.sd !== side || st.hc !== halfColor)) {             // viragem (a primeira ou as seguintes)
+        shifted = true; side = st.sd; halfColor = st.hc; showHalf(); announce();
+      }
+      st.p.forEach(([px, pz, c], k) => {
+        const pd = pools[k];
+        if (!pd) return;
+        pd.tx = px; pd.tz = pz;
+        if (c !== pd.colorId) recolor(pd, c, shifted);
+      });
+    },
     update(dt) {
       elapsed += dt;
+      if (ctx.mirror) {                                                                // convidado: as poças vão para onde o anfitrião diz
+        if (!warned && elapsed >= CONFIG.roundSeconds * STUDIO.at - STUDIO.warn && !shifted) { warned = true; ctx.toast(`🎨 Daqui a ${STUDIO.warn} s o Estúdio vai mudar de cor!`, "#ffd21f"); }
+        for (const pd of pools) {
+          if (pd.tx === undefined) continue;
+          const k = Math.min(1, dt * 8);
+          pd.x += (pd.tx - pd.x) * k; pd.z += (pd.tz - pd.z) * k;
+          pd.mesh.position.set(pd.x, 0.06, pd.z); if (shifted) pd.mesh.rotation.z += dt * 0.3;
+        }
+        if (shifted) { grow = Math.min(1, grow + dt / 1.2); half.scale.set(grow, 1, 1); halfMat.opacity = 0.32 * grow; }
+        const inside = shifted && state0().alive && state0().pos.y < 0.5 && Math.sign(state0().pos.z) === side && Math.abs(state0().pos.x) < 37;
+        if (inside !== onHalf) { onHalf = inside; const mul = CONFIG.puddleFx.speed[halfColor] ?? 1; if (inside) ctx.toast(`${mul > 1 ? "⚡" : "🐌"} Chão ${COLORS[halfColor].name}: ${mul > 1 ? "mais rápido" : "mais lento"}`, css(halfColor)); }
+        return;
+      }
       for (const pd of pools) if (!w.puddles.includes(pd)) w.puddles.push(pd);   // (o "R" de reiniciar o round limpa as poças)
       const at = CONFIG.roundSeconds * STUDIO.at;
       if (!warned && elapsed >= at - STUDIO.warn) { warned = true; ctx.toast(`🎨 Daqui a ${STUDIO.warn} s o Estúdio vai mudar de cor!`, "#ffd21f"); }
@@ -349,7 +425,7 @@ function makeCans(group, disposables, ctx) {
   const w = ctx.world, geo = new THREE.CylinderGeometry(0.55, 0.55, 1.1, 18), lidGeo = new THREE.CylinderGeometry(0.58, 0.58, 0.18, 18), padGeo = new THREE.RingGeometry(1.6, 2.1, 32);
   disposables.push(geo, lidGeo, padGeo);
   const cans = ["A", "B"].map((team) => {
-    const side = team === "A" ? -1 : 1, home = freeSpot(ctx, side * 46, 0, 47, 1.6), col = TEAM[team].color;
+    const side = (team === "A") !== !!ctx.flip ? -1 : 1, home = freeSpot(ctx, side * 46, 0, 47, 1.6), col = TEAM[team].color;
     const mesh = new THREE.Group();
     const body = new THREE.Mesh(geo, mat(0xd8dde4)); body.castShadow = true; mesh.add(body);
     const lid = new THREE.Mesh(lidGeo, mat(col, { emissive: col })); lid.position.y = 0.6; mesh.add(lid);
@@ -361,35 +437,71 @@ function makeCans(group, disposables, ctx) {
   });
   const other = (t) => cans.find((c) => c.team !== t);
   const reset = (can) => { if (can.carrier) can.carrier.carryMul = 1; Object.assign(can, { state: "home", carrier: null, x: can.home.x, y: 0, z: can.home.z }); };
+  const STATES = ["home", "carried", "dropped"];
+  // mensagens (iguais no anfitrião e nos convidados, cada um do seu ponto de vista); e: drop | back | grab | ret | score
+  const text = (e, can, q) => {
+    if (e === "drop") return `🥫 A lata ${can.team === "A" ? "da tua equipa" : "dos adversários"} caiu no chão!`;
+    if (e === "back") return `🥫 A lata ${can.team === "A" ? "da tua equipa" : "dos adversários"} voltou à base`;
+    if (e === "grab") return q.isPlayer ? "🥫 Apanhaste a lata! Leva-a até à tua base (+2 pontos)" : q.team === "B" ? "🥫 Roubaram a lata da tua equipa! Elimina quem a leva" : "🥫 Um colega apanhou a lata dos adversários!";
+    if (e === "ret") return `🥫 ${q.isPlayer ? "Devolveste" : did(q.team, "devolveu", "devolveram")} a lata à base`;
+    return `🥫 ${q.isPlayer ? "Entregaste" : did(q.team, "entregou", "entregaram")} a lata ${q.team === "A" ? "dos adversários" : "da tua equipa"}! +${CAN.points} pontos`;
+  };
+  const tell = (e, can, q = null) => {                                                // mostra aqui e avisa os convidados
+    ctx.emit?.({ k: "can", e, can: can.team, q: q?.id || null });
+    if (e !== "score") ctx.toast(text(e, can, q), teamCss(q ? q.team : can.team));
+  };
   return {
     list: cans,
     carrying: (c) => cans.some((k) => k.carrier === c),
+    net: () => cans.map((c) => [c.team, STATES.indexOf(c.state), c.carrier?.id || null, Math.round(c.x * 10) / 10, Math.round(c.y * 10) / 10, Math.round(c.z * 10) / 10]),
+    apply(list) {
+      for (const c of w.combatants) c.carryMul = 1;
+      for (const [team, st, carrier, x, y, z] of list) {
+        const can = cans.find((k) => k.team === ctx.T(team));
+        if (!can) continue;
+        Object.assign(can, { state: STATES[st] || "home", carrier: ctx.byId(carrier) || null, x, y, z });
+        if (can.carrier) can.carrier.carryMul = CAN.carryMul;                         // quem leva a lata anda mais devagar (também tu)
+      }
+    },
+    onEvent(ev) {
+      const can = cans.find((k) => k.team === ctx.T(ev.can)), q = ctx.byId(ev.q);
+      if (can && (q || !ev.q)) ctx.toast(text(ev.e, can, q), teamCss(q ? q.team : can.team));
+    },
     update(dt) {
+      if (ctx.mirror) {                                                                // convidado: só mostra (a lata acompanha quem a leva)
+        for (const can of cans) {
+          if (can.state === "carried" && can.carrier?.alive) { can.x = can.carrier.pos.x; can.y = can.carrier.pos.y + 2.7; can.z = can.carrier.pos.z; }
+          can.mesh.position.set(can.x, can.y + 0.55 + (can.state === "carried" ? 0 : 0.15 + Math.sin(w.t * 3) * 0.12), can.z);
+          can.mesh.rotation.y = w.t * 1.5;
+        }
+        return;
+      }
       for (const can of cans) {
         const c = can.carrier;
         if (can.state === "carried") {
           if (!c.alive) {                                                                 // eliminado: a lata cai onde ele estava
             Object.assign(can, { state: "dropped", carrier: null, x: c.pos.x, y: Math.max(0, c.pos.y), z: c.pos.z, droppedT: 0 }); c.carryMul = 1;
-            ctx.toast(`🥫 A lata ${can.team === "A" ? "da tua equipa" : "dos adversários"} caiu no chão!`, teamCss(can.team));
+            tell("drop", can);
           } else {
             c.carryMul = CAN.carryMul; can.x = c.pos.x; can.y = c.pos.y + 2.7; can.z = c.pos.z;
             const base = other(can.team).home;                                            // a base de quem a leva
             if (Math.hypot(c.pos.x - base.x, c.pos.z - base.z) < CAN.score) {
               reset(can);
-              ctx.onScore(c.team, CAN.points, `🥫 ${c.isPlayer ? "Entregaste" : did(c.team, "entregou", "entregaram")} a lata ${c.team === "A" ? "dos adversários" : "da tua equipa"}! +${CAN.points} pontos`);
+              tell("score", can, c);
+              ctx.onScore(c.team, CAN.points, text("score", can, c));
             }
           }
         } else {
-          if (can.state === "dropped" && (can.droppedT += dt) > CAN.back) { reset(can); ctx.toast(`🥫 A lata ${can.team === "A" ? "da tua equipa" : "dos adversários"} voltou à base`, teamCss(can.team)); }
+          if (can.state === "dropped" && (can.droppedT += dt) > CAN.back) { reset(can); tell("back", can); }
           for (const q of w.combatants) {
             if (!q.alive || isProtected(q, w.t) || Math.hypot(q.pos.x - can.x, q.pos.z - can.z) > CAN.grab || Math.abs(q.pos.y - can.y) > 1.6) continue;
             if (q.team !== can.team && !cans.some((k) => k.carrier === q)) {                // adversário: apanha-a
               Object.assign(can, { state: "carried", carrier: q });
-              ctx.toast(q.isPlayer ? "🥫 Apanhaste a lata! Leva-a até à tua base (+2 pontos)" : q.team === "B" ? "🥫 Roubaram a lata da tua equipa! Elimina quem a leva" : "🥫 Um colega apanhou a lata dos adversários!", teamCss(q.team));
+              tell("grab", can, q);
               break;
             }
             if (q.team === can.team && can.state === "dropped") {                            // da mesma equipa: devolve-a à base
-              reset(can); ctx.toast(`🥫 ${q.isPlayer ? "Devolveste" : did(q.team, "devolveu", "devolveram")} a lata à base`, teamCss(q.team));
+              reset(can); tell("ret", can, q);
               break;
             }
           }
@@ -432,7 +544,8 @@ function makeTerritory(group, disposables, ctx) {
     for (const dz of [0, 2, -2, 4, -4, 6, -6, 8, -8]) if (spotOk(ctx, 0, z0.z + dz, 30, 1.2)) { mid = { x: 0, z: z0.z + dz }; break; }
     if (mid) { specs.push({ ...z0, ...mid }); continue; }
     const p = freeSpot(ctx, 7, z0.z, 30, 1.2);
-    specs.push({ ...z0, x: -Math.abs(p.x), z: p.z, name: z0.name + " (lado da tua base)", label: z0.label + " (nosso lado)" }, { ...z0, x: Math.abs(p.x), z: p.z, name: z0.name + " (lado adversário)", label: z0.label + " (lado deles)" });
+    const ours = { name: z0.name + " (lado da tua base)", label: z0.label + " (nosso lado)" }, theirs = { name: z0.name + " (lado adversário)", label: z0.label + " (lado deles)" };
+    specs.push({ ...z0, x: -Math.abs(p.x), z: p.z, ...(ctx.flip ? theirs : ours) }, { ...z0, x: Math.abs(p.x), z: p.z, ...(ctx.flip ? ours : theirs) });   // (mesma ordem em todos os PCs; a tua base é a da esquerda, ou a da direita se estiveres na equipa B do anfitrião)
   }
   const zones = specs.map((z) => {
     const ringMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false });
@@ -446,9 +559,20 @@ function makeTerritory(group, disposables, ctx) {
   });
   let countCd = 0, scoreT = TERR.every;
   const paintCd = new Map();
+  const setOwner = (z, owner) => {
+    if (owner === z.owner) return;
+    z.owner = owner;
+    if (owner) ctx.toast(`🗺️ ${did(owner, "conquistou", "conquistaram")} a zona ${z.name}`, teamCss(owner));
+    z.ringMat.color.setHex(owner ? TEAM[owner].color : 0xffffff);
+    z.discMat.color.setHex(owner ? TEAM[owner].color : 0xffffff);
+  };
+  const scoreText = (t, n) => `🗺️ Território: +${n} ${n === 1 ? "ponto" : "pontos"} para ${t === "A" ? "a tua equipa" : "os adversários"} (${n} ${n === 1 ? "zona" : "zonas"})`;
   return {
     zones,
     info: () => ({ zones, next: Math.max(0, scoreT) }),                                    // para o quadro das zonas no ecrã
+    net: () => ({ o: zones.map((z) => z.owner), s: Math.round(scoreT * 10) / 10 }),
+    apply(st) { scoreT = st.s; st.o.forEach((o, i) => zones[i] && setOwner(zones[i], o ? ctx.T(o) : null)); },
+    onEvent(ev) { if (ev.e === "score") ctx.toast(scoreText(ctx.T(ev.team), ev.n), teamCss(ctx.T(ev.team))); },
     update(dt) {
       if ((countCd -= dt) <= 0) {                                                         // conta a tinta fresca dentro de cada zona (2 vezes por segundo)
         countCd = 0.5;
@@ -462,22 +586,17 @@ function makeTerritory(group, disposables, ctx) {
           }
           z.pct.A = Math.round((n.A / z.pts.length) * 100); z.pct.B = Math.round((n.B / z.pts.length) * 100);
           const lead = z.pct.A > z.pct.B ? "A" : "B", top = z.pct[lead], next = z.pct[lead === "A" ? "B" : "A"];
-          const owner = top >= TERR.minPct && top > next ? lead : z.owner;                     // conquistada: continua tua (mesmo com a tinta seca) até os adversários pintarem mais
-          if (owner !== z.owner) {
-            z.owner = owner;
-            if (owner) ctx.toast(`🗺️ ${did(owner, "conquistou", "conquistaram")} a zona ${z.name}`, teamCss(owner));
-            z.ringMat.color.setHex(owner ? TEAM[owner].color : 0xffffff);
-            z.discMat.color.setHex(owner ? TEAM[owner].color : 0xffffff);
-          }
+          if (!ctx.mirror) setOwner(z, top >= TERR.minPct && top > next ? lead : z.owner);   // conquistada: continua tua (mesmo com a tinta seca) até os adversários pintarem mais (convidado: quem conquista diz o anfitrião)
         }
       }
       scoreT -= dt;
       for (const z of zones) { z.discMat.opacity = z.owner ? 0.22 + (scoreT < 3 ? 0.15 * Math.sin(w.t * 14) : 0) : 0; }   // a piscar antes de dar pontos
+      if (ctx.mirror) { scoreT = Math.max(0, scoreT); return; }                          // convidado: pontos e bots são do anfitrião
       if (scoreT <= 0) {
         scoreT = TERR.every;
         for (const t of ["A", "B"]) {
           const n = zones.filter((z) => z.owner === t).length;
-          if (n) ctx.onScore(t, n, `🗺️ Território: +${n} ${n === 1 ? "ponto" : "pontos"} para ${t === "A" ? "a tua equipa" : "os adversários"} (${n} ${n === 1 ? "zona" : "zonas"})`);
+          if (n) { ctx.emit?.({ k: "terr", e: "score", team: t, n }); ctx.onScore(t, n, scoreText(t, n)); }
         }
       }
       // bots dentro de uma zona sem adversários à vista pintam o chão dela

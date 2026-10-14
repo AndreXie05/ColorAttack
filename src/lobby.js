@@ -2,12 +2,13 @@ import * as THREE from "three";
 import { cloneCharacter, setCharacterPaint } from "./character-model.js";
 import { animateCharacter } from "./character-animator.js";
 import { MOTION } from "./player-motion.js";
-import { CATEGORIES, ITEMS, applyCosmetics, itemById, tickCosmetics } from "./cosmetics.js";
+import { CATEGORIES, ITEMS, applyCosmetics, itemById } from "./cosmetics.js";
 import { createTrails } from "./trails.js";
 import * as Progress from "./progress.js";
 import * as Emotes from "./emotes.js";
 import * as Stats from "./stats.js";
-import { portraitUrl } from "./portraits.js";
+import { portraitUrl, fullBodyUrl } from "./portraits.js";
+import * as ShopArt from "./shop-art.js";
 import { CHARACTERS } from "./characters.js";
 import { TEAM } from "./game-config.js";
 import { chipHTML } from "./colors.js";
@@ -228,7 +229,7 @@ function buildBackdrop(scene, lights) {
   };
 }
 
-export function createLobby({ renderer, template, onEquip, onPanel }) {
+export function createLobby({ renderer, template, onEquip, onPanel, getTemplate }) {   // getTemplate(id): modelo de uma skin (para a experimentar na loja)
   const scene = new THREE.Scene();
   scene.background = gradientTexture(["#3b1f78", "#22164f", "#0d0b1f"]);              // céu em degradé (roxo → azul-noite)
   scene.fog = new THREE.Fog(0x2a1a5c, 24, 48);
@@ -253,11 +254,14 @@ export function createLobby({ renderer, template, onEquip, onPanel }) {
 
   const backdrop = buildBackdrop(scene, [spot, spot2]);                              // estúdio de tinta à volta do palco
 
-  let model = null, spin = 0, drag = null, shift = 0, last = 0, emoteT = 4;
+  let model = null, spin = 0, drag = null, shift = 0, last = 0;
   const celeb = {};                                                                 // celebração do boneco do lobby
   const trail = createTrails(scene);                                                // rasto equipado (ou o que estás a experimentar) à volta dos pés
   let tryTrail = null;
-  function setModel(tpl) {
+  let baseTpl = null, shownTpl = null;                                              // a skin equipada e a que está no palco (pode ser uma a experimentar)
+  function setModel(tpl, trial = false) {
+    if (!trial) baseTpl = tpl;
+    shownTpl = tpl;
     if (model) stage.remove(model);
     model = tpl ? cloneCharacter(tpl) : null;
     if (!model) return;
@@ -279,7 +283,7 @@ export function createLobby({ renderer, template, onEquip, onPanel }) {
 
   // ---------- painel: Loja / Inventário ----------
   const $ = (id) => document.getElementById(id);
-  let tab = "shop", cat = "skin";
+  let tab = "shop", cat = "boneco";
   function renderTop() {
     const w = Progress.wallet, lv = Progress.levelInfo();
     $("lbLevel").innerHTML = `<span class="lvStar"><b>${lv.level}</b></span><div class="lvInfo"><div class="lvTop"><span>Nível ${lv.level}</span><span>${lv.into} / ${lv.need} XP</span></div><i><b style="width:${Math.max(4, Math.round((lv.into / lv.need) * 100))}%"></b></i></div>`;
@@ -292,7 +296,7 @@ export function createLobby({ renderer, template, onEquip, onPanel }) {
     const pct = (a, b) => (b > 0 ? Math.round((a / b) * 100) + "%" : "–"), per = (a, b) => (b > 0 ? (a / b).toFixed(1).replace(".", ",") : "–");
     const ch = p.favChar && CHARACTERS.find((c) => c.id === p.favChar[0]), url = ch && portraitUrl(ch.id, TEAM.A.color);
     const card = (v, label) => `<div class="pfCard"><b>${v}</b><span>${label}</span></div>`;
-    const eq = ["skin", "acc", "arma", "emote"].map((k) => itemById(w.equip[k])).filter(Boolean);
+    const eq = ["boneco", "arma", "emote", "rasto"].map((k) => itemById(w.equip[k])).filter(Boolean);
     return `<div class="pfHead"><span class="lvStar big"><b>${lv.level}</b></span><div><b class="pfLv">Nível ${lv.level}</b><small>${lv.total} XP no total · faltam ${lv.need - lv.into} XP para o nível ${lv.level + 1}</small>
         <div class="pfMoney"><span>🪙 ${w.coins}</span><span>💎 ${w.gems}</span><span>🎒 ${w.owned.length} itens</span></div></div></div>
       <div class="pfFavs">
@@ -305,6 +309,8 @@ export function createLobby({ renderer, template, onEquip, onPanel }) {
       <div class="pfEq"><small>Equipado:</small>${eq.map((it) => `<span title="${it.name}">${it.icon} ${it.name}</span>`).join("")}</div>
       <div class="pfSoon">🏅 Conquistas: em breve!</div>`;
   }
+  const rarity = (it) => (it.cur === "gems" ? "gold" : it.price >= 500 ? "epic" : it.price === 0 ? "free" : "rare");
+  const rarityRank = (it) => ({ free: 0, rare: 1, epic: 2, gold: 3 })[rarity(it)];
   function renderPanel() {
     const w = Progress.wallet, lv = Progress.levelInfo().level;
     const prof = tab === "profile";
@@ -313,13 +319,17 @@ export function createLobby({ renderer, template, onEquip, onPanel }) {
     if (prof) { $("lbTitle").textContent = "👤 Perfil"; $("lbItems").innerHTML = profileHTML(); renderTop(); return; }
     $("lbTitle").textContent = tab === "shop" ? "🛒 Loja" : "🎒 Inventário";
     $("lbCats").innerHTML = CATEGORIES.map((c) => `<button class="chip${cat === c.id ? " on" : ""}" data-cat="${c.id}">${c.icon} ${c.name}</button>`).join("");
-    const list = ITEMS.filter((it) => it.cat === cat && (tab === "inv" ? Progress.owns(it.id) : !Progress.owns(it.id)));
+    const list = ITEMS.filter((it) => it.cat === cat && (tab === "inv" ? Progress.owns(it.id) : !Progress.owns(it.id)))
+      .sort((a, b) => rarityRank(a) - rarityRank(b) || a.price - b.price);           // por raridade: verdes, azuis, roxos e dourados (e, dentro de cada uma, do mais barato ao mais caro)
     $("lbItems").innerHTML = list.length ? list.map((it) => {
       const eq = w.equip[it.cat] === it.id, why = tab === "shop" ? Progress.cantBuy(it.id) : "", locked = tab === "shop" && lv < it.level;
       const price = `${it.cur === "gems" ? "💎" : "🪙"} ${it.price}`;
       const btn = tab === "inv" ? (eq ? `<span class="lbOn">✔ Equipado</span>` : `<button class="lbBtn" data-equip="${it.id}">Equipar</button>`)
         : `<button class="lbBtn buy" data-buy="${it.id}" ${why ? "disabled" : ""} title="${why}">${locked ? "🔒 Nível " + it.level : price}</button>`;
-      return `<div class="lbItem${eq ? " eq" : ""}${locked ? " locked" : ""}" data-try="${it.id}"><span class="lbIcon">${it.icon}</span><b>${it.name}</b><small>${it.desc}</small>${btn}</div>`;
+      const pic = it.cat === "boneco" ? fullBodyUrl(it.id.slice(7)) : ShopArt.get(it.id);   // foto do boneco / da arma / da celebração / desenho do rasto, num cartão com a cor da raridade
+      const rar = rarity(it);
+      const icon = pic ? `<span class="lbSkinPic ${rar}"><img src="${pic}" alt=""><i>${it.icon}</i></span>` : `<span class="lbIcon">${it.icon}</span>`;
+      return `<div class="lbItem${eq ? " eq" : ""}${locked ? " locked" : ""}${pic ? " skin" : ""}" data-try="${it.id}">${icon}<b>${it.name}</b><small>${it.desc}</small>${btn}</div>`;
     }).join("") : `<p class="lbEmpty">${tab === "shop" ? "Já compraste tudo desta categoria! 🎉" : "Ainda não tens nada desta categoria: vai à Loja."}</p>`;
     renderTop();
   }
@@ -328,12 +338,18 @@ export function createLobby({ renderer, template, onEquip, onPanel }) {
   function preview(id) {
     if (!model) return;
     const it = id && itemById(id);
-    if (it && it.cat === "emote") { Emotes.stop(celeb); Emotes.play(celeb, it.id, performance.now()); }   // experimentar uma celebração: o boneco fá-la
+    if (it && it.cat === "boneco" && getTemplate) {                                // experimentar uma skin: o boneco do palco passa a ser essa
+      getTemplate(it.id.slice(7)).then((tpl) => { if (trying === id && tpl) { setModel(tpl, true); applyCosmetics(model, Progress.wallet.equip); setCharacterPaint(model, PAINT); } });
+      return;
+    }
+    if (shownTpl !== baseTpl && baseTpl) setModel(baseTpl);                         // deixou de experimentar a skin: volta a equipada
     tryTrail = it && it.cat === "rasto" ? it.id : null;                                // experimentar um rasto
     applyCosmetics(model, it ? { ...Progress.wallet.equip, [it.cat]: it.id } : Progress.wallet.equip);
     setCharacterPaint(model, PAINT);
   }
   $("lbPanel").addEventListener("click", (e) => {
+    const card = itemById(e.target.closest("[data-try]")?.dataset.try);
+    if (card?.cat === "emote") { Emotes.stop(celeb); Emotes.play(celeb, card.id, performance.now()); }   // clicar numa celebração: o boneco fá-la (só assim; parado no resto do tempo)
     const t = e.target.closest("[data-tab],[data-cat],[data-buy],[data-equip]");
     if (!t) return;
     if (t.dataset.tab) tab = t.dataset.tab;
@@ -345,14 +361,18 @@ export function createLobby({ renderer, template, onEquip, onPanel }) {
   $("lbPanel").addEventListener("mouseover", (e) => { const t = e.target.closest("[data-try]"); const id = t?.dataset.try || null; if (id !== trying) { trying = id; preview(id); } });
   $("lbPanel").addEventListener("mouseleave", () => { trying = null; preview(null); });
   function flash(text) { const f = $("lbFlash"); f.textContent = text; f.classList.remove("show"); void f.offsetWidth; f.classList.add("show"); }
-  function openPanel(t) { tab = t; $("lbPanel").classList.add("open"); $("lobby").classList.add("panel"); renderPanel(); onPanel?.(t); }
+  function openPanel(t) {
+    tab = t; $("lbPanel").classList.add("open"); $("lobby").classList.add("panel"); renderPanel(); onPanel?.(t);
+    ShopArt.build().then(() => { if ($("lbPanel").classList.contains("open") && tab !== "profile") renderPanel(); });   // 1.ª vez: tira as fotografias da loja e redesenha
+  }
   function closePanel() { $("lbPanel").classList.remove("open"); $("lobby").classList.remove("panel"); trying = null; preview(null); onPanel?.(null); }
   $("lbClose").addEventListener("click", closePanel);
 
   return {
-    setModel, openPanel, closePanel, renderTop,
+    setModel, openPanel, closePanel, renderTop, flash,
     get paint() { return PAINT; },
-    face() { spin = 0; },                                                            // vira o boneco para a câmara (testes)                                                 // cor atual do boneco do lobby (testes)
+    emote(id) { Emotes.stop(celeb); Emotes.play(celeb, id, performance.now()); },   // faz já uma celebração (testes)
+    face(a = 0) { spin = a; },                                                            // vira o boneco para a câmara (testes)                                                 // cor atual do boneco do lobby (testes)
     get panelOpen() { return $("lbPanel").classList.contains("open"); },
     // desenha o lobby (30 fps); shift: o boneco vai para a esquerda quando o painel está aberto
     render(now) {
@@ -361,7 +381,7 @@ export function createLobby({ renderer, template, onEquip, onPanel }) {
       const w = window.innerWidth, h = window.innerHeight;
       if (camera.aspect !== w / h) { camera.aspect = w / h; camera.updateProjectionMatrix(); }
       shift += ((this.panelOpen ? 1 : 0) - shift) * Math.min(1, dt * 6);
-      if (drag === null) spin += dt * 0.35;
+      if (drag === null && Math.abs(spin) > 0.001) spin -= spin * Math.min(1, dt * 2.5);   // parado de frente para ti; se o rodares com o rato, volta devagar à frente
       colorT += dt;                                                                 // troca de cor
       if (colorT >= EVERY) { colorT = 0; colorIdx = (colorIdx + 1) % SHOW.length; }
       const k = Math.min(1, colorT / FADE), hex = k < 1 ? _a.setHex(SHOW[(colorIdx + SHOW.length - 1) % SHOW.length]).lerp(_b.setHex(SHOW[colorIdx]), k).getHex() : SHOW[colorIdx];
@@ -370,8 +390,7 @@ export function createLobby({ renderer, template, onEquip, onPanel }) {
       backdrop.update(dt, now / 1000);
       stage.position.x = -1.3 * shift;
       if (model) { model.position.set(0, 0, 0); model.rotation.y = 0; animateCharacter(model, { speed: 0, maxSpeed: MOTION.run, onGround: true, vy: 0, landed: false, impact: 0, climbing: false, crouching: false }, dt, now / 1000); }   // (repõe antes de animar: a animação ajusta a altura a partir da posição)
-      if ((emoteT -= dt) <= 0) { emoteT = 7; Emotes.play(celeb, Progress.wallet.equip.emote || "emote_aceno", now); }   // de vez em quando faz a celebração equipada
-      if (model) { Emotes.apply(model, celeb, now); tickCosmetics(model, now / 1000); }
+      if (model) Emotes.apply(model, celeb, now);
       trail.preview(dt, tryTrail || Progress.wallet.equip.rasto, { x: stage.position.x, y: 0, z: 0 });
       camera.position.set(0, 1.55, 5.0); camera.lookAt(0, 1.0, 0);
       renderer.render(scene, camera);

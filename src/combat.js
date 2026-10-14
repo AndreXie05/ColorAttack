@@ -17,6 +17,8 @@ import { COLORS, PRIMARIES, resolveHit, hitDamage } from "./colors.js";
    - Clima: rangeMul (alcance dos tiros), sightMul (visão dos bots) e paintLifeMul (duração das poças).
    - Canhão de tinta: as bolas são granadas grandes (throwGrenade com opts), que só pintam adversários.
    Cada combatente: { id, team, index, isPlayer, pos{x,y,z}, hp, maxHp, colorId, alive, protectUntil, respawnAt, radius, height }
+   Espelho (mirror = true, no PC de um convidado numa partida com amigos): os tiros e as granadas voam e pintam, mas não tiram
+   vida nem mudam cores; eliminações, reaparecimentos, poças e armadilhas chegam do PC do anfitrião (ver net-game.js).
    ============================================================ */
 function grenadeMesh(m1, m2) {
   if (!m2) return new THREE.Mesh(new THREE.SphereGeometry(0.4, 14, 10), m1);
@@ -38,6 +40,7 @@ export class CombatWorld {
     this.cannons = [];                                                        // canhões de tinta do mapa (map-features.js), para os bots os encontrarem
     this.targets = [];                                                        // alvos do mapa (ex.: placas das pontes): { x, y, z, r, onHit(cor, quem) }
     this.rangeMul = 1; this.sightMul = 1; this.paintLifeMul = 1;
+    this.mirror = false; this.trapSeq = 0;
     this.mats = new Map();
     if (scene) {
       this.group = new THREE.Group(); scene.add(this.group);
@@ -164,7 +167,7 @@ export class CombatWorld {
     }
     target.touchedBy?.clear();
     this.splat(target.pos.x, target.pos.z, target.colorId, 2.2);                    // poça da cor do eliminado
-    this._addPuddle({ x: target.pos.x, y: target.pos.y, z: target.pos.z, r: 1.8, colorId: target.colorId, t: this.t });   // só estas poças (e as das armadilhas) mudam a cor de quem as pisa
+    if (!this.mirror) this._addPuddle({ x: target.pos.x, y: target.pos.y, z: target.pos.z, r: 1.8, colorId: target.colorId, t: this.t });   // só estas poças (e as das armadilhas) mudam a cor de quem as pisa
     this.burst(target.pos.x, aimY(target), target.pos.z, target.colorId, 16);
     this.cb.onKill?.(killer, target, shot, byColor, via);
   }
@@ -202,7 +205,7 @@ export class CombatWorld {
 
   // opts.radius: área (as armadilhas são mais pequenas); opts.enemiesOnly: não pinta os colegas de quem a pôs
   explodeGrenade(g, opts = {}) {
-    const R = opts.radius ?? g.radius ?? CONFIG.grenade.radius * (g.owner?.grenadeMul || 1), hit = [], via = g.via || "grenade";
+    const R = opts.radius ?? g.radius ?? CONFIG.grenade.radius * (g.owner?.grenadeMul || 1) * (g.mul || 1), hit = [], via = g.via || "grenade";
     if (g.enemiesOnly) opts = { ...opts, enemiesOnly: true };
     this.burst(g.x, g.y + 0.8, g.z, g.colorId, 30);
     if (g.colors.length > 1) {                                                // 2 cores: duas manchas lado a lado
@@ -214,6 +217,7 @@ export class CombatWorld {
       m.rotation.x = -Math.PI / 2; m.position.set(g.x, g.y + 0.08, g.z); this.group.add(m);
       this.effects.push({ mesh: m, life: 0.55, max: 0.55, R });
     }
+    if (this.mirror) return hit;                                              // espelho: só se vê; quem é apanhado decide o anfitrião
     for (const c of this.combatants) {
       if (!c.alive || isProtected(c, this.t)) continue;
       if (Math.hypot(c.pos.x - g.x, c.pos.z - g.z) > R + c.radius * 0.5 || Math.abs(c.pos.y - g.y) > 2.6) continue;   // noutro nível (muito acima/abaixo): não apanha
@@ -232,7 +236,7 @@ export class CombatWorld {
   placeTrap(owner, x, y, z, colorId) {
     const T = CONFIG.trap, mine = this.traps.filter((q) => q.owner === owner);
     if (mine.length >= T.maxPerOwner) this._removeTrap(mine[0]);
-    const tr = { x, y, z, colorId, owner, t: this.t, mesh: null };
+    const tr = { id: owner.id + ":" + ++this.trapSeq, x, y, z, colorId, owner, t: this.t, mesh: null };
     if (this.scene) {
       this.trapGeo ||= new THREE.CylinderGeometry(0.6, 0.7, 0.12, 20);
       tr.mesh = new THREE.Mesh(this.trapGeo, this.mat(colorId)); tr.mesh.position.set(x, y + 0.07, z); this.group.add(tr.mesh);
@@ -272,10 +276,10 @@ export class CombatWorld {
     return c.hp - before;
   }
 
-  respawn(c) {
+  respawn(c, s = null, colorId = null) {                                         // (s e colorId: vindos do anfitrião, numa partida com amigos)
     const list = this.map.spawns[c.team];
-    const s = list[Math.floor(Math.random() * list.length)];                 // reaparece num dos 5 lugares da base
-    c.alive = true; c.deadT = 0; c.hp = c.maxHp; c.colorId = PRIMARIES[Math.floor(Math.random() * PRIMARIES.length)];
+    s ||= list[Math.floor(Math.random() * list.length)];                     // reaparece num dos 5 lugares da base
+    c.alive = true; c.deadT = 0; c.hp = c.maxHp; c.colorId = colorId || PRIMARIES[Math.floor(Math.random() * PRIMARIES.length)];
     c.pos.x = s.x; c.pos.z = s.z; c.pos.y = 0; c._lp = null;
     c.protectUntil = this.t + CONFIG.respawn.protection;
     c.neutral = c.protectUntil > this.t;                                       // branco enquanto está protegido: os adversários não sabem a cor
@@ -288,13 +292,13 @@ export class CombatWorld {
     for (const tr of [...this.traps]) this._removeTrap(tr);
     for (const q of this.puddles) if (q.ring) this.group.remove(q.ring);
     this.grenades = []; this.puddles = [];
-    for (const c of this.combatants) { this.respawn(c); this.resetRoundStats(c); c.puddleMul = 1; c.puddleUntil = 0; }
+    for (const c of this.combatants) { if (!this.mirror) this.respawn(c); this.resetRoundStats(c); c.puddleMul = 1; c.puddleUntil = 0; }
   }
 
   update(dt, t) {
     this.t = t;
     for (const c of this.combatants) {
-      if (!c.alive && t >= c.respawnAt) this.respawn(c);
+      if (!c.alive && t >= c.respawnAt && !this.mirror) this.respawn(c);
       c.height = bodyHeight(c);                                                 // agachado: mais baixo (mais difícil de acertar)
       if (c.neutral && t >= c.protectUntil) { c.neutral = false; this.cb.onReveal?.(c); }   // acabou a proteção: a cor aparece
       if (c.alive) {                                                            // distância percorrida (para os destaques do fim do jogo)
@@ -302,7 +306,7 @@ export class CombatWorld {
         if (c._lp) { c._lp.x = c.pos.x; c._lp.z = c.pos.z; } else c._lp = { x: c.pos.x, z: c.pos.z };
       }
     }
-    this._updateTraps(t);
+    if (!this.mirror) this._updateTraps(t);
     // poças deixadas por jogadores eliminados e por armadilhas: quem as pisa fica da cor da poça (as manchas normais dos tiros e granadas não fazem nada)
     this.puddles = this.puddles.filter((q) => {
       if (q.life === Infinity || t - q.t < CONFIG.paint.lifeSeconds * this.paintLifeMul) return true;   // (as poças que andam no Estúdio não acabam)
@@ -312,7 +316,7 @@ export class CombatWorld {
     if (this.ringMat) this.ringMat.opacity = 0.7 + 0.3 * Math.sin(t * 5);                    // os anéis pulsam
     const PF = CONFIG.puddleFx;
     for (const c of this.combatants) {
-      if (!c.alive) continue;
+      if (!c.alive || this.mirror) continue;
       if (c.puddleUntil && t >= c.puddleUntil) { c.puddleMul = 1; c.puddleUntil = 0; }
       const on = (u) => Math.abs(c.pos.y - (u.y || 0)) < 0.2 && Math.hypot(c.pos.x - u.x, c.pos.z - u.z) < u.r;   // só se a pisar (ao mesmo nível, sem saltar)
       const fx = this.puddles.find(on);
@@ -347,12 +351,13 @@ export class CombatWorld {
           this.burst(p.x, Math.max(p.y, top + 0.1), p.z, p.colorId, 7); p.active = false; break;
         }
         if (!p.active) break;
-        for (const g of this.targets) if (Math.hypot(p.x - g.x, p.y - g.y, p.z - g.z) < g.r + PROJ.radius) { this.burst(p.x, p.y, p.z, p.colorId, 6); g.onHit(p.colorId, p.owner); p.active = false; break; }
+        for (const g of this.targets) if (Math.hypot(p.x - g.x, p.y - g.y, p.z - g.z) < g.r + PROJ.radius) { this.burst(p.x, p.y, p.z, p.colorId, 6); if (!this.mirror) g.onHit(p.colorId, p.owner); p.active = false; break; }
         if (!p.active) break;
         for (const q of this.combatants) {
           if (!q.alive || q.team === p.owner.team || isProtected(q, t)) continue;
           if (Math.hypot(p.x - q.pos.x, p.z - q.pos.z) < q.radius + PROJ.radius && p.y >= q.pos.y && p.y <= q.pos.y + q.height) {
             if (p.hitIds && p.hitIds.has(q.id)) continue;
+            if (this.mirror) { this.burst(p.x, p.y, p.z, p.colorId, 6); p.active = false; break; }   // espelho: o salpico vê-se, o dano vem do anfitrião
             this.hit(p.owner, q, p.colorId);
             if (p.pierce > 0) { p.pierce--; (p.hitIds ||= new Set()).add(q.id); continue; }       // melhoria: atravessa
             p.active = false; break;

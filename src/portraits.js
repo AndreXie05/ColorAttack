@@ -20,6 +20,8 @@ export function buildPortraits(teamColors) {
     const sun = new THREE.DirectionalLight(0xffffff, 1.7); sun.position.set(2, 5, 6); scene.add(sun);
     const cam = new THREE.PerspectiveCamera(25, 1, 0.5, 40);
     cam.position.set(0, 2.25, 4.8); cam.lookAt(0, 2.1, 0);
+    const full = new THREE.PerspectiveCamera(25, 150 / 190, 0.5, 40);
+    full.position.set(0, 1.55, 7.4); full.lookAt(0, 1.42, 0);
     const colors = [...new Set(Object.values(teamColors))];
     for (const c of CHARACTERS) {
       const model = await loadCharacter(c.url);            // instância própria (a do jogador fica intocada)
@@ -31,6 +33,12 @@ export function buildPortraits(teamColors) {
         renderer.render(scene, cam);
         urls.set(`${c.id}|${hex}`, renderer.domElement.toDataURL("image/png"));
       }
+      // foto de corpo inteiro, de 3/4, para o cartão da skin na loja (com a camisola na cor da tua equipa)
+      for (const m of model.userData.paint) m.material.color.setHex(teamColors.A);
+      model.rotation.y = 0.5; renderer.setSize(150, 190, false);
+      renderer.render(scene, full);
+      urls.set(`${c.id}|full`, renderer.domElement.toDataURL("image/png"));
+      model.rotation.y = 0; renderer.setSize(160, 160, false);
       scene.remove(model);
     }
     renderer.dispose();
@@ -39,3 +47,4 @@ export function buildPortraits(teamColors) {
 }
 
 export const portraitUrl = (id, hex) => urls.get(`${id}|${hex}`) || null;
+export const fullBodyUrl = (id) => urls.get(`${id}|full`) || null;                 // foto de corpo inteiro (loja)

@@ -152,7 +152,7 @@ export function setCharacterPaint(model, hex, fade = 0) {
   if (model.userData.paintMat) { model.userData.paintMat.color.setHex(hex); if (fade > 0) model.userData.paintMat.color.lerp(_white, fade); }
   if (model.userData.glow && model.userData.paintMat) model.userData.paintMat.emissive.copy(model.userData.paintMat.color).multiplyScalar(model.userData.glow);   // skins que brilham (Néon, Perolado): com a cor atual
   const k = CONFIG.ui.bodyTint;
-  if (model.userData.baked?.length) tintBaked(model.userData.baked, hex, k, fade);   // boneco leve: a cor vai para os vértices
+  if (model.userData.baked?.length) tintBaked(model.userData.baked, hex, 0, fade);   // skins: só a roupa tem a cor da tinta; pele, cabelo e pormenores ficam com as cores da skin (só se esbatem ao ser eliminado)
   if (k > 0 && model.userData.tint) for (const t of model.userData.tint) {
     _tc.setHex(hex); if (t.dark) _tc.multiplyScalar(0.5); t.m.color.copy(t.base).lerp(_tc, k);
     if (fade > 0) t.m.color.lerp(_white, fade);

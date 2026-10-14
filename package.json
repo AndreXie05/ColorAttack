@@ -1,0 +1,49 @@
+{
+  "name": "colorattack",
+  "productName": "ColorAttack",
+  "version": "1.0.0",
+  "description": "ColorAttack — Mistura, Mira, Pinta",
+  "author": "AX112705",
+  "private": true,
+  "main": "electron/main.js",
+  "scripts": {
+    "app": "electron .",
+    "build:linux": "electron-builder --linux AppImage",
+    "build:win": "electron-builder --win zip"
+  },
+  "build": {
+    "appId": "pt.colorattack.jogo",
+    "productName": "ColorAttack",
+    "asar": false,
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "index.html",
+      "src/**/*",
+      "!src/tools/**",
+      "assets/**/*",
+      "vendor/**/*",
+      "electron/**/*"
+    ],
+    "linux": {
+      "target": "AppImage",
+      "category": "Game",
+      "icon": "electron/icon.png",
+      "artifactName": "ColorAttack-${version}-Linux.AppImage",
+      "executableArgs": [
+        "--no-sandbox"
+      ]
+    },
+    "win": {
+      "target": "zip",
+      "icon": "electron/icon.png",
+      "signAndEditExecutable": false,
+      "artifactName": "ColorAttack-${version}-Windows.zip"
+    }
+  },
+  "devDependencies": {
+    "electron": "^44.7.2",
+    "electron-builder": "^26.15.3"
+  }
+}

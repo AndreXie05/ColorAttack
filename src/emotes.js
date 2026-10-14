@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 
 /* ============================================================
    CELEBRAÇÕES (tecla Z no jogo; compram-se na loja)
@@ -15,8 +16,16 @@ export const EMOTES = {
   emote_palmas: { icon: "👏", dur: 1.6 },
   emote_venia:  { icon: "🙇", dur: 1.6 },
   emote_saltos: { icon: "🤾", dur: 1.8 },
-  emote_robo:   { icon: "🤖", dur: 2.0 },
-  emote_guitarra: { icon: "🎸", dur: 2.0 },
+  emote_robo:   { icon: "🤖", dur: 3.2 },
+  emote_guitarra: { icon: "🎸", dur: 2.6 },
+  emote_floss:    { icon: "🕺", dur: 2.4 },
+  emote_dab:      { icon: "😎", dur: 1.8 },
+  emote_karate:   { icon: "🥋", dur: 2.4 },
+  emote_meditar:  { icon: "🧘", dur: 3.0 },
+  emote_cavalinho:{ icon: "🐴", dur: 2.6 },
+  emote_flexoes:  { icon: "💪", dur: 2.8, noBubble: true },
+  emote_coracao:  { icon: "💖", dur: 2.2 },
+  emote_sono:     { icon: "😴", dur: 3.0 },
 };
 
 // emoji como textura (uma por emoji, feita uma vez; também usada pelos rastos em trails.js)
@@ -48,6 +57,56 @@ function gunParts(u) {
   return out;
 }
 
+// ---------- guitarra elétrica (só aparece na celebração da guitarra): uma malha só, com as cores nos vértices ----------
+// Feita ao longo do eixo y local: corpo em baixo (y = 0), braço até y ≈ 0.95, cabeça no topo
+let _guitarGeo = null, _guitarMat = null;
+function guitarMesh() {
+  if (!_guitarGeo) {
+    const parts = [], m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
+    const add = (geo, color, x, y, z, sx = 1, sy = 1, sz = 1, rz = 0, rx = 0) => {
+      const g = geo.index ? geo.toNonIndexed() : geo; geo !== g && geo.dispose();
+      for (const k of Object.keys(g.attributes)) if (k !== "position" && k !== "normal") g.deleteAttribute(k);
+      g.applyMatrix4(m4.compose(new THREE.Vector3(x, y, z), q.setFromEuler(e.set(rx, 0, rz)), new THREE.Vector3(sx, sy, sz)));
+      const c = new THREE.Color(color), n = g.attributes.position.count, col = new Float32Array(n * 3);
+      for (let i = 0; i < n; i++) { col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; }
+      g.setAttribute("color", new THREE.BufferAttribute(col, 3)); parts.push(g);
+    };
+    const RED = 0xff3b4a, WHITE = 0xf4f4f8, WOOD = 0x8a5a2b, DARK = 0x1a1033, GOLD = 0xffd21f;
+    add(new THREE.SphereGeometry(0.3, 16, 10), RED, 0, -0.05, 0, 1.05, 0.95, 0.28);               // corpo: parte de baixo
+    add(new THREE.SphereGeometry(0.23, 16, 10), RED, 0, 0.27, 0, 1, 0.9, 0.28);                  // corpo: parte de cima
+    add(new THREE.ConeGeometry(0.09, 0.26, 8), RED, -0.2, 0.42, 0, 1, 1, 0.6, 0.5);              // "cornos" da guitarra elétrica
+    add(new THREE.ConeGeometry(0.08, 0.22, 8), RED, 0.18, 0.4, 0, 1, 1, 0.6, -0.45);
+    add(new THREE.SphereGeometry(0.2, 14, 8), WHITE, 0.03, 0.02, 0.03, 1, 0.75, 0.2);            // escudo branco
+    add(new THREE.BoxGeometry(0.2, 0.05, 0.03), DARK, 0, -0.1, 0.09);                            // ponte
+    for (const y of [0.04, 0.16]) add(new THREE.BoxGeometry(0.18, 0.06, 0.03), DARK, 0, y, 0.09);   // captadores
+    for (const x of [0.16, 0.22]) add(new THREE.CylinderGeometry(0.03, 0.03, 0.03, 8), GOLD, x, -0.2, 0.08, 1, 1, 1, 0, Math.PI / 2);   // botões
+    add(new THREE.BoxGeometry(0.085, 0.72, 0.045), WOOD, 0, 0.72, 0.02);                         // braço
+    for (let i = 1; i <= 6; i++) add(new THREE.BoxGeometry(0.088, 0.01, 0.05), GOLD, 0, 0.4 + i * 0.085, 0.022);   // trastes
+    add(new THREE.BoxGeometry(0.14, 0.2, 0.05), DARK, 0, 1.15, 0.02);                            // cabeça
+    for (const s of [-1, 1]) for (const y of [1.09, 1.15, 1.21]) add(new THREE.CylinderGeometry(0.018, 0.018, 0.06, 6), WHITE, s * 0.085, y, 0.02, 1, 1, 1, Math.PI / 2);   // tarraxas
+    for (const x of [-0.025, 0, 0.025]) add(new THREE.BoxGeometry(0.006, 1.2, 0.006), WHITE, x, 0.5, 0.05);      // cordas
+    _guitarGeo = mergeGeometries(parts, false); parts.forEach((g) => g.dispose());
+    _guitarMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.35, metalness: 0.1 });
+  }
+  const m = new THREE.Mesh(_guitarGeo, _guitarMat); m.castShadow = true; m.name = "Guitar";
+  // no tronco: corpo da guitarra à frente da barriga, do lado direito; o braço sobe na diagonal para a esquerda
+  m.position.set(0.2, 1.04, 0.52); m.rotation.set(0.15, 0.25, 1.1);
+  return m;
+}
+
+// ---------- dança do robô: 8 poses aos solavancos (chega depressa, treme um pouco e fica parado) ----------
+// [braço esq. x, braço esq. z, braço dir. x, braço dir. z, rodar o tronco, perna esq., perna dir., baixar]
+const ROBOT = [
+  [-1.57, 0, -1.57, 0, 0, 0, 0, 0],               // braços em frente (como um robô a andar)
+  [-1.57, 0, -2.6, 0.9, 0.45, -0.5, 0, 0],        // braço direito para cima (na diagonal, para não ficar atrás da cabeça), roda e levanta um pé
+  [0, -1.57, 0, 1.57, -0.45, 0, -0.5, 0.12],      // braços abertos, roda para o outro lado e baixa
+  [-2.6, -0.9, -1.57, 0, 0, 0, 0, 0],             // braço esquerdo para cima
+  [-1.57, -0.6, -1.57, 0.6, 0.8, -0.5, 0, 0],     // vira-se de lado, "a andar"
+  [-1.57, -0.6, -1.57, 0.6, 0.8, 0, -0.5, 0],
+  [0, -1.57, -1.57, 0, 0, 0, 0, 0.18],            // um braço aberto, outro em frente, bem em baixo
+  [0, -0.2, 0, 0.2, 0, 0, 0, 0.35],               // desliga-se (os braços caem)...
+];
+
 export function apply(model, e, now) {
   const em = e.emote, u = model?.userData;
   if (!u || !u.armL) return;
@@ -71,6 +130,7 @@ export function apply(model, e, now) {
     for (const m of guns) m.visible = show;
     if (h) h.key = "";                                                               // o setHeld volta a decidir o que se vê
   }
+  if (u.guitar && (!em || now >= em.end || em.id !== "emote_guitarra")) u.guitar.visible = false;
   if (!em || now >= em.end) return;
   const t = (now - em.start) / 1000, k = Math.min(1, t / EMOTES[em.id].dur), ease = Math.sin(Math.min(1, k * 4, (1 - k) * 4) * Math.PI / 2);   // entra e sai suave
   switch (em.id) {
@@ -106,7 +166,7 @@ export function apply(model, e, now) {
     case "emote_palmas": {                                                        // palmas: braços à frente, as mãos juntam-se e afastam-se
       const c = (Math.sin(t * 18) + 1) / 2;
       u.armL.rotation.x = -1.3 * ease; u.armR.rotation.x = -1.3 * ease;
-      u.armL.rotation.z = (0.15 + c * 0.45) * ease; u.armR.rotation.z = -(0.15 + c * 0.45) * ease;
+      u.armL.rotation.z = (0.1 + c * 0.34) * ease; u.armR.rotation.z = -(0.1 + c * 0.34) * ease;   // (as mãos tocam-se a meio, sem se cruzarem)
       break;
     }
     case "emote_venia":                                                           // vénia: dobra-se para a frente com a mão no peito
@@ -120,16 +180,95 @@ export function apply(model, e, now) {
       model.position.y += Math.abs(Math.sin(t * 5)) * 0.25 * ease;
       break;
     }
-    case "emote_robo": {                                                          // dança do robô: poses aos solavancos
-      const step = Math.floor(t * 4) % 4, poses = [[-1.5, 0, 0.25], [0, -1.5, -0.25], [-1.5, -1.5, 0], [0, 0, 0.25]], [ax, bx, ry] = poses[step];
-      u.armL.rotation.x = ax * ease; u.armR.rotation.x = bx * ease; model.rotation.y += ry * ease;
-      u.armL.rotation.z = -0.15 * ease; u.armR.rotation.z = 0.15 * ease;
+    case "emote_robo": {                                                          // dança do robô: 8 poses aos solavancos e, no fim, desliga-se e volta a ligar
+      const rate = 2.6, f = t * rate, i = Math.min(ROBOT.length - 1, Math.floor(f)), prev = ROBOT[(i + ROBOT.length - 1) % ROBOT.length], cur = ROBOT[i];
+      const p = Math.min(1, (f - i) / 0.22), snap = p * p * (3 - 2 * p) + Math.sin(p * Math.PI) * 0.12;   // chega depressa e passa um bocadinho (solavanco)
+      const buzz = p >= 1 ? Math.sin(t * 90) * 0.015 : 0;                       // tremido de motor quando está parado
+      const P = (j) => (prev[j] + (cur[j] - prev[j]) * snap) * ease;
+      u.armL.rotation.x = P(0) + buzz; u.armL.rotation.z = P(1); u.armR.rotation.x = P(2) - buzz; u.armR.rotation.z = P(3);
+      model.rotation.y += P(4);
+      u.legL.rotation.x += P(5); u.legR.rotation.x += P(6);
+      if (u.shinL) { u.shinL.rotation.x += -P(5) * 1.4; u.shinR.rotation.x += -P(6) * 1.4; }   // o joelho dobra quando levanta o pé
+      model.position.y -= P(7) * 0.5;
+      if (i === ROBOT.length - 1) model.rotation.x += 0.35 * snap * ease;     // desligado: cabeça e tronco caem para a frente
       break;
     }
-    case "emote_guitarra":                                                        // guitarra no ar: uma mão no braço da guitarra, a outra a tocar, a abanar a cabeça
-      u.armL.rotation.x = -1.1 * ease; u.armL.rotation.z = 0.35 * ease;
-      u.armR.rotation.x = (-0.6 + Math.sin(t * 22) * 0.3) * ease; u.armR.rotation.z = -0.25 * ease;
-      model.rotation.x -= (0.12 + Math.abs(Math.sin(t * 6)) * 0.1) * ease;
+    case "emote_floss": {                                                         // floss: os dois braços esticados vão juntos de um lado para o outro (um à frente do corpo, o outro atrás) e a anca vai ao contrário
+      const w = Math.sin(t * 9), f = Math.sign(Math.sin(t * 4.5)) || 1;            // w: para que lado vão os braços; f: troca quem fica à frente
+      const inL = Math.max(0, w), inR = Math.max(0, -w);                          // o braço que está a passar para o lado de dentro afasta-se mais do corpo (não o atravessa)
+      u.armL.rotation.z = 0.5 * w * ease; u.armR.rotation.z = 0.5 * w * ease;
+      u.armL.rotation.x = -f * (0.3 + 0.8 * inL) * ease; u.armR.rotation.x = f * (0.3 + 0.8 * inR) * ease;
+      model.rotation.z -= w * 0.1 * ease; model.position.y += Math.abs(w) * 0.04 * ease;
       break;
+    }
+    case "emote_dab": {                                                           // dab: um braço esticado na diagonal para cima e o outro esticado à frente da cara, com a cabeça a baixar para ele (dois dabs, um para cada lado)
+      const side = k < 0.5 ? 1 : -1, p = Math.min(1, ((k % 0.5) / 0.5) * 5) * ease;
+      const [out, across] = side > 0 ? [u.armL, u.armR] : [u.armR, u.armL];
+      out.rotation.z = -side * 2.25 * p; out.rotation.x *= 1 - p;                   // para cima e para fora
+      across.rotation.x = -1.9 * p; across.rotation.z = -side * 0.62 * p;          // à frente da cara, a apontar para o mesmo lado
+      model.rotation.x += 0.16 * p; model.rotation.z += side * 0.1 * p; model.rotation.y += side * 0.15 * p;
+      break;
+    }
+    case "emote_karate": {                                                        // karaté: golpe de mão, pontapé alto e soco, com o corpo a rodar
+      const step = Math.min(2, Math.floor(k * 3)), p = Math.sin(Math.min(1, (k * 3 - step) * 2) * Math.PI / 2) * ease;
+      if (step === 0) { u.armR.rotation.x = (-1.6 + p * 0.3) * ease; u.armR.rotation.z = -0.9 * p; u.armL.rotation.x = -1.2 * p; model.rotation.y += 0.4 * p; }
+      else if (step === 1) { u.legL.rotation.x = -1.5 * p; if (u.shinL) u.shinL.rotation.x = 0.1; u.armL.rotation.z = -1.2 * p; u.armR.rotation.z = 1.2 * p; model.rotation.x -= 0.15 * p; }
+      else { u.armL.rotation.x = -1.57 * p; u.armR.rotation.x = -0.6 * p; model.rotation.y -= 0.5 * p; }
+      break;
+    }
+    case "emote_meditar": {                                                       // meditar: pernas cruzadas e a flutuar
+      const float = 0.45 + Math.sin(t * 2.4) * 0.08;
+      u.legL.rotation.x = -1.45 * ease; u.legR.rotation.x = -1.45 * ease;
+      u.legL.rotation.z = -0.55 * ease; u.legR.rotation.z = 0.55 * ease;
+      if (u.shinL) { u.shinL.rotation.x = 2.2 * ease; u.shinR.rotation.x = 2.2 * ease; }
+      u.armL.rotation.z = -0.55 * ease; u.armR.rotation.z = 0.55 * ease; u.armL.rotation.x = -0.6 * ease; u.armR.rotation.x = -0.6 * ease;
+      model.position.y += float * ease;
+      break;
+    }
+    case "emote_cavalinho": {                                                     // dança do cavalinho: braços cruzados à frente, saltinhos de um pé para o outro e de lado
+      const h = Math.sin(t * 10), side = Math.sin(t * 2.5);
+      u.armL.rotation.x = -1.25 * ease; u.armR.rotation.x = -1.25 * ease; u.armL.rotation.z = 0.55 * ease; u.armR.rotation.z = -0.55 * ease;
+      u.legL.rotation.x -= Math.max(0, h) * 0.8 * ease; u.legR.rotation.x -= Math.max(0, -h) * 0.8 * ease;
+      if (u.shinL) { u.shinL.rotation.x += Math.max(0, h) * 1.2 * ease; u.shinR.rotation.x += Math.max(0, -h) * 1.2 * ease; }
+      model.position.y += Math.abs(h) * 0.15 * ease;
+      model.position.x += Math.cos(model.rotation.y) * side * 0.35 * ease; model.position.z -= Math.sin(model.rotation.y) * side * 0.35 * ease;
+      break;
+    }
+    case "emote_flexoes": {                                                       // flexões: deita-se de barriga para baixo e sobe e desce nos braços
+      const down = (1 - Math.cos(t * 6)) / 2;
+      model.rotation.x += 1.38 * ease;
+      model.position.y += (0.32 + 0.3 * (1 - down)) * ease;
+      model.position.x -= Math.sin(model.rotation.y) * 0.95 * ease; model.position.z -= Math.cos(model.rotation.y) * 0.95 * ease;   // recua: fica deitado em cima do sítio onde estava (não "cai" para a frente)
+      u.armL.rotation.x = (-1.35 - down * 0.35) * ease; u.armR.rotation.x = (-1.35 - down * 0.35) * ease;
+      u.armL.rotation.z = -0.25 * ease; u.armR.rotation.z = 0.25 * ease;
+      u.legL.rotation.x *= 1 - ease; u.legR.rotation.x *= 1 - ease;
+      break;
+    }
+    case "emote_coracao": {                                                       // coração: as mãos fazem um coração à frente do peito (a bater) e o corpo baloiça
+      const beat = 1 + Math.max(0, Math.sin(t * 9)) * 0.08;                         // o coração "bate"
+      u.armL.rotation.x = -1.25 * ease; u.armR.rotation.x = -1.25 * ease; u.armL.rotation.z = 0.44 * beat * ease; u.armR.rotation.z = -0.44 * beat * ease;   // mãos juntas à frente do peito, em forma de coração
+      model.rotation.z += Math.sin(t * 4) * 0.1 * ease;
+      break;
+    }
+    case "emote_sono": {                                                          // a dormir de pé: a cabeça vai caindo, abana e acorda num salto no fim
+      const nod = Math.min(1, t / 1.2), wake = k > 0.85 ? Math.sin((k - 0.85) / 0.15 * Math.PI) : 0;
+      model.rotation.x += (0.28 * nod + Math.sin(t * 3) * 0.04) * ease * (1 - wake);
+      model.rotation.z += 0.12 * nod * ease * (1 - wake);
+      u.armL.rotation.x = 0.15 * ease; u.armR.rotation.x = 0.15 * ease;
+      model.position.y += wake * 0.4;
+      if (wake) { u.armL.rotation.z = -1.4 * wake; u.armR.rotation.z = 1.4 * wake; }
+      break;
+    }
+    case "emote_guitarra": {                                                      // guitarra elétrica: mão esquerda no braço, a direita a tocar, a abanar a cabeça e um salto no fim
+      if (!u.guitar) { u.guitar = guitarMesh(); (u.body || model).add(u.guitar); }
+      u.guitar.visible = true; u.guitar.scale.setScalar(Math.max(0.01, ease));
+      const solo = k > 0.72;                                                      // no fim: salto com a guitarra no ar
+      u.armL.rotation.x = -1.05 * ease; u.armL.rotation.z = -0.12 * ease;
+      u.armR.rotation.x = (-0.72 + Math.sin(t * (solo ? 34 : 22)) * 0.22) * ease; u.armR.rotation.z = -0.22 * ease;
+      model.rotation.x -= (0.08 + Math.abs(Math.sin(t * 7)) * 0.14) * ease;    // a abanar a cabeça ao ritmo
+      model.position.y += Math.abs(Math.sin(t * 7)) * 0.06 * ease + (solo ? Math.sin((k - 0.72) / 0.28 * Math.PI) * 0.6 : 0);
+      if (solo) { const j = Math.sin((k - 0.72) / 0.28 * Math.PI); u.legL.rotation.x -= 0.6 * j; u.shinL && (u.shinL.rotation.x += 1.1 * j); model.rotation.x += 0.25 * j; }
+      break;
+    }
   }
 }

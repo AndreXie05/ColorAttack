@@ -10,6 +10,9 @@ import { emojiTexture } from "./emotes.js";
 export const TRAILS = {
   rasto_estrelas: ["⭐", "✨"], rasto_coracoes: ["💖", "💕"], rasto_notas: ["🎵", "🎶"],
   rasto_bolhas: ["🫧"], rasto_fogo: ["🔥"], rasto_arcoiris: "rainbow",
+  rasto_folhas: ["🍃", "🍂"], rasto_flocos: ["❄️"], rasto_flores: ["🌸", "🌼", "🌷"], rasto_pegadas: ["👣"],
+  rasto_doces: ["🍬", "🍭"], rasto_borboletas: ["🦋"], rasto_relampagos: ["⚡"], rasto_moedas: ["🪙"],
+  rasto_fantasmas: ["👻"], rasto_caveiras: ["💀"], rasto_pizza: ["🍕"], rasto_confetis: "confetti",
 };
 const MAX = 40, LIFE = 0.9, RAINBOW = [0xff3b4a, 0xffd21f, 0x2f7bff, 0x47e06a, 0xa447ff, 0xff8a1f];
 let _dot = null;
@@ -21,6 +24,15 @@ function dotTexture() {                                                         
   g.fillStyle = grd; g.beginPath(); g.arc(32, 32, 30, 0, Math.PI * 2); g.fill();
   _dot = new THREE.CanvasTexture(c); _dot.colorSpace = THREE.SRGBColorSpace;
   return _dot;
+}
+
+let _sq = null;
+function squareTexture() {                                                        // papelinho quadrado branco (os confetis tingem-no)
+  if (_sq) return _sq;
+  const c = document.createElement("canvas"); c.width = c.height = 32;
+  const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(4, 8, 24, 16);
+  _sq = new THREE.CanvasTexture(c); _sq.colorSpace = THREE.SRGBColorSpace;
+  return _sq;
 }
 
 export function createTrails(scene) {
@@ -37,11 +49,11 @@ export function createTrails(scene) {
     if (!def) return;
     const p = P[next]; next = (next + 1) % MAX;
     const m = p.s.material;
-    if (def === "rainbow") { m.map = dotTexture(); m.color.setHex(RAINBOW[Math.floor(Math.random() * 6)]); }
-    else { m.map = emojiTexture(def[Math.floor(Math.random() * def.length)]); m.color.setHex(0xffffff); }
+    if (def === "rainbow" || def === "confetti") { m.map = def === "rainbow" ? dotTexture() : squareTexture(); m.color.setHex(RAINBOW[Math.floor(Math.random() * 6)]); m.rotation = Math.random() * Math.PI; }
+    else { m.map = emojiTexture(def[Math.floor(Math.random() * def.length)]); m.color.setHex(0xffffff); m.rotation = 0; }
     m.needsUpdate = true;
     p.s.position.set(x + (Math.random() - 0.5) * 0.4, y + 0.2 + Math.random() * 0.2, z + (Math.random() - 0.5) * 0.4);
-    p.vx = (Math.random() - 0.5) * 0.4; p.vz = (Math.random() - 0.5) * 0.4; p.t = LIFE; p.big = def === "rainbow" ? 0.28 : 0.45;
+    p.vx = (Math.random() - 0.5) * 0.4; p.vz = (Math.random() - 0.5) * 0.4; p.t = LIFE; p.big = def === "rainbow" ? 0.28 : def === "confetti" ? 0.22 : 0.45;
     p.s.visible = true;
   }
   function step(dt) {

@@ -57,7 +57,18 @@ try {
   const w = JSON.parse(localStorage.getItem(WKEY));
   if (w) Object.assign(wallet, { coins: w.coins || 0, gems: w.gems || 0, owned: [...new Set([...FREE, ...(w.owned || [])])], equip: { ...DEFAULT_EQUIP, ...(w.equip || {}) } });
 } catch { /* começa vazio */ }
+// Categorias que saíram da loja (Roupa, Cabeça, Costas): o que compraste é devolvido em moedas/joias
+const REFUND = { skin_mate: [150, "coins"], skin_brilho: [150, "coins"], skin_metal: [300, "coins"], skin_perola: [400, "coins"], skin_neon: [500, "coins"], skin_cromado: [800, "coins"], skin_riscas: [350, "coins"], skin_bolinhas: [350, "coins"], skin_xadrez: [450, "coins"], skin_zebra: [500, "coins"], skin_camuflado: [600, "coins"], skin_purpurina: [10, "gems"], acc_bone: [200, "coins"], acc_gorro: [250, "coins"], acc_flor: [250, "coins"], acc_festa: [250, "coins"], acc_cone: [200, "coins"], acc_oculos: [300, "coins"], acc_oculos3d: [350, "coins"], acc_cowboy: [300, "coins"], acc_cartola: [350, "coins"], acc_gato: [300, "coins"], acc_chef: [300, "coins"], acc_coroaflores: [300, "coins"], acc_antenas: [350, "coins"], acc_auscultadores: [400, "coins"], acc_helice: [450, "coins"], acc_aureola: [8, "gems"], acc_viking: [500, "coins"], acc_bruxa: [450, "coins"], acc_coroa: [15, "gems"], acc_unicornio: [10, "gems"], acc_astronauta: [12, "gems"], costas_capa: [400, "coins"], costas_mochila: [450, "coins"], costas_morcego: [600, "coins"], costas_anjo: [12, "gems"], costas_jetpack: [15, "gems"] };
+let refunded = 0;
+for (const id of wallet.owned) { const r = REFUND[id]; if (r) { wallet[r[1]] += r[0]; refunded++; } }
+export const refundedItems = refunded;                                              // (o lobby avisa quantos itens foram devolvidos)
+// itens que já não existem (ex.: skins apagadas) saem do inventário; se estavam equipados, volta o de origem
+wallet.owned = wallet.owned.filter((id) => itemById(id));
+for (const k of Object.keys(wallet.equip)) if (!(k in DEFAULT_EQUIP)) delete wallet.equip[k];
+
+for (const cat of Object.keys(DEFAULT_EQUIP)) if (!itemById(wallet.equip[cat])) wallet.equip[cat] = DEFAULT_EQUIP[cat];
 function saveWallet() { try { localStorage.setItem(WKEY, JSON.stringify(wallet)); } catch { /* ignora */ } }
+if (refunded) saveWallet();
 export const owns = (id) => wallet.owned.includes(id);
 // Pode comprar? devolve "" (sim) ou o motivo
 export function cantBuy(id) {

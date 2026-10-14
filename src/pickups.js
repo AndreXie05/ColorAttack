@@ -46,21 +46,37 @@ export class PickupManager {
     this.group = new THREE.Group();
     parent.add(this.group);
     this.items = [];
+    this.seq = 0;
+    // partida com amigos: onSpawn(lista) e onTake(item) avisam os outros PCs; noCollect = convidado (quem apanha decide o anfitrião)
+    this.onSpawn = null; this.onTake = null; this.noCollect = false;
   }
 
   // Cria n itens que saltam do baú (x, z) em direções diferentes. `colors[i]` = cor da i-ésima caixa de munição
   spawn(type, n, x, z, colors = [], shots = []) {
+    const made = [];
     for (let i = 0; i < n; i++) {
-      const color = colors[i], model = buildItemModel(type, color);
-      const a = (i / n) * Math.PI * 2 + Math.random() * 1.2;
-      const speed = 3 + Math.random() * 2;
-      model.position.set(x, 1.6, z);
+      const a = (i / n) * Math.PI * 2 + Math.random() * 1.2, speed = 3 + Math.random() * 2;
+      made.push({ id: ++this.seq, type, color: colors[i], shots: shots[i], x, z, vx: Math.cos(a) * speed, vz: Math.sin(a) * speed, vy: 8 + Math.random() * 2, phase: Math.random() * 6 });
+    }
+    this.spawnExact(made);
+    this.onSpawn?.(made);
+  }
+  // Cria itens com tudo já decidido (o convidado recebe-os assim do anfitrião: caem exatamente no mesmo sítio)
+  spawnExact(list) {
+    for (const d of list) {
+      const model = buildItemModel(d.type, d.color);
+      model.position.set(d.x, 1.6, d.z);
       this.group.add(model);
       this.items.push({
-        type, color, shots: shots[i], model, pos: model.position, vx: Math.cos(a) * speed, vz: Math.sin(a) * speed, vy: 8 + Math.random() * 2,
-        landed: false, age: 0, life: CONFIG.pickup.lifeSeconds, phase: Math.random() * 6,
+        id: d.id, type: d.type, color: d.color, shots: d.shots, model, pos: model.position, vx: d.vx, vz: d.vz, vy: d.vy,
+        landed: false, age: 0, life: CONFIG.pickup.lifeSeconds, phase: d.phase,
       });
     }
+  }
+  remove(id) {                                                                        // alguém (noutro PC) apanhou-o
+    const i = this.items.findIndex((it) => it.id === id);
+    if (i < 0) return;
+    this.group.remove(this.items[i].model); this.items.splice(i, 1);
   }
 
   // Atualiza voo, rotação e recolha; devolve a lista de itens apanhados neste frame ({ type, color })
@@ -85,11 +101,11 @@ export class PickupManager {
       it.model.rotation.y = t * 2 + it.phase;
       if (it.life - it.age < 6) it.model.visible = Math.floor(it.age * 6) % 2 === 0;   // pisca antes de desaparecer
 
-      const near = Math.hypot(p.x - playerPos.x, p.z - playerPos.z) < CONFIG.pickup.collectDist && Math.abs((it.floor || 0) - playerPos.y) < 1.2 && it.age > 0.5;
+      const near = !this.noCollect && Math.hypot(p.x - playerPos.x, p.z - playerPos.z) < CONFIG.pickup.collectDist && Math.abs((it.floor || 0) - playerPos.y) < 1.2 && it.age > 0.5;
       if (near || it.age >= it.life) {
         this.group.remove(it.model);
         this.items.splice(i, 1);
-        if (near) got.push({ type: it.type, color: it.color, shots: it.shots });
+        if (near) { got.push({ type: it.type, color: it.color, shots: it.shots }); this.onTake?.(it); }
       }
     }
     return got;
@@ -124,7 +140,7 @@ export class PickupManager {
       const it = this.items[i];
       if (!it.landed || it.age < 0.5) continue;
       if (Math.hypot(it.pos.x - pos.x, it.pos.z - pos.z) < CONFIG.pickup.collectDist && Math.abs((it.floor || 0) - pos.y) < 1.2) {
-        this.group.remove(it.model); this.items.splice(i, 1); got.push({ type: it.type, color: it.color, shots: it.shots });
+        this.group.remove(it.model); this.items.splice(i, 1); got.push({ type: it.type, color: it.color, shots: it.shots }); this.onTake?.(it);
       }
     }
     return got;

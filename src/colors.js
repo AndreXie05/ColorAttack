@@ -41,6 +41,11 @@ export function shuffleMixes() {
   SECONDARIES.forEach((id, i) => { COLORS[id].parts = [...PAIRS[(cur[i] + step) % 3]]; });
   buildMix();
 }
+export const getMixes = () => Object.fromEntries(SECONDARIES.map((id) => [id, [...COLORS[id].parts]]));   // (partida com amigos: o anfitrião envia as receitas)
+export function setMixes(parts) {
+  for (const id of SECONDARIES) if (parts[id]) COLORS[id].parts = [...parts[id]];
+  buildMix();
+}
 export function resetMixes() {
   for (const id of SECONDARIES) COLORS[id].parts = [...DEFAULT_PARTS[id]];
   buildMix();
