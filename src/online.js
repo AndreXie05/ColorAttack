@@ -79,7 +79,7 @@ export function createOnline(hooks) {
       if (!m || typeof m !== "object" || !room.conns.has(conn.peer)) return;
       if (m.t === "hi") {
         room.players = room.players.filter((p) => p.id !== conn.peer);
-        room.players.push({ id: conn.peer, name: String(m.name || "Amigo").slice(0, 14), skin: String(m.skin || ""), equip: m.equip || {} });
+        room.players.push({ id: conn.peer, name: String(m.name || "Amigo").slice(0, 14), skin: String(m.skin || ""), equip: m.equip || {}, title: String(m.title || "").slice(0, 24) });
         assignTeams();
         hooks.flash?.(`👋 ${m.name || "Um amigo"} entrou na sala${room.playing ? " (joga na próxima partida)" : ""}`);
       } else hooks.onGame(m, conn.peer);
@@ -185,7 +185,7 @@ export function createOnline(hooks) {
     }
     const mine = me()?.team || "A", other = mine === "A" ? "B" : "A";
     const col = (t) => (t === mine ? "#4da8ff" : "#ff4455");
-    const list = (t) => room.players.filter((p) => p.team === t).map((p) => `<li style="--c:${col(t)}">${esc(p.name)}${p.id === room.myId ? " <i>(tu)</i>" : ""}${p.id === room.players[0]?.id ? " 👑" : ""}</li>`).join("") || "<li class='fbNone'>—</li>";
+    const list = (t) => room.players.filter((p) => p.team === t).map((p) => `<li style="--c:${col(t)}">${esc(p.name)}${p.id === room.myId ? " <i>(tu)</i>" : ""}${p.id === room.players[0]?.id ? " 👑" : ""}${p.title ? `<small class="fbTitle">🏷️ ${esc(p.title)}</small>` : ""}</li>`).join("") || "<li class='fbNone'>—</li>";
     const bots = (t) => { const n = 5 - room.players.filter((p) => p.team === t).length; return n ? `<small class="fbBots">+ ${n} ${n === 1 ? "bot" : "bots"}</small>` : ""; };
     body.innerHTML = `
       <div class="fbCode"><small>Código da sala</small><b>${room.code}</b><button id="fbCopy" class="fbSmall">📋 Copiar</button></div>

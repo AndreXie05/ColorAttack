@@ -14,14 +14,25 @@ import { COLORS, PRIMARIES, ingredients, paletteColors } from "./colors.js";
    Também apanham itens e usam cura, granadas, invisibilidade e armadilhas conforme a dificuldade (ver BOT_PRESETS),
    correm para o baú dourado quando aparece, usam os canhões de tinta e seguem os objetivos do mapa (lata, zonas; map-features.js).
    Cada bot é também um "combatente" (hp, cor, vivo/morto...) para o CombatWorld.
+   Personalidade (não muda a pontaria nem a dificuldade, só o feitio): agressivo (chega-se perto, dispara mais depressa, quase não
+   foge para buscar munição), cauteloso (fica mais longe, anda mais de lado e trata da munição e dos itens mais cedo),
+   caça-itens (vai buscar tudo o que cai dos baús) e equilibrado (como sempre).
    ============================================================ */
+export const PERSONALITIES = {
+  equilibrado: { icon: "⚖️", name: "Equilibrado", mod: () => ({}) },
+  agressivo:   { icon: "🔥", name: "Agressivo",   role: "attack", mod: (c) => ({ range: c.range - 4, fireInterval: c.fireInterval * 0.88, strafeMul: c.strafeMul * 0.7, lowAmmoAt: Math.round(c.lowAmmoAt * 0.5), itemSeek: c.itemSeek * 0.6 }) },
+  cauteloso:   { icon: "🛡️", name: "Cauteloso",   role: "defend", mod: (c) => ({ range: c.range + 4, strafeMul: c.strafeMul * 1.4 + 0.2, lowAmmoAt: Math.round(c.lowAmmoAt * 1.5) + 2, itemSeek: c.itemSeek * 1.3 }) },
+  cacador:     { icon: "🎒", name: "Caça-itens",  mod: (c) => ({ itemSeek: c.itemSeek * 2 + 6, lowAmmoAt: Math.round(c.lowAmmoAt * 1.3) + 1 }) },
+};
 const rand = (a, b) => a + Math.random() * (b - a);
 const lad0 = (b) => b.motion.climbing;
 const STEP_SAFE = 1.2;                                                   // desnível que um bot aceita ao procurar a descida
 
 export class Bot {
-  constructor({ team, index, characterId, model, pos, facing, role, colorId, difficulty = "media", passive = false }) {
-    this.cfg = BOT_PRESETS[difficulty] || BOT_PRESETS.media; this.difficulty = difficulty;
+  constructor({ team, index, characterId, model, pos, facing, role, colorId, difficulty = "media", passive = false, personality = "equilibrado" }) {
+    const base = BOT_PRESETS[difficulty] || BOT_PRESETS.media, P = PERSONALITIES[personality] || PERSONALITIES.equilibrado;
+    this.cfg = { ...base, ...P.mod(base) }; this.difficulty = difficulty; this.personality = personality;
+    if (P.role && !passive) role = P.role;
     this.passive = passive; this.home = { x: pos.x, z: pos.z };                  // passivo = alvo parado (tutorial)
     this.team = team; this.index = index; this.characterId = characterId; this.model = model;
     this.id = team + index; this.isPlayer = false;

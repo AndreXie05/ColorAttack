@@ -26,6 +26,17 @@ export const EMOTES = {
   emote_flexoes:  { icon: "💪", dur: 2.8, noBubble: true },
   emote_coracao:  { icon: "💖", dur: 2.2 },
   emote_sono:     { icon: "😴", dur: 3.0 },
+  emote_continencia: { icon: "🫡", dur: 1.6 },
+  emote_riso:     { icon: "😂", dur: 2.2 },
+  emote_beijo:    { icon: "😘", dur: 1.8 },
+  emote_choro:    { icon: "😭", dur: 2.4 },
+  emote_vitoria:  { icon: "✌️", dur: 2.0 },
+  emote_galinha:  { icon: "🐔", dur: 2.6 },
+  emote_pinguim:  { icon: "🐧", dur: 2.4 },
+  emote_zangado:  { icon: "😤", dur: 2.2 },
+  emote_onda:     { icon: "🙌", dur: 2.2 },
+  emote_desmaio:  { icon: "😵", dur: 2.8 },
+  emote_helicoptero: { icon: "🚁", dur: 2.4 },
 };
 
 // emoji como textura (uma por emoji, feita uma vez; também usada pelos rastos em trails.js)
@@ -134,6 +145,61 @@ export function apply(model, e, now) {
   if (!em || now >= em.end) return;
   const t = (now - em.start) / 1000, k = Math.min(1, t / EMOTES[em.id].dur), ease = Math.sin(Math.min(1, k * 4, (1 - k) * 4) * Math.PI / 2);   // entra e sai suave
   switch (em.id) {
+    case "emote_continencia":                                                     // continência: mão direita à testa, corpo direito
+      u.armR.rotation.x = u.armR.rotation.x * (1 - ease) - 2.6 * ease; u.armR.rotation.z = 0.35 * ease;
+      model.rotation.x -= 0.06 * ease;
+      break;
+    case "emote_riso": {                                                          // rir: inclina-se para trás aos solavancos, mãos na barriga
+      const j = Math.abs(Math.sin(t * 16));
+      model.rotation.x -= (0.15 + j * 0.1) * ease; model.position.y += j * 0.06 * ease;
+      u.armL.rotation.x = -0.55 * ease; u.armR.rotation.x = -0.55 * ease; u.armL.rotation.z = 0.3 * ease; u.armR.rotation.z = -0.3 * ease;
+      break;
+    }
+    case "emote_beijo": {                                                         // beijinho: mão à boca e depois atira-o
+      const th = Math.min(1, Math.max(0, (k - 0.45) / 0.25));
+      u.armR.rotation.x = u.armR.rotation.x * (1 - ease) - (2.1 - th * 0.9) * ease; u.armR.rotation.z = (-0.4 + th * 1.5) * ease;
+      model.rotation.x += (0.05 - th * 0.1) * ease;
+      break;
+    }
+    case "emote_choro":                                                           // chorar: mãos na cara, cabeça em baixo e o corpo a tremer
+      u.armL.rotation.x = -2.3 * ease; u.armR.rotation.x = -2.3 * ease; u.armL.rotation.z = 0.35 * ease; u.armR.rotation.z = -0.35 * ease;
+      model.rotation.x += 0.22 * ease; model.rotation.z += Math.sin(t * 22) * 0.035 * ease;
+      break;
+    case "emote_vitoria":                                                         // vitória: saltos com os dois braços no ar em V
+      u.armL.rotation.z = -2.6 * ease; u.armR.rotation.z = 2.6 * ease; u.armL.rotation.x *= 1 - ease; u.armR.rotation.x *= 1 - ease;
+      model.position.y += Math.abs(Math.sin(t * 6.5)) * 0.5 * ease;
+      break;
+    case "emote_galinha": {                                                       // dança da galinha: cotovelos a bater como asas, corpo para a frente e saltinhos
+      const f = Math.abs(Math.sin(t * 12));
+      u.armL.rotation.z = -(0.25 + f * 0.75) * ease; u.armR.rotation.z = (0.25 + f * 0.75) * ease;
+      model.rotation.x += 0.22 * ease; model.position.y += Math.abs(Math.sin(t * 6)) * 0.12 * ease;
+      u.legL.rotation.x += Math.sin(t * 12) * 0.3 * ease; u.legR.rotation.x -= Math.sin(t * 12) * 0.3 * ease;
+      break;
+    }
+    case "emote_pinguim":                                                         // andar de pinguim: braços colados ao corpo e a abanar de um lado para o outro
+      u.armL.rotation.z = -0.3 * ease; u.armR.rotation.z = 0.3 * ease; u.armL.rotation.x *= 1 - ease; u.armR.rotation.x *= 1 - ease;
+      model.rotation.z += Math.sin(t * 9) * 0.17 * ease; model.position.y += Math.abs(Math.sin(t * 9)) * 0.05 * ease;
+      break;
+    case "emote_zangado":                                                         // birra: braços cruzados e um pé a bater no chão
+      u.armL.rotation.x = -1.35 * ease; u.armR.rotation.x = -1.35 * ease; u.armL.rotation.z = 0.55 * ease; u.armR.rotation.z = -0.55 * ease;
+      u.legR.rotation.x -= Math.max(0, Math.sin(t * 14)) * 0.45 * ease;
+      model.rotation.z += Math.sin(t * 28) * 0.02 * ease;
+      break;
+    case "emote_onda":                                                            // a onda: os dois braços no ar a abanar, o corpo a baloiçar
+      u.armL.rotation.z = (-2.4 + Math.sin(t * 9) * 0.45) * ease; u.armR.rotation.z = (2.4 + Math.sin(t * 9 + Math.PI) * 0.45) * ease;
+      u.armL.rotation.x *= 1 - ease; u.armR.rotation.x *= 1 - ease;
+      model.rotation.z += Math.sin(t * 4.5) * 0.12 * ease;
+      break;
+    case "emote_desmaio": {                                                       // desmaio: cai para trás, fica no chão um bocado e levanta-se
+      const down = Math.min(1, k / 0.25), up = k > 0.72 ? Math.min(1, (k - 0.72) / 0.22) : 0, f0 = down * down * (3 - 2 * down), f = f0 * (1 - up * up * (3 - 2 * up));
+      model.rotation.x -= 1.45 * f; model.position.y += 0.3 * f;
+      u.armL.rotation.z = -1.2 * f; u.armR.rotation.z = 1.2 * f;
+      break;
+    }
+    case "emote_helicoptero":                                                     // helicóptero: um braço no ar, gira cada vez mais depressa e levanta voo
+      u.armR.rotation.z = 2.9 * ease; u.armR.rotation.x *= 1 - ease; u.armL.rotation.z = -1.4 * ease;
+      model.rotation.y += k * k * Math.PI * 10; model.position.y += Math.sin(k * Math.PI) * 1.3;
+      break;
     case "emote_aceno":                                                           // acena com o braço esquerdo (o direito tem a arma)
       u.armL.rotation.z = -2.5 * ease + Math.sin(t * 14) * 0.35 * ease; u.armL.rotation.x *= 1 - ease;
       break;

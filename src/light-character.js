@@ -34,6 +34,14 @@ export const LIGHT_LOOKS = {
   alien:      { skin: 0x7fe08a, hair: 0x7fe08a, shorts: 0x3a2a6a, shoe: 0xa0a8b8, sole: 0xffffff, cap: false, eyes: "alien", extras: ["alien"] },
   astronauta: { body: "fato", skin: 0xf2c49b, hair: 0x6b3a1e, shorts: 0xe8e8ee, shoe: 0xffffff, sole: 0x9aa3b0, cap: false, extras: ["astronauta"] },
   dino:       { body: "dino", skin: 0x5fcf6a, hair: 0x3a9a4a, shorts: 0x2b6a3a, shoe: 0x5fcf6a, sole: 0xffffff, cap: false, skinKeep: 0.45, mouth: "none", extras: ["dino"] },
+  panda:      { body: "redondo", skin: 0xf8f8f8, hair: 0x15151f, shorts: 0x15151f, shoe: 0x15151f, sole: 0xffffff, cap: false, extras: ["panda"] },
+  sapo:       { skin: 0x6cd46a, hair: 0x4fb04d, shorts: 0x2f6a3a, shoe: 0x4fb04d, sole: 0xffd21f, cap: false, eyes: "none", skinKeep: 0.45, extras: ["sapo"] },
+  raposa:     { skin: 0xff7a2a, hair: 0xff7a2a, shorts: 0x3a2a20, shoe: 0x2b2b2b, sole: 0xffffff, cap: false, hand: 0x2b2b2b, skinKeep: 0.45, mouth: "cat", extras: ["raposa"] },
+  chef:       { skin: 0xf5c9a2, hair: 0x5a3820, shorts: 0x2b2b2b, shoe: 0x1d1d22, sole: 0xffffff, cap: false, extras: ["chef"] },
+  cowboy:     { skin: 0xe8b48a, hair: 0x6b3a1e, shorts: 0x3a5a8a, shoe: 0x5a3a1e, sole: 0x2b1a12, cap: false, extras: ["cowboy"] },
+  fantasma:   { skin: 0xf4f7ff, hair: 0xf4f7ff, shorts: 0xe6ecfa, shoe: 0xe6ecfa, sole: 0xc8d2e6, cap: false, skinKeep: 0.6, mouth: "line", extras: ["fantasma"] },
+  rei:        { body: "manto", skin: 0xf5d2b0, hair: 0xffffff, shorts: 0x8a1a2a, shoe: 0x5a1a1a, sole: 0xffd21f, cap: false, mouth: "none", extras: ["rei"] },
+  unicornio:  { skin: 0xffffff, hair: 0xff8fc0, shorts: 0xb98cff, shoe: 0xffffff, sole: 0xffd21f, cap: false, lashes: true, skinKeep: 0.5, extras: ["unicornio"] },
   princesa:   { body: "vestido", skin: 0xffe0c8, hair: 0xffc61a, shorts: 0xff8fc0, shoe: 0xff8fc0, sole: 0xffffff, cap: false, lashes: true, extras: ["princesa"] },
 };
 
@@ -73,11 +81,73 @@ const cyl = (rt, rb, h, s = 12) => new THREE.CylinderGeometry(rt, rb, h, s);
 const lathe = (pts, s = SEG) => new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(r, y)), s);
 
 // ---------- extras de cada skin (no espaço do tronco: cabeça em (0, 2.0, 0) com raio ~0,56, cara virada para +z) ----------
+const MOUTH_DARK = 0x7a2236;
 const PINK = 0xff9fc0, WHITE = 0xffffff, DARK = 0x1a1033, GOLD = 0xffd21f, ORANGE = 0xff9a1f, RED = 0xe8303f, METAL = 0x8a919c;
 const cone = (r, h, s = 10) => new THREE.ConeGeometry(r, h, s);
 const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
 const torus = (r, t, arc = Math.PI * 2) => new THREE.TorusGeometry(r, t, 6, 18, arc);
 const EXTRAS = {
+  panda(b) {                                                                       // panda: orelhas e manchas dos olhos pretas, focinho branco
+    const BLK = 0x15151f;
+    for (const s of [-1, 1]) {
+      b.add(sph(0.17, 12, 10), BLK, s * 0.4, 2.42, -0.04, 1, 1, 0.6);
+      b.add(sph(0.13, 10, 8), BLK, s * 0.2, 2.0, 0.5, 1.05, 1.3, 0.35, 0, 0, s * 0.45);            // manchas à volta dos olhos (por trás deles)
+    }
+    b.add(sph(0.17, 12, 10), WHITE, 0, 1.84, 0.44, 1.25, 0.85, 0.7).add(sph(0.06, 8, 6), BLK, 0, 1.9, 0.57, 1.3, 0.9, 0.8);   // focinho e nariz
+    b.add(sph(0.12, 10, 8), BLK, 0, 0.8, -0.55);                                                   // cauda
+  },
+  sapo(b, L) {                                                                     // sapo: olhos grandes em cima da cabeça e boca larga
+    for (const s of [-1, 1]) {
+      b.add(sph(0.17, 12, 10), L.skin, s * 0.24, 2.46, 0.22);
+      b.keep(0).add(sph(0.12, 12, 10), WHITE, s * 0.24, 2.5, 0.33).add(sph(0.055, 8, 6), DARK, s * 0.24, 2.52, 0.44).keep(0.45);
+    }
+    b.keep(0.2).add(torus(0.22, 0.025, Math.PI), MOUTH_DARK, 0, 1.86, 0.5, 1.2, 1, 1, Math.PI, 0, 0).keep(0.45);   // sorriso largo
+    for (const s of [-1, 1]) b.keep(0).add(sph(0.06, 8, 6), PINK, s * 0.34, 1.9, 0.44, 1.2, 0.8, 0.5).keep(0.45);   // bochechas
+    b.keep(1);
+  },
+  raposa(b, L) {                                                                   // raposa: orelhas em bico com pontas pretas, focinho branco e cauda fofa com a ponta branca
+    b.keep(0.45);
+    for (const sx of [-1, 1]) {
+      b.add(cone(0.2, 0.46, 4), L.skin, sx * 0.32, 2.6, -0.02, 1, 1, 0.5, 0, Math.PI / 4, -sx * 0.3);
+      b.keep(0.1).add(cone(0.09, 0.16, 4), 0x2b2b2b, sx * 0.4, 2.8, -0.02, 1, 1, 0.5, 0, Math.PI / 4, -sx * 0.3).keep(0.45);
+    }
+    b.keep(0).add(sph(0.2, 12, 8), WHITE, 0, 1.8, 0.4, 1.3, 0.8, 0.75).keep(0.05).add(sph(0.05, 8, 6), DARK, 0, 1.88, 0.58, 1.3, 0.9, 0.8);
+    const tail = [[0.82, -0.45, 0.13], [0.95, -0.62, 0.16], [1.12, -0.74, 0.17], [1.32, -0.78, 0.16], [1.5, -0.72, 0.13]];
+    tail.forEach(([y, z, r], i) => b.keep(i === tail.length - 1 ? 0 : 0.45).add(sph(r, 10, 8), i === tail.length - 1 ? WHITE : L.skin, 0, y, z));
+    b.keep(1);
+  },
+  chef(b) {                                                                        // chef: chapéu alto branco e bigode
+    b.keep(0.05).add(cyl(0.48, 0.5, 0.28, 18), WHITE, 0, 2.48, 0).add(sph(0.46, 16, 10), WHITE, 0, 2.86, 0, 1.05, 0.75, 1.05);
+    for (const s of [-1, 1]) b.keep(0.1).add(sph(0.1, 10, 8), 0x3a2414, s * 0.11, 1.8, 0.55, 1.5, 0.6, 0.5, 0, 0, -s * 0.25);
+    b.keep(1);
+  },
+  cowboy(b) {                                                                      // cowboy: chapéu de abas largas e lenço vermelho ao pescoço
+    const HAT = 0x8a5a2b;
+    b.keep(0.08).add(cyl(0.86, 0.86, 0.05, 24), HAT, 0, 2.42, 0, 1, 1, 1, -0.06, 0, 0)
+      .add(cyl(0.4, 0.47, 0.42, 18), HAT, 0, 2.65, 0).add(cyl(0.475, 0.475, 0.08, 18), DARK, 0, 2.5, 0)
+      .add(cone(0.16, 0.24, 3), RED, 0, 1.36, 0.36, 1.2, 1, 0.35, Math.PI, 0, 0);          // lenço: triângulo ao pescoço
+    b.keep(1);
+  },
+  fantasma(b) {                                                                    // fantasma: lençol branco por cima (com os olhos à vista) e uma pontinha a esvoaçar atrás
+    b.keep(0.1).add(new THREE.SphereGeometry(0.62, 20, 14, Math.PI * 0.5 + 0.8, Math.PI * 2 - 1.6), 0xf4f7ff, 0, 2.0, -0.01)
+      .add(new THREE.SphereGeometry(0.625, 20, 6, 0, Math.PI * 2, 0, Math.PI * 0.32), 0xf4f7ff, 0, 2.0, -0.01)
+      .add(cone(0.3, 0.6, 12), 0xf4f7ff, 0, 1.55, -0.55, 1, 1, 0.7, -2.4, 0, 0);
+    b.keep(1);
+  },
+  rei(b) {                                                                         // rei: coroa dourada com pedras vermelhas e barba branca
+    b.keep(0.05).add(cyl(0.4, 0.42, 0.22, 18), GOLD, 0, 2.6, 0);
+    for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; b.add(cone(0.07, 0.18, 6), GOLD, Math.sin(a) * 0.38, 2.79, Math.cos(a) * 0.38); }
+    b.add(sph(0.06, 8, 6), RED, 0, 2.6, 0.42).add(sph(0.045, 8, 6), 0x2f7bff, 0.25, 2.6, 0.33).add(sph(0.045, 8, 6), 0x2fd15a, -0.25, 2.6, 0.33);
+    b.keep(0.2).add(sph(0.3, 14, 8), WHITE, 0, 1.72, 0.32, 1.25, 0.8, 0.8);
+    b.keep(1);
+  },
+  unicornio(b) {                                                                   // unicórnio: corno dourado, orelhas e crina às cores do arco-íris
+    b.keep(0.05).add(cone(0.08, 0.44, 10), GOLD, 0, 2.66, 0.3, 1, 1, 1, 0.45, 0, 0);
+    for (const s of [-1, 1]) b.keep(0.3).add(cone(0.12, 0.26, 6), WHITE, s * 0.3, 2.55, -0.06, 1, 1, 0.6, 0, 0, -s * 0.25);
+    const mane = [0xff3b4a, 0xff8a1f, 0xffd21f, 0x47e06a, 0x2f7bff, 0xa447ff];
+    mane.forEach((c, i) => b.keep(0).add(sph(0.14 - i * 0.008, 10, 8), c, 0, 2.55 - i * 0.16, -0.32 - i * 0.05));
+    b.keep(1);
+  },
   gato(b, L) {                                                                     // gato malhado: orelhas grandes, focinho branco, riscas, bigodes e cauda às riscas
     b.keep(0.45);
     for (const sx of [-1, 1]) {

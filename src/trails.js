@@ -13,6 +13,8 @@ export const TRAILS = {
   rasto_folhas: ["🍃", "🍂"], rasto_flocos: ["❄️"], rasto_flores: ["🌸", "🌼", "🌷"], rasto_pegadas: ["👣"],
   rasto_doces: ["🍬", "🍭"], rasto_borboletas: ["🦋"], rasto_relampagos: ["⚡"], rasto_moedas: ["🪙"],
   rasto_fantasmas: ["👻"], rasto_caveiras: ["💀"], rasto_pizza: ["🍕"], rasto_confetis: "confetti",
+  rasto_trevos: ["🍀"], rasto_patinhas: ["🐾"], rasto_nuvens: ["☁️"], rasto_morangos: ["🍓"], rasto_luas: ["🌙", "⭐"], rasto_baloes: ["🎈"],
+  rasto_bolas: ["⚽"], rasto_donuts: ["🍩"], rasto_aboboras: ["🎃"], rasto_planetas: ["🪐", "🌍", "🌕"], rasto_unicornios: ["🦄", "🌈"], rasto_diamantes: ["💎"],
 };
 const MAX = 40, LIFE = 0.9, RAINBOW = [0xff3b4a, 0xffd21f, 0x2f7bff, 0x47e06a, 0xa447ff, 0xff8a1f];
 let _dot = null;

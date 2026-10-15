@@ -55,7 +55,7 @@ function buildPages() {
     card("🎯 Objetivo", `
       <p>Duas equipas de 5 (tu + 4 bots contra 5 bots). Cada round dura <b>${Math.round(CONFIG.roundSeconds / 60)} minutos</b> e ganha a equipa com mais pontos.
       Vence o jogo quem ganhar primeiro <b>${CONFIG.match.toWin} rounds</b>. Se o tempo acabar empatado em eliminações, há <b>morte súbita</b>: a primeira equipa a fazer uma eliminação ganha o round. Nessa altura os baús são reabastecidos, mas só têm item em metade das vezes, todos os itens são igualmente prováveis e cada baú dá uma só caixa de munição, com <b>1 a 5 balas</b> da mesma cor.</p>
-      <p>Antes de jogar escolhes a <b>dificuldade dos bots</b>: Fácil, Médio, Difícil ou Impossível. Vale para os <b>9 bots</b>, os teus colegas e os adversários, que ficam sempre do mesmo nível. Os bots também apanham e usam itens, e os bots da equipa que ganha cada round ganham melhorias. És novo? Faz o <b>Tutorial</b> no ecrã inicial.</p>
+      <p>Antes de jogar escolhes a <b>dificuldade dos bots</b>: Fácil, Médio, Difícil ou Impossível. Vale para os <b>9 bots</b>, os teus colegas e os adversários, que ficam sempre do mesmo nível. Os bots também apanham e usam itens, e os bots da equipa que ganha cada round ganham melhorias. Cada bot tem uma <b>personalidade</b>, que se nota na forma de jogar: 🔥 Agressivo chega-se perto, 🛡️ Cauteloso fica mais longe e foge mais, 🎒 Caça-itens vai a tudo o que cai dos baús e ⚖️ Equilibrado faz um pouco de tudo. Também usam armas da loja. És novo? Faz o <b>Tutorial</b> no ecrã inicial.</p>
       <p>Quando uma equipa chega a <b>${CONFIG.match.intenseAt} rounds ganhos</b> entra o <b>modo intenso</b>: as cores de toda a gente mudam de 5 em 5 segundos até haver um vencedor. A cada round o mapa muda.</p>
       <p>Os adversários têm cores. <b>Só os eliminas com a cor certa</b>, que tu misturas na arma.</p>
 `),
@@ -113,7 +113,7 @@ function buildPages() {
       ${tile("🥫", "", "Rouba-Latas", `Cada equipa tem uma <b>lata de tinta</b> na sua base. Vai à base adversária, passa por cima da lata deles para a apanhares e leva-a até à <b>lata da tua equipa</b>: cada entrega vale <b>+2 pontos</b>.<br>
         Enquanto a levas andas mais devagar e todos te veem no minimapa. Se fores eliminado, a lata cai: um colega pode apanhá-la de novo, mas se um adversário lhe tocar ela volta para a base deles.`)}
       ${tile("🖌️", "", "Pinta e Conquista", `Há <b>zonas</b> marcadas no chão. Toda a tinta que disparas, de qualquer cor, conta para a tua equipa. Conta só a tinta <b>que se vê</b>: se pintares por cima da dos adversários, a percentagem deles desce. Quem tiver mais numa zona <b>conquista-a</b> e fica com ela, mesmo quando a tinta seca, até os adversários pintarem mais. A cada <b>15 segundos</b> cada zona vale <b>+1 ponto</b> para quem a tem.<br>
-        Um quadro à esquerda mostra a percentagem de cada zona: <b>a tua equipa primeiro</b> (ex.: 25% / 20%). A tinta <b>seca em 10 segundos</b> e cada caixa de munição dá <b>25 balas</b>.`)}
+        Um quadro à esquerda mostra a percentagem de cada zona: <b>a tua equipa primeiro</b> (ex.: 25% / 20%). A tinta <b>seca em 10 segundos</b> e cada caixa de munição dá <b>40 balas</b>.`)}
       </div>`),
 
     card("🎨 Modos das cores", `
@@ -159,8 +159,13 @@ function buildPages() {
     card("⌨️ Outros comandos", keyTable2(OTHER_KEYS) + `
       <p><b>Placar:</b> está sempre no topo do ecrã. Os rounds ganhos ficam ao lado do relógio (tua equipa à esquerda) e as eliminações do round por baixo.</p>`),
 
-    card("⭐ Níveis, loja e perfil", `
-      <p>No fim de cada partida ganhas XP (eliminações, cor certa, rounds ganhos e vitória; mais XP nas dificuldades altas) e vais subindo de nível. Também ganhas <b>🪙 moedas</b> em cada partida e <b>💎 joias</b> sempre que sobes de nível: gasta-as na <b>Loja</b> do lobby (skins com acabamentos e padrões, coisas para a cabeça e para as costas, formatos de arma, celebrações e rastos ao correr; tudo só de visual) e equipa o que compraste no <b>Inventário</b>. No <b>Perfil</b> vês as tuas estatísticas de sempre e a tua personagem e cor preferidas.</p>
+    card("⭐ Níveis, moedas e joias", `
+      <p><b>XP e níveis:</b> no fim de cada partida ganhas XP (eliminações, cor certa, rounds ganhos e vitória; mais XP nas dificuldades altas). Para subir de nível precisas de <b>200, 300, 500, 750 e 1000 XP</b> nos primeiros níveis; depois <b>1500</b> e mais <b>300</b> em cada nível (1800, 2100, 2400…).</p>
+      <p><b>🪙 Moedas em cada partida:</b> +5 por jogares · +5 por eliminação (+2 se for com a cor certa) · vitória: <b>Fácil +10, Médio +20, Difícil +30, Impossível +50</b> · +20 a cada 3 vitórias seguidas · +50 na primeira vitória do dia. Se perderes, ganhas na mesma as moedas de jogar e das eliminações. No máximo ganhas <b>500 moedas por dia</b> nas partidas.</p>
+      <p><b>⬆️ Subir de nível:</b> dá <b>💎 +5 joias</b> e <b>🪙 +100 moedas</b> (estas não contam para o máximo do dia). As joias são raras: guarda-as para as coisas mais especiais da loja.</p>
+      <p><b>🏅 Conquistas:</b> objetivos que só se fazem uma vez, em grupos: eliminações, vitórias, dificuldade, modos de jogo, climas (ganhar com trovoada ou nevoeiro, e no Impossível!), mapas, baús, amigos e níveis (5, 10, 20… até 100). As mais fáceis dão <b>🪙 100 a 600 moedas</b> e as mais difíceis <b>💎 2 a 5 joias</b> (estas moedas não contam para o máximo do dia). Vês todas, e quanto te falta, no <b>Perfil</b>.</p>
+      <p><b>📅 Missões do dia:</b> todos os dias há <b>3 missões novas</b> (botão 📅 no lobby), que dão moedas e, às vezes, joias. <b>🏷️ Títulos:</b> algumas conquistas dão um título; escolhe-o no Perfil e aparece por baixo do teu nome (os amigos também o veem).</p>
+      <p><b>🛒 Loja, Inventário e Perfil:</b> gasta as moedas e as joias na <b>Loja</b> do lobby (skins, formatos de arma, celebrações e rastos ao correr; tudo só de visual) e equipa o que compraste no <b>Inventário</b>. No <b>Perfil</b> vês as tuas estatísticas de sempre e a tua personagem e cor preferidas.</p>
       <p><b>🔥 Mapa de calor:</b> no fim de cada round vês no mapa onde houve mais eliminações, com ✔ onde eliminaste e ✖ onde foste eliminado.</p>      <p><b>🔥 Vitórias seguidas:</b> no lobby vês a quantas vitórias seguidas vais; perder um jogo acaba com a série. O teu recorde fica no Perfil.</p>`),
   ];
 }

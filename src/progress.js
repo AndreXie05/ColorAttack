@@ -2,7 +2,8 @@ import { ITEMS, FREE, DEFAULT_EQUIP, itemById } from "./cosmetics.js";
 
 /* ============================================================
    NÍVEIS, XP, MOEDAS E JOIAS DO JOGADOR (guardados no navegador)
-   Moedas 🪙: metade do XP de cada partida. Joias 💎: +5 por cada nível que sobes.
+   Moedas 🪙: por partida (jogar, eliminações, vitória conforme a dificuldade, séries de vitórias, 1.ª vitória do dia),
+   no máximo 500 por dia. Subir de nível dá 💎 +5 joias e 🪙 +100 moedas (estas não contam para o máximo do dia).
    Também guarda o que compraste na loja (owned) e o que tens equipado (equip).
    No fim de cada partida ganhas XP: eliminações, cor certa, rounds ganhos, vitória e só por jogares.
    Tudo vezes a dificuldade dos bots (mais difícil = mais XP). Cada nível pede um pouco mais de XP do que o anterior.
@@ -14,15 +15,29 @@ export const XP_DIFF = { facil: 0.75, media: 1, dificil: 1.25, impossivel: 1.5 }
 let total = 0;
 try { total = Number(localStorage.getItem(KEY)) || 0; } catch { /* sem localStorage: só em memória */ }
 
-// XP para passar do nível n ao n + 1
-export const needFor = (n) => 100 + 50 * (n - 1);
+// XP para passar do nível n ao n + 1: 200, 300, 500, 750, 1000 nos primeiros; depois 1500 e mais 300 em cada nível (1800, 2100...)
+const FIRST = [200, 300, 500, 750, 1000];
+export const needFor = (n) => (n <= FIRST.length ? FIRST[n - 1] : 1500 + 300 * (n - FIRST.length - 1));
 
 // { level, into (XP já feito neste nível), need (XP para o próximo), total }
-export function levelInfo(xp = total) {
+function levelWith(need, xp) {
   let level = 1, left = xp;
-  while (left >= needFor(level)) { left -= needFor(level); level++; }
-  return { level, into: left, need: needFor(level), total: xp };
+  while (left >= need(level)) { left -= need(level); level++; }
+  return { level, into: left, need: need(level), total: xp };
 }
+export const levelInfo = (xp = total) => levelWith(needFor, xp);
+// Tabela antiga (100, 150, 200...): quem já jogava fica no mesmo nível (e com a mesma parte da barra) na tabela nova
+try {
+  if (localStorage.getItem(KEY + ".v") !== "2") {
+    if (total > 0) {
+      const old = levelWith((n) => 100 + 50 * (n - 1), total);
+      let t = 0; for (let n = 1; n < old.level; n++) t += needFor(n);
+      total = t + Math.round((old.into / old.need) * needFor(old.level));
+      localStorage.setItem(KEY, String(total));
+    }
+    localStorage.setItem(KEY + ".v", "2");
+  }
+} catch { /* ignora */ }
 export const getXP = () => total;
 
 // XP ganho numa partida: devolve as linhas (para o ecrã final) e o total
@@ -39,15 +54,46 @@ export function matchXP({ kills = 0, killsSame = 0, roundsWon = 0, won = false, 
   return { rows, mult: k, total: Math.round(base * k) };
 }
 
-// Soma o XP (e as moedas e joias que vêm com ele) e guarda; devolve o nível antes e depois e o que ganhaste
-export const COINS_PER_XP = 0.5, GEMS_PER_LEVEL = 5;
+// Soma o XP e guarda; cada nível que sobes dá joias e moedas. Devolve o nível antes e depois e o que ganhaste por subir
+export const GEMS_PER_LEVEL = 5, COINS_PER_LEVEL = 100;
 export function addXP(amount) {
   const before = levelInfo(total);
   total += Math.max(0, Math.round(amount));
   try { localStorage.setItem(KEY, String(total)); } catch { /* ignora */ }
-  const after = levelInfo(total), coins = Math.round(amount * COINS_PER_XP), gems = (after.level - before.level) * GEMS_PER_LEVEL;
+  const after = levelInfo(total), ups = after.level - before.level, coins = ups * COINS_PER_LEVEL, gems = ups * GEMS_PER_LEVEL;
   wallet.coins += coins; wallet.gems += gems; saveWallet();
   return { before, after, coins, gems };
+}
+
+export function addGems(n) { wallet.gems += n; saveWallet(); }                       // (conquistas)
+export function addCoins(n) { wallet.coins += n; saveWallet(); }                     // (conquistas: não contam para o máximo do dia)
+
+// ---------- moedas de cada partida (no máximo 500 por dia) ----------
+export const COIN_RULES = { played: 5, kill: 5, killSame: 2, win: { facil: 10, media: 20, dificil: 30, impossivel: 50 }, streakEvery: 3, streak: 20, firstWin: 50, dayMax: 500 };
+const DKEY = "colorattack.day";
+const today = () => new Date().toISOString().slice(0, 10);
+function dayData() {
+  let d = null;
+  try { d = JSON.parse(localStorage.getItem(DKEY)); } catch { /* novo */ }
+  return d && d.date === today() ? d : { date: today(), coins: 0, firstWin: false };
+}
+export const coinsLeftToday = () => Math.max(0, COIN_RULES.dayMax - dayData().coins);
+// streak: vitórias seguidas já contando com esta partida. Devolve as linhas (para o ecrã final), o total ganho e se bateu no máximo do dia
+export function matchCoins({ kills = 0, killsSame = 0, won = false, diff = "media", streak = 0 }) {
+  const R = COIN_RULES, d = dayData();
+  const rows = [
+    ["🎮 Partida jogada", R.played],
+    [`💥 ${kills} ${kills === 1 ? "eliminação" : "eliminações"}`, kills * R.kill],
+    [`🎯 ${killsSame} com a cor certa`, killsSame * R.killSame],
+    ...(won ? [[`🏆 Vitória (${{ facil: "Fácil", media: "Média", dificil: "Difícil", impossivel: "Impossível" }[diff] || "Média"})`, R.win[diff] ?? R.win.media]] : []),
+    ...(won && streak > 0 && streak % R.streakEvery === 0 ? [[`🔥 ${streak} vitórias seguidas`, R.streak]] : []),
+    ...(won && !d.firstWin ? [["☀️ Primeira vitória do dia", R.firstWin]] : []),
+  ].filter((r) => r[1] > 0);
+  const raw = rows.reduce((s, r) => s + r[1], 0), got = Math.min(raw, Math.max(0, R.dayMax - d.coins));
+  d.coins += got; if (won) d.firstWin = true;
+  try { localStorage.setItem(DKEY, JSON.stringify(d)); } catch { /* ignora */ }
+  wallet.coins += got; saveWallet();
+  return { rows, raw, total: got, capped: got < raw, left: R.dayMax - d.coins };
 }
 
 // ---------- carteira e inventário ----------

@@ -159,6 +159,9 @@
   .lbIcon { position: relative; cursor: pointer; width: 48px; height: 48px; padding: 0; display: grid; place-items: center; border-radius: 15px; border: 3px solid #fff; box-shadow: 0 0 0 3px #1a1033, 0 6px 0 3px #1a1033; transition: transform .12s; }
   .lbIcon svg { width: 28px; height: 28px; fill: #fff; stroke: #1a1033; stroke-width: 1.6; stroke-linejoin: round; }
   .lbIcon svg .ln { fill: none; stroke: #fff; stroke-width: 2.8; stroke-linecap: round; }
+  .lbIcon.mis { background: linear-gradient(160deg, #ffb35c, #ff8a1f); position: relative; } .lbIcon .lbEmo { font-style: normal; font-size: 26px; line-height: 1; }
+  #misBadge { position: absolute; top: -6px; right: -6px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 99px; background: #ff3b4a; color: #fff; font-size: 12px; line-height: 20px; border: 2px solid #fff; }
+  #misBadge:empty { display: none; }
   .lbIcon.how { background: linear-gradient(160deg, #6fb2ff, #2f7bff); } .lbIcon.tut { background: linear-gradient(160deg, #7af08f, #2fb34e); } .lbIcon.fs { background: linear-gradient(160deg, #d08cff, #a447ff); }
   .lbIcon span { position: absolute; top: calc(100% + 10px); left: 50%; transform: translateX(-50%); padding: 3px 9px; border-radius: 8px; background: #1a1033; font-size: 12px; font-weight: 800; color: #fff; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .15s; }
   .lbIcon:hover { transform: translateY(-3px) rotate(-4deg); } .lbIcon:hover span { opacity: 1; }
@@ -177,6 +180,31 @@
   .pfCard b { font-family: var(--display); font-weight: 400; font-size: 22px; color: #47e06a; } .pfCard span { font-size: 11px; opacity: .85; }
   .pfEq { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; } .pfEq span { padding: 3px 10px; border-radius: 999px; background: #ffffff1a; font-size: 13px; font-weight: 800; }
   .pfSoon { text-align: center; opacity: .7; font-weight: 800; }
+  /* conquistas (Perfil) */
+  #lbLevel { cursor: pointer; } #lbLevel:hover { filter: brightness(1.15); }
+  .pfAchLink { cursor: pointer; font: inherit; font-size: 15px; padding: 8px 12px; border-radius: 14px; color: #1a1033; background: #ffd21f; border: 2px solid #fff; }
+  .achXp { color: #ffd21f; font-size: 15px; }
+  .lvBar i { display: block; height: 10px; margin: 6px 0 3px; border-radius: 99px; background: #ffffff22; overflow: hidden; } .lvBar i b { display: block; height: 100%; background: linear-gradient(90deg, #ff3b4a, #ffd21f, #47e06a, #2f7bff); }
+  .misCard { display: flex; gap: 12px; align-items: center; padding: 12px; border-radius: 16px; background: #ffffff0d; border: 2px solid #ffffff22; }
+  .misCard.done { background: #47e06a1c; border-color: #47e06a; } .misCard .achIc { font-size: 32px; }
+  .misCard b { display: block; font-size: 16px; } .misCard i { display: block; height: 8px; margin: 6px 0 3px; border-radius: 99px; background: #ffffff22; overflow: hidden; } .misCard i u { display: block; height: 100%; background: #47e06a; }
+  .misCard em { font-style: normal; font-size: 13px; color: #ffd21f; }
+  .misNote { text-align: center; opacity: .75; font-size: 13px; }
+  .pfTitle { display: inline-block; margin-top: 2px; padding: 2px 10px; border-radius: 999px; background: #ffd21f; color: #1a1033; font-size: 13px; }
+  .pfTitles { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pfTitles button { cursor: pointer; font: inherit; font-size: 13px; padding: 4px 10px; border-radius: 999px; color: #fff; background: #ffffff14; border: 2px solid #ffffff44; }
+  .pfTitles button.on { background: #ffd21f; color: #1a1033; border-color: #fff; } .pfTitles button:disabled { cursor: default; opacity: .4; }
+  .achNew.mis span { background: #47e06a; }
+  .pfAchT { margin: 6px 0 0; font-family: var(--display); font-weight: 400; font-size: 20px; color: #ffd21f; } .pfAchT small { font-family: inherit; font-size: 13px; color: #fff; opacity: .7; margin-left: 6px; }
+  .achGrp { margin: 10px 0 2px; font-family: var(--display); font-weight: 400; font-size: 16px; color: #fff; } .achGrp small { font-family: inherit; font-size: 12px; opacity: .6; }
+  .pfAch { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .achCard { display: flex; gap: 8px; align-items: flex-start; padding: 8px; border-radius: 14px; background: #ffffff0d; border: 2px solid #ffffff22; }
+  .achCard.done { background: #ffd21f18; border-color: #ffd21f; }
+  .achIc { font-size: 26px; line-height: 1; flex: none; } .achCard:not(.done) .achIc { opacity: .5; }
+  .achCard b { display: block; font-size: 14px; } .achCard small { display: block; font-size: 11px; opacity: .8; }
+  .achCard i { display: block; height: 6px; margin: 5px 0 2px; border-radius: 99px; background: #ffffff22; overflow: hidden; } .achCard i u { display: block; height: 100%; background: #47e06a; }
+  .achCard em { display: block; font-style: normal; font-size: 11px; color: #ffd21f; }
+  .achNew { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 6px 0; } .achNew span { padding: 4px 12px; border-radius: 999px; background: #ffd21f; color: #1a1033; font-size: 14px; }
   .lbSide { cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; width: 118px; padding: 12px 8px; font: inherit; font-size: 32px; color: #fff;
     background: #0d0b1fb3; border: 3px solid #ffffff66; border-radius: 20px; backdrop-filter: blur(4px); box-shadow: 0 6px 0 #0007; transition: transform .12s, border-color .12s; }
   .lbSide span { font-size: 15px; font-weight: 800; }
@@ -225,7 +253,7 @@
   #lbFlash.show { animation: lbFlash 2s; }
   @keyframes lbFlash { 0% { opacity: 0; transform: translate(-50%, -10px); } 15%, 75% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; } }
   @media (max-width: 1500px) { .lbNavBtn { font-size: 16px; padding: 7px 12px; } }      /* janelas mais estreitas (ex.: 1280): a barra não tapa os ícones da direita */
-  @media (max-width: 1180px) { #lbIcons { top: 140px; } }
+  @media (max-width: 1440px) { #lbIcons { top: 140px; } #lbPanel { top: 200px; } }        /* (com o botão das missões os ícones já não cabem ao lado da barra: descem, e o painel também) */
   @media (max-width: 900px) { .lbNavBtn { font-size: 14px; padding: 6px 10px; } #lbIcons { top: 140px; } }
   @media (max-width: 800px) { #lbPanel { width: 92vw; } #lobby.panel #lbBottom { opacity: 0; pointer-events: none; } }
 
@@ -255,6 +283,7 @@
   .fbTeams ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
   .fbTeams li { padding: 5px 10px; border-radius: 10px; background: #ffffff10; border-left: 5px solid var(--c); font-size: 15px; } .fbTeams li i { opacity: .7; font-style: normal; font-size: 12px; }
   .fbTeams li.fbNone { border-left-color: transparent; opacity: .5; }
+  .fbTitle { display: block; font-size: 11px; color: #ffd21f; }
   .fbBots { display: block; margin-top: 5px; opacity: .6; font-size: 12px; }
   .fbStatus { min-height: 18px; text-align: center; color: #ffd21f; font-size: 14px; }
 
@@ -271,6 +300,7 @@
   .xpRows div { display: flex; justify-content: space-between; gap: 10px; } .xpRows b { color: #47e06a; }
   .xpRows .xpTot { grid-column: 1 / -1; border-top: 2px solid #ffffff2e; padding-top: 4px; } .xpRows .xpTot b { color: #ffd21f; font-size: 18px; }
   .xpLoot { font-family: var(--display); font-size: 20px; color: #ffd21f; }
+  .coinRows { margin-top: 8px; padding-top: 6px; border-top: 2px dashed #ffffff2e; } .coinRows b { color: #ffd21f; } .coinCap { grid-column: 1 / -1; opacity: .8; font-size: 12px; }
   .xpUp { font-family: var(--display); color: #ffd21f; font-size: 22px; animation: cdPop .5s; }
   /* Mistura Relâmpago: quadro com as misturas em vigor */
   #mixTable { margin-top: 10px; width: fit-content; display: none; transform-origin: left center; flex-direction: column; gap: 4px; padding: 8px 12px; border-radius: 14px; background: #0d0b1fcc; border: 3px solid #ffd21f; color: #fff; }
@@ -894,7 +924,7 @@
   <div id="lobbyStage"></div>
   <div id="lbTop">
     <div id="lbLogo"><span style="--c:#ff3b4a;--d:0.00s;--r:4deg">C</span><span style="--c:#ffd21f;--d:0.12s;--r:-4deg">o</span><span style="--c:#2f7bff;--d:0.24s;--r:4deg">l</span><span style="--c:#47e06a;--d:0.36s;--r:-4deg">o</span><span style="--c:#a447ff;--d:0.48s;--r:4deg">r</span><span style="--c:#ff8a1f;--d:0.60s;--r:-4deg">A</span><span style="--c:#ff3b4a;--d:0.72s;--r:4deg">t</span><span style="--c:#ffd21f;--d:0.84s;--r:-4deg">t</span><span style="--c:#2f7bff;--d:0.96s;--r:4deg">a</span><span style="--c:#47e06a;--d:1.08s;--r:-4deg">c</span><span style="--c:#a447ff;--d:1.20s;--r:4deg">k</span></div>
-    <div id="lbStats"><div id="lbLevel" class="lbLevel"></div><span id="lbStreak" class="lbPill fire" title="Vitórias seguidas (perdes a série se perderes um jogo)"><span class="pIc">🔥</span><b id="lbStreakN">0</b></span><span class="lbPill coin" title="Moedas: ganhas em cada partida"><span class="pIc">🪙</span><b id="lbCoins">0</b></span><span class="lbPill gem" title="Joias: +5 por cada nível que sobes"><span class="pIc">💎</span><b id="lbGems">0</b></span></div>
+    <div id="lbStats"><div id="lbLevel" class="lbLevel"></div><span id="lbStreak" class="lbPill fire" title="Vitórias seguidas (perdes a série se perderes um jogo)"><span class="pIc">🔥</span><b id="lbStreakN">0</b></span><span class="lbPill coin" title="Moedas: ganhas em cada partida (máximo 500 por dia) e +100 por cada nível que sobes"><span class="pIc">🪙</span><b id="lbCoins">0</b></span><span class="lbPill gem" title="Joias: +5 por cada nível que sobes e com as conquistas mais difíceis (clica no teu nível para as veres)"><span class="pIc">💎</span><b id="lbGems">0</b></span></div>
   </div>
   <nav id="lbNav">
     <button id="lbHomeBtn" class="lbNavBtn on">🏠 Lobby</button>
@@ -905,6 +935,7 @@
     <button id="lbFriendsBtn" class="lbNavBtn friends">👥 Amigos</button>
   </nav>
   <div id="lbIcons">
+    <button id="misBtn" class="lbIcon mis" title="Missões do dia"><i class="lbEmo">📅</i><b id="misBadge"></b><span>Missões do dia</span></button>
     <button id="howBtn" class="lbIcon how" title="Instruções"><svg viewBox="0 0 24 24"><path d="M3.5 5.5c3-1.6 6-1.6 8.5 0v14c-2.5-1.6-5.5-1.6-8.5 0zM20.5 5.5c-3-1.6-6-1.6-8.5 0v14c2.5-1.6 5.5-1.6 8.5 0z"/></svg><span>Instruções</span></button>
     <button id="tutorialBtn" class="lbIcon tut" title="Tutorial"><svg viewBox="0 0 24 24"><path d="M1.5 9.5 12 4.5l10.5 5L12 14.5z"/><path d="M6 12v4.2c3.3 2.6 8.7 2.6 12 0V12l-6 2.8z"/><path class="ln" d="M21 10v6"/></svg><span>Tutorial</span></button>
     <button id="fsBtn" class="lbIcon fs" title="Ecrã inteiro"><svg viewBox="0 0 24 24"><path class="ln" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><span>Ecrã inteiro</span></button>

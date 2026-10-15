@@ -7,7 +7,7 @@ export const CONFIG = {
   ui: { enemyNameDist: 30, symbolAboveHead: false, bodyTint: 0.75, crosshair: true },    // símbolo da cor por cima da cabeça de cada jogador (ajuda a saber a cor dos adversários)
   mixSeconds: 0.1,                       // tempo para misturar duas cores (0 = instantâneo, melhoria futura)
   health: { max: 100, wrongHit: 4, partialHit: 8, cure: 40 },     // vida leve: cor certa elimina de vez; cor errada tira 4; cor misturada atingida por uma das suas cores tira 8
-  ammo: { start: 0, max: 200, regen: 0.12 },                  // tanques por cor primária: tiros iniciais, máximo e recarga lenta (tiros/s por cor)
+  ammo: { start: 0, max: 500, regen: 0.12 },                  // tanques por cor primária: tiros iniciais, máximo e recarga lenta (tiros/s por cor)
   paint: { lifeSeconds: 15, fadeSeconds: 3 },                   // a tinta no chão desaparece 15 s depois de cair (esbate nos últimos 3 s)
   match: { intenseAt: 4, intenseEvery: 5,   // modo intenso: com 4 rounds ganhos por uma equipa, as cores mudam de 5 em 5 s
           toWin: 5, maxRounds: 9,  intermission: 4 },          // primeiro a 5 rounds (máx. 9); pausa entre rounds (s)
@@ -27,7 +27,7 @@ export const CONFIG = {
   countdown: 3,                          // contagem "3, 2, 1, PINTA!" no início de cada round (s)
   cannon: { use: 5, cooldown: 20, fireEvery: 0.9, range: 34, radius: 3.6 },   // canhão de tinta: tempo a usar, recarga, s entre bolas, alcance e área de cada bola
   radarSeconds: 5,                       // bónus de eliminar com a cor certa: vês os adversários no minimapa durante estes segundos
-  ammoBox: { shots: 7 },                 // uma caixa de munição = 7 tiros de UMA cor primária
+  ammoBox: { shots: 15 },                // uma caixa de munição = 15 tiros de UMA cor primária
   rewards: [                             // 80% dos baús dão um destes prémios; weight = % entre os prémios (soma 100)
     { id: "ammo",      icon: "📦", label: "Caixa de munição", weight: 64, drops: [1, 3] },   // 1 a 3 caixas, cada uma de uma cor à sorte
     { id: "grenade",   icon: "💣", label: "Granada de tinta", weight: 14, drops: [1, 1] },
@@ -76,7 +76,7 @@ export const MODES = {
   paleta:  { id: "paleta",  icon: "🟤", name: "Paleta Completa", desc: "Há uma 7.ª cor, o castanho (1 + 2 + 3), e quase tudo pode acabar castanho" },
   relampago: { id: "relampago", icon: "⚡", name: "Mistura Relâmpago", desc: "De 30 em 30 s as misturas trocam: vermelho + azul pode passar a dar verde! Vê o quadro no ecrã", shuffleEvery: 30 },
   latas:   { id: "latas",   icon: "🥫", name: "Rouba-Latas",     desc: "Rouba a lata de tinta da base adversária e leva-a até à tua: cada entrega vale +2 pontos" },
-  zonas:   { id: "zonas",   icon: "🖌️", name: "Pinta e Conquista", desc: "Pinta as zonas marcadas no chão: quem tiver mais tinta numa zona ganha 1 ponto a cada 15 s. A tinta seca em 10 s e cada caixa dá 25 balas", ammoBox: 25 },   // ammoBox: cada caixa de munição dá 25 balas (é preciso muita tinta para pintar)
+  zonas:   { id: "zonas",   icon: "🖌️", name: "Pinta e Conquista", desc: "Pinta as zonas marcadas no chão: quem tiver mais tinta numa zona ganha 1 ponto a cada 15 s. A tinta seca em 10 s e cada caixa dá 40 balas", ammoBox: 40 },   // ammoBox: cada caixa de munição dá 40 balas (é preciso muita tinta para pintar)
 };
 CONFIG.mode = (() => { try { const m = localStorage.getItem("colorattack.mode"); return MODES[m] ? m : "normal"; } catch { return "normal"; } })();
 export function setGameMode(id) {

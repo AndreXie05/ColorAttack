@@ -448,6 +448,7 @@ function makeCans(group, disposables, ctx) {
   };
   const tell = (e, can, q = null) => {                                                // mostra aqui e avisa os convidados
     ctx.emit?.({ k: "can", e, can: can.team, q: q?.id || null });
+    if (e === "score" && q?.isPlayer) ctx.mine?.("can");
     if (e !== "score") ctx.toast(text(e, can, q), teamCss(q ? q.team : can.team));
   };
   return {
@@ -466,6 +467,7 @@ function makeCans(group, disposables, ctx) {
     onEvent(ev) {
       const can = cans.find((k) => k.team === ctx.T(ev.can)), q = ctx.byId(ev.q);
       if (can && (q || !ev.q)) ctx.toast(text(ev.e, can, q), teamCss(q ? q.team : can.team));
+      if (ev.e === "score" && q?.isPlayer) ctx.mine?.("can");
     },
     update(dt) {
       if (ctx.mirror) {                                                                // convidado: só mostra (a lata acompanha quem a leva)

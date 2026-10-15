@@ -8,8 +8,9 @@
   "main": "electron/main.js",
   "scripts": {
     "app": "electron .",
-    "build:linux": "electron-builder --linux AppImage",
-    "build:win": "electron-builder --win zip"
+    "build:linux": "electron-builder --linux AppImage deb",
+    "build:win": "electron-builder --win zip",
+    "build:win-instalador": "electron-builder --win nsis"
   },
   "build": {
     "appId": "pt.colorattack.jogo",
@@ -27,23 +28,43 @@
       "electron/**/*"
     ],
     "linux": {
-      "target": "AppImage",
+      "target": [
+        "AppImage",
+        "deb"
+      ],
       "category": "Game",
       "icon": "electron/icon.png",
-      "artifactName": "ColorAttack-${version}-Linux.AppImage",
+      "artifactName": "ColorAttack-${version}-Linux.${ext}",
       "executableArgs": [
         "--no-sandbox"
-      ]
+      ],
+      "maintainer": "AX112705 <ax051226@gmail.com>"
     },
     "win": {
-      "target": "zip",
+      "target": [
+        "nsis",
+        "zip"
+      ],
       "icon": "electron/icon.png",
       "signAndEditExecutable": false,
-      "artifactName": "ColorAttack-${version}-Windows.zip"
+      "artifactName": "ColorAttack-${version}-Windows.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "ColorAttack",
+      "artifactName": "ColorAttack-${version}-Instalar-Windows.exe",
+      "language": "2070"
+    },
+    "deb": {
+      "artifactName": "ColorAttack-${version}-Instalar-Linux.deb"
     }
   },
   "devDependencies": {
     "electron": "^44.7.2",
     "electron-builder": "^26.15.3"
-  }
+  },
+  "homepage": "https://github.com/AndreXie05/ColorAttack"
 }

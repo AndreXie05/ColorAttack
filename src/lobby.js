@@ -7,6 +7,8 @@ import { createTrails } from "./trails.js";
 import * as Progress from "./progress.js";
 import * as Emotes from "./emotes.js";
 import * as Stats from "./stats.js";
+import * as Ach from "./achievements.js";
+import * as Missions from "./missions.js";
 import { portraitUrl, fullBodyUrl } from "./portraits.js";
 import * as ShopArt from "./shop-art.js";
 import { CHARACTERS } from "./characters.js";
@@ -289,6 +291,7 @@ export function createLobby({ renderer, template, onEquip, onPanel, getTemplate 
     $("lbLevel").innerHTML = `<span class="lvStar"><b>${lv.level}</b></span><div class="lvInfo"><div class="lvTop"><span>Nível ${lv.level}</span><span>${lv.into} / ${lv.need} XP</span></div><i><b style="width:${Math.max(4, Math.round((lv.into / lv.need) * 100))}%"></b></i></div>`;
     $("lbCoins").textContent = w.coins; $("lbGems").textContent = w.gems;
     const ws = Stats.winStreak(); $("lbStreak").style.display = ws > 0 ? "" : "none"; $("lbStreakN").textContent = ws;   // a quantas vitórias seguidas vais
+    const left = Missions.list().filter((m) => !m.done).length; $("misBadge").textContent = left || "";   // missões do dia por fazer
   }
   // Perfil: nível, moedas, estatísticas de sempre, personagem e cor preferidas, melhor jogo e o que tens equipado
   function profileHTML() {
@@ -297,7 +300,7 @@ export function createLobby({ renderer, template, onEquip, onPanel, getTemplate 
     const ch = p.favChar && CHARACTERS.find((c) => c.id === p.favChar[0]), url = ch && portraitUrl(ch.id, TEAM.A.color);
     const card = (v, label) => `<div class="pfCard"><b>${v}</b><span>${label}</span></div>`;
     const eq = ["boneco", "arma", "emote", "rasto"].map((k) => itemById(w.equip[k])).filter(Boolean);
-    return `<div class="pfHead"><span class="lvStar big"><b>${lv.level}</b></span><div><b class="pfLv">Nível ${lv.level}</b><small>${lv.total} XP no total · faltam ${lv.need - lv.into} XP para o nível ${lv.level + 1}</small>
+    return `<div class="pfHead"><span class="lvStar big"><b>${lv.level}</b></span><div><b class="pfLv">Nível ${lv.level}</b> <span class="pfTitle">🏷️ ${Ach.titleName()}</span><small>${lv.total} XP no total · faltam ${lv.need - lv.into} XP para o nível ${lv.level + 1}</small>
         <div class="pfMoney"><span>🪙 ${w.coins}</span><span>💎 ${w.gems}</span><span>🎒 ${w.owned.length} itens</span></div></div></div>
       <div class="pfFavs">
         <div class="pfFav">${url ? `<img src="${url}" alt="">` : "<i>❔</i>"}<div><small>Personagem preferida</small><b>${ch ? ch.name : "Ainda nenhuma"}</b>${p.favChar ? `<small>${p.favChar[1]} ${p.favChar[1] === 1 ? "jogo" : "jogos"}</small>` : ""}</div></div>
@@ -307,16 +310,52 @@ export function createLobby({ renderer, template, onEquip, onPanel, getTemplate 
         ${card(per(p.kills, p.deaths), "Elim. / mortes")}${card(pct(p.killsSame, p.kills), "Com a cor certa")}${card(per(p.gameKills, p.games), "Elim. por jogo")}${card(p.bestKills, "Recorde de eliminações")}
         ${card("🔥 " + p.winStreak, "Vitórias seguidas agora")}${card(p.bestWinStreak, "Recorde de vitórias seguidas")}</div>
       <div class="pfEq"><small>Equipado:</small>${eq.map((it) => `<span title="${it.name}">${it.icon} ${it.name}</span>`).join("")}</div>
-      <div class="pfSoon">🏅 Conquistas: em breve!</div>`;
+      ${titlesHTML()}
+      <button class="pfAchLink" data-tab="ach">🏅 Conquistas: ${Ach.list().filter((a) => a.done).length} / ${Ach.list().length} feitas · ver todas</button>`;
   }
-  const rarity = (it) => (it.cur === "gems" ? "gold" : it.price >= 500 ? "epic" : it.price === 0 ? "free" : "rare");
+  // Títulos: os que já ganhaste podem ser escolhidos (aparecem por baixo do teu nome, também para os amigos); os outros mostram a conquista que os dá
+  function titlesHTML() {
+    const all = Ach.titles(), cur = Ach.titleName(), n = all.filter((t) => t.have).length;
+    return `<h4 class="pfAchT">🏷️ Título <small>${n} / ${all.length} · ganham-se com conquistas</small></h4><div class="pfTitles">${all.map((t) =>
+      `<button data-title="${t.id}" class="${t.name === cur ? "on" : ""}" ${t.have ? "" : "disabled"} title="${t.have ? "Usar este título" : "🔒 Conquista: " + t.from}">${t.have ? "" : "🔒 "}${t.name}</button>`).join("")}</div>`;
+  }
+  // Missões do dia: 3 por dia, mudam à meia-noite
+  function missionsHTML() {
+    const list = Missions.list();
+    return list.map((m) => `<div class="misCard${m.done ? " done" : ""}"><span class="achIc">${m.done ? "✅" : m.icon}</span><div style="flex:1"><b>${m.desc}</b>
+        ${m.done ? `<em>✔ Feita · ${Missions.prize(m)}</em>` : `<i><u style="width:${Math.round((m.have / m.n) * 100)}%"></u></i><em>${m.have} / ${m.n} · ${Missions.prize(m)}</em>`}</div></div>`).join("") +
+      `<p class="misNote">📅 Missões novas daqui a ${Missions.untilNew()} · as moedas das missões não contam para o máximo do dia</p>`;
+  }
+  // Página das conquistas (abre ao clicar no nível): o teu nível e o XP total da conta em cima, as conquistas por baixo
+  function achPageHTML() {
+    const lv = Progress.levelInfo();
+    return `<div class="pfHead"><span class="lvStar big"><b>${lv.level}</b></span><div><b class="pfLv">Nível ${lv.level}</b>
+        <small><b class="achXp">⭐ ${lv.total.toLocaleString("pt-PT")} XP</b> no total da conta</small>
+        <div class="lvBar"><i><b style="width:${Math.max(3, Math.round((lv.into / lv.need) * 100))}%"></b></i><small>${lv.into} / ${lv.need} XP · faltam ${lv.need - lv.into} para o nível ${lv.level + 1}</small></div></div></div>
+      ${achievementsHTML()}`;
+  }
+  // Conquistas: as feitas primeiro; cada uma com a barra do progresso e as joias que dá
+  function achievementsHTML() {
+    const all = Ach.list(), n = all.filter((a) => a.done).length;
+    const cardHTML = (a) => `<div class="achCard${a.done ? " done" : ""}"><span class="achIc">${a.done ? a.icon : "🔒"}</span><div><b>${a.name}</b><small>${a.desc}</small>
+        ${a.done ? `<em>✔ Feita · ${Ach.prize(a)}</em>` : `<i><u style="width:${Math.round((a.have / a.n) * 100)}%"></u></i><em>${a.have} / ${a.n} · ${Ach.prize(a)}</em>`}</div></div>`;
+    return `<h4 class="pfAchT">🏅 Conquistas <small>${n} / ${all.length} · as fáceis dão 🪙 moedas, as difíceis 💎 joias</small></h4>` +
+      Ach.CATEGORIES.map((cat) => {                                                    // por grupos; dentro de cada um, as feitas primeiro
+        const items = all.filter((a) => a.cat === cat.id).sort((a, b) => b.done - a.done);
+        return `<h5 class="achGrp">${cat.name} <small>${items.filter((a) => a.done).length} / ${items.length}</small></h5><div class="pfAch">${items.map(cardHTML).join("")}</div>`;
+      }).join("");
+  }
+  const rarity = (it) => (it.cur === "gems" ? "gold" : it.price >= 2000 ? "epic" : it.price === 0 ? "free" : "rare");
   const rarityRank = (it) => ({ free: 0, rare: 1, epic: 2, gold: 3 })[rarity(it)];
   function renderPanel() {
     const w = Progress.wallet, lv = Progress.levelInfo().level;
-    const prof = tab === "profile";
+    const prof = tab === "profile" || tab === "ach" || tab === "missions";
     $("lbCats").style.display = prof ? "none" : ""; $("lbPanel").querySelector(".lbHint").style.display = prof ? "none" : "";
     $("lbItems").classList.toggle("pf", prof);
-    if (prof) { $("lbTitle").textContent = "👤 Perfil"; $("lbItems").innerHTML = profileHTML(); renderTop(); return; }
+    if (prof) {
+      $("lbTitle").textContent = tab === "ach" ? "🏅 Conquistas" : tab === "missions" ? "📅 Missões do dia" : "👤 Perfil";
+      $("lbItems").innerHTML = tab === "ach" ? achPageHTML() : tab === "missions" ? missionsHTML() : profileHTML(); renderTop(); return;
+    }
     $("lbTitle").textContent = tab === "shop" ? "🛒 Loja" : "🎒 Inventário";
     $("lbCats").innerHTML = CATEGORIES.map((c) => `<button class="chip${cat === c.id ? " on" : ""}" data-cat="${c.id}">${c.icon} ${c.name}</button>`).join("");
     const list = ITEMS.filter((it) => it.cat === cat && (tab === "inv" ? Progress.owns(it.id) : !Progress.owns(it.id)))
@@ -348,6 +387,8 @@ export function createLobby({ renderer, template, onEquip, onPanel, getTemplate 
     setCharacterPaint(model, PAINT);
   }
   $("lbPanel").addEventListener("click", (e) => {
+    const tt = e.target.closest("[data-title]");
+    if (tt && !tt.disabled) { Ach.setTitle(tt.dataset.title); renderPanel(); flash(`🏷️ Título: ${Ach.titleName()}`); return; }
     const card = itemById(e.target.closest("[data-try]")?.dataset.try);
     if (card?.cat === "emote") { Emotes.stop(celeb); Emotes.play(celeb, card.id, performance.now()); }   // clicar numa celebração: o boneco fá-la (só assim; parado no resto do tempo)
     const t = e.target.closest("[data-tab],[data-cat],[data-buy],[data-equip]");
@@ -367,6 +408,7 @@ export function createLobby({ renderer, template, onEquip, onPanel, getTemplate 
   }
   function closePanel() { $("lbPanel").classList.remove("open"); $("lobby").classList.remove("panel"); trying = null; preview(null); onPanel?.(null); }
   $("lbClose").addEventListener("click", closePanel);
+  $("lbLevel").addEventListener("click", () => openPanel("ach"));                      // clicar no nível: conquistas e XP total
 
   return {
     setModel, openPanel, closePanel, renderTop, flash,

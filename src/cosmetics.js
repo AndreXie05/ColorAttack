@@ -21,65 +21,97 @@ export const ITEMS = [
   ...CHARACTERS.map((c) => I("boneco_" + c.id, "boneco", c.name, c.icon, c.price, c.cur, c.level, c.desc)),
   // armas
   I("arma_pistola", "arma", "Pistola", "🔫", 0, "coins", 1, "A pistola de tinta original"),
-  I("arma_ketchup", "arma", "Bisnaga de ketchup", "🥫", 250, "coins", 1, "Tinta… ou molho?"),
-  I("arma_agua", "arma", "Pistola de água", "💦", 300, "coins", 1, "Depósito grande e redondo"),
-  I("arma_lapis", "arma", "Lápis gigante", "✏️", 300, "coins", 2, "Para desenhar à pistolada"),
-  I("arma_spray", "arma", "Lata de spray", "🎨", 350, "coins", 2, "Arte urbana"),
-  I("arma_pincel", "arma", "Pincel gigante", "🖌️", 400, "coins", 3, "Pinta como um artista"),
-  I("arma_rolo", "arma", "Rolo de pintar", "🧻", 500, "coins", 4, "Para pintar paredes inteiras"),
-  I("arma_laser", "arma", "Pistola laser", "🔆", 600, "coins", 5, "Do futuro, com anéis a brilhar"),
-  I("arma_bisnaga", "arma", "Bisnaga", "🧴", 12, "gems", 6, "Uma bisnaga de tinta enorme"),
-  I("arma_banana", "arma", "Banana", "🍌", 250, "coins", 1, "A tinta sai pela ponta"),
-  I("arma_cenoura", "arma", "Cenoura gigante", "🥕", 300, "coins", 2, "Com folhas e tudo"),
-  I("arma_chupa", "arma", "Chupa-chupa", "🍭", 300, "coins", 2, "Doce e perigoso"),
-  I("arma_guarda", "arma", "Guarda-chuva", "☂️", 350, "coins", 3, "Fechado, pronto a pintar"),
-  I("arma_peixe", "arma", "Peixe", "🐟", 400, "coins", 3, "Dispara pela boca"),
-  I("arma_mangueira", "arma", "Mangueira", "🌿", 400, "coins", 3, "Enrolada, com agulheta de metal"),
-  I("arma_trompete", "arma", "Trompete", "🎺", 500, "coins", 4, "A tinta sai pela campânula"),
-  I("arma_extintor", "arma", "Extintor", "🧯", 550, "coins", 5, "Espuma de tinta"),
-  I("arma_espacial", "arma", "Pistola espacial", "🛸", 650, "coins", 6, "Retro, com barbatanas"),
-  I("arma_bazuca", "arma", "Bazuca de tinta", "🎯", 15, "gems", 7, "Um tubo enorme ao ombro"),
-  I("arma_diamante", "arma", "Pistola de cristal", "💎", 18, "gems", 8, "Transparente, com um diamante de tinta"),
-  I("arma_dourada", "arma", "Pistola dourada", "🏆", 20, "gems", 8, "Ouro puro, para lendas"),
+  I("arma_ketchup", "arma", "Bisnaga de ketchup", "🥫", 1000, "coins", 1, "Tinta… ou molho?"),
+  I("arma_agua", "arma", "Pistola de água", "💦", 1200, "coins", 1, "Depósito grande e redondo"),
+  I("arma_lapis", "arma", "Lápis gigante", "✏️", 1200, "coins", 2, "Para desenhar à pistolada"),
+  I("arma_spray", "arma", "Lata de spray", "🎨", 1400, "coins", 2, "Arte urbana"),
+  I("arma_pincel", "arma", "Pincel gigante", "🖌️", 1600, "coins", 3, "Pinta como um artista"),
+  I("arma_rolo", "arma", "Rolo de pintar", "🧻", 2000, "coins", 4, "Para pintar paredes inteiras"),
+  I("arma_laser", "arma", "Pistola laser", "🔆", 2400, "coins", 5, "Do futuro, com anéis a brilhar"),
+  I("arma_bisnaga", "arma", "Bisnaga", "🧴", 55, "gems", 6, "Uma bisnaga de tinta enorme"),
+  I("arma_banana", "arma", "Banana", "🍌", 1000, "coins", 1, "A tinta sai pela ponta"),
+  I("arma_cenoura", "arma", "Cenoura gigante", "🥕", 1200, "coins", 2, "Com folhas e tudo"),
+  I("arma_chupa", "arma", "Chupa-chupa", "🍭", 1200, "coins", 2, "Doce e perigoso"),
+  I("arma_guarda", "arma", "Guarda-chuva", "☂️", 1400, "coins", 3, "Fechado, pronto a pintar"),
+  I("arma_peixe", "arma", "Peixe", "🐟", 1600, "coins", 3, "Dispara pela boca"),
+  I("arma_mangueira", "arma", "Mangueira", "🌿", 1600, "coins", 3, "Enrolada, com agulheta de metal"),
+  I("arma_trompete", "arma", "Trompete", "🎺", 2000, "coins", 4, "A tinta sai pela campânula"),
+  I("arma_extintor", "arma", "Extintor", "🧯", 2200, "coins", 5, "Espuma de tinta"),
+  I("arma_espacial", "arma", "Pistola espacial", "🛸", 2600, "coins", 6, "Retro, com barbatanas"),
+  I("arma_baguete", "arma", "Baguete", "🥖", 1000, "coins", 1, "Pão fresquinho… com tinta"),
+  I("arma_flor", "arma", "Girassol", "🌻", 1200, "coins", 2, "A tinta sai do meio da flor"),
+  I("arma_garrafa", "arma", "Garrafa", "🍾", 1400, "coins", 2, "Abana bem antes de disparar"),
+  I("arma_martelo", "arma", "Martelo de brincar", "🔨", 1600, "coins", 3, "Bate e pinta"),
+  I("arma_microfone", "arma", "Microfone", "🎤", 1800, "coins", 3, "Para cantar vitórias"),
+  I("arma_vassoura", "arma", "Vassoura", "🧹", 2000, "coins", 4, "Varre os adversários do mapa"),
+  I("arma_tridente", "arma", "Tridente", "🔱", 2600, "coins", 6, "Três pontas douradas"),
+  I("arma_varinha", "arma", "Varinha mágica", "🪄", 3000, "coins", 7, "Com uma estrela de tinta na ponta"),
+  I("arma_arcoiris", "arma", "Canhão arco-íris", "🌈", 75, "gems", 8, "Um tubo com anéis de todas as cores"),
+  I("arma_bazuca", "arma", "Bazuca de tinta", "🎯", 70, "gems", 7, "Um tubo enorme ao ombro"),
+  I("arma_diamante", "arma", "Pistola de cristal", "💎", 80, "gems", 8, "Transparente, com um diamante de tinta"),
+  I("arma_dourada", "arma", "Pistola dourada", "🏆", 90, "gems", 8, "Ouro puro, para lendas"),
   // celebrações (tecla Z; animações em emotes.js)
   I("emote_aceno", "emote", "Aceno", "👋", 0, "coins", 1, "Um olá simpático (tecla Z)"),
-  I("emote_palmas", "emote", "Palmas", "👏", 200, "coins", 1, "Bate palmas"),
-  I("emote_venia", "emote", "Vénia", "🙇", 250, "coins", 1, "Uma vénia educada"),
-  I("emote_danca", "emote", "Dança", "🕺", 250, "coins", 1, "Uns passos de dança"),
-  I("emote_heroi", "emote", "Pose de herói", "💪", 300, "coins", 2, "Punho no ar, como um campeão"),
-  I("emote_saltos", "emote", "Polichinelos", "🤾", 300, "coins", 2, "Saltos com braços e pernas abertos"),
-  I("emote_mortal", "emote", "Mortal", "🤸", 400, "coins", 3, "Um mortal para trás"),
-  I("emote_robo", "emote", "Dança do robô", "🤖", 450, "coins", 4, "8 poses aos solavancos e, no fim, desliga-se"),
-  I("emote_guitarra", "emote", "Guitarra no ar", "🎸", 500, "coins", 5, "Guitarra elétrica a sério e um solo épico"),
-  I("emote_piao", "emote", "Pião", "🌀", 8, "gems", 4, "Gira como um pião"),
-  I("emote_coracao", "emote", "Coração", "💖", 250, "coins", 1, "Um coração com as mãos, a bater"),
-  I("emote_sono", "emote", "A dormir", "😴", 250, "coins", 1, "Adormece de pé… e acorda num salto"),
-  I("emote_floss", "emote", "Floss", "🕺", 350, "coins", 2, "Braços de um lado para o outro, sem parar"),
-  I("emote_dab", "emote", "Dab", "😎", 350, "coins", 2, "Dois dabs, um para cada lado"),
-  I("emote_cavalinho", "emote", "Cavalinho", "🐴", 450, "coins", 3, "Braços cruzados e saltinhos de lado"),
-  I("emote_karate", "emote", "Karaté", "🥋", 500, "coins", 4, "Golpe de mão, pontapé alto e soco"),
-  I("emote_flexoes", "emote", "Flexões", "💪", 550, "coins", 5, "Deita-se e faz flexões"),
-  I("emote_meditar", "emote", "Meditar", "🧘", 10, "gems", 6, "Pernas cruzadas… e a flutuar"),
+  I("emote_palmas", "emote", "Palmas", "👏", 800, "coins", 1, "Bate palmas"),
+  I("emote_venia", "emote", "Vénia", "🙇", 1000, "coins", 1, "Uma vénia educada"),
+  I("emote_danca", "emote", "Dança", "🕺", 1000, "coins", 1, "Uns passos de dança"),
+  I("emote_heroi", "emote", "Pose de herói", "💪", 1200, "coins", 2, "Punho no ar, como um campeão"),
+  I("emote_saltos", "emote", "Polichinelos", "🤾", 1200, "coins", 2, "Saltos com braços e pernas abertos"),
+  I("emote_mortal", "emote", "Mortal", "🤸", 1600, "coins", 3, "Um mortal para trás"),
+  I("emote_robo", "emote", "Dança do robô", "🤖", 1800, "coins", 4, "8 poses aos solavancos e, no fim, desliga-se"),
+  I("emote_guitarra", "emote", "Guitarra no ar", "🎸", 2000, "coins", 5, "Guitarra elétrica a sério e um solo épico"),
+  I("emote_piao", "emote", "Pião", "🌀", 35, "gems", 4, "Gira como um pião"),
+  I("emote_coracao", "emote", "Coração", "💖", 1000, "coins", 1, "Um coração com as mãos, a bater"),
+  I("emote_sono", "emote", "A dormir", "😴", 1000, "coins", 1, "Adormece de pé… e acorda num salto"),
+  I("emote_floss", "emote", "Floss", "🕺", 1400, "coins", 2, "Braços de um lado para o outro, sem parar"),
+  I("emote_dab", "emote", "Dab", "😎", 1400, "coins", 2, "Dois dabs, um para cada lado"),
+  I("emote_cavalinho", "emote", "Cavalinho", "🐴", 1800, "coins", 3, "Braços cruzados e saltinhos de lado"),
+  I("emote_karate", "emote", "Karaté", "🥋", 2000, "coins", 4, "Golpe de mão, pontapé alto e soco"),
+  I("emote_flexoes", "emote", "Flexões", "💪", 2200, "coins", 5, "Deita-se e faz flexões"),
+  I("emote_continencia", "emote", "Continência", "🫡", 800, "coins", 1, "Às ordens, capitão!"),
+  I("emote_riso", "emote", "Rir à gargalhada", "😂", 1000, "coins", 1, "Não aguenta de tanto rir"),
+  I("emote_beijo", "emote", "Beijinho", "😘", 1200, "coins", 1, "Manda um beijinho"),
+  I("emote_choro", "emote", "Chorar", "😭", 1200, "coins", 2, "Mãos na cara… e muitas lágrimas"),
+  I("emote_vitoria", "emote", "Vitória!", "✌️", 1400, "coins", 2, "Saltos com os braços no ar"),
+  I("emote_galinha", "emote", "Dança da galinha", "🐔", 1600, "coins", 3, "Có-có-ró-có!"),
+  I("emote_pinguim", "emote", "Andar de pinguim", "🐧", 1600, "coins", 3, "Braços colados e a abanar"),
+  I("emote_zangado", "emote", "Birra", "😤", 1800, "coins", 4, "Braços cruzados e pé a bater"),
+  I("emote_onda", "emote", "A onda", "🙌", 2000, "coins", 4, "Os dois braços a abanar no ar"),
+  I("emote_desmaio", "emote", "Desmaio", "😵", 2600, "coins", 6, "Cai para trás… e levanta-se"),
+  I("emote_helicoptero", "emote", "Helicóptero", "🚁", 65, "gems", 7, "Gira, gira… e levanta voo"),
+  I("emote_meditar", "emote", "Meditar", "🧘", 45, "gems", 6, "Pernas cruzadas… e a flutuar"),
   // rastos (ao correr; trails.js)
   I("rasto_nada", "rasto", "Nenhum", "🚫", 0, "coins", 1, "Sem rasto"),
-  I("rasto_estrelas", "rasto", "Estrelas", "⭐", 300, "coins", 2, "Deixas estrelas por onde passas"),
-  I("rasto_coracoes", "rasto", "Corações", "💖", 300, "coins", 2, "Muito amor pelo caminho"),
-  I("rasto_notas", "rasto", "Notas musicais", "🎵", 350, "coins", 3, "Corres a cantar"),
-  I("rasto_bolhas", "rasto", "Bolhas", "🫧", 350, "coins", 3, "Bolhas de sabão"),
-  I("rasto_fogo", "rasto", "Fogo", "🔥", 500, "coins", 4, "Tão rápido que queima o chão"),
-  I("rasto_arcoiris", "rasto", "Arco-íris", "🌈", 12, "gems", 6, "Pingos de tinta de todas as cores"),
-  I("rasto_folhas", "rasto", "Folhas", "🍃", 250, "coins", 1, "Folhas a voar como no outono"),
-  I("rasto_pegadas", "rasto", "Pegadas", "👣", 250, "coins", 1, "Deixas pegadas por todo o lado"),
-  I("rasto_flores", "rasto", "Flores", "🌸", 300, "coins", 2, "Um jardim por onde passas"),
-  I("rasto_flocos", "rasto", "Flocos de neve", "❄️", 350, "coins", 2, "Inverno a cada passo"),
-  I("rasto_doces", "rasto", "Doces", "🍬", 350, "coins", 3, "Rebuçados e chupa-chupas"),
-  I("rasto_pizza", "rasto", "Pizza", "🍕", 400, "coins", 3, "Fatias de pizza a voar"),
-  I("rasto_borboletas", "rasto", "Borboletas", "🦋", 450, "coins", 4, "Borboletas a levantar voo"),
-  I("rasto_confetis", "rasto", "Confetis", "🎉", 450, "coins", 4, "Uma festa a cada passo"),
-  I("rasto_relampagos", "rasto", "Relâmpagos", "⚡", 500, "coins", 5, "Mais rápido que um raio"),
-  I("rasto_fantasmas", "rasto", "Fantasmas", "👻", 550, "coins", 5, "Buuu!"),
-  I("rasto_caveiras", "rasto", "Caveiras", "💀", 10, "gems", 6, "Para os mais assustadores"),
-  I("rasto_moedas", "rasto", "Moedas", "🪙", 15, "gems", 8, "Corres a deitar dinheiro fora"),
+  I("rasto_estrelas", "rasto", "Estrelas", "⭐", 1200, "coins", 2, "Deixas estrelas por onde passas"),
+  I("rasto_coracoes", "rasto", "Corações", "💖", 1200, "coins", 2, "Muito amor pelo caminho"),
+  I("rasto_notas", "rasto", "Notas musicais", "🎵", 1400, "coins", 3, "Corres a cantar"),
+  I("rasto_bolhas", "rasto", "Bolhas", "🫧", 1400, "coins", 3, "Bolhas de sabão"),
+  I("rasto_fogo", "rasto", "Fogo", "🔥", 2000, "coins", 4, "Tão rápido que queima o chão"),
+  I("rasto_arcoiris", "rasto", "Arco-íris", "🌈", 55, "gems", 6, "Pingos de tinta de todas as cores"),
+  I("rasto_folhas", "rasto", "Folhas", "🍃", 1000, "coins", 1, "Folhas a voar como no outono"),
+  I("rasto_pegadas", "rasto", "Pegadas", "👣", 1000, "coins", 1, "Deixas pegadas por todo o lado"),
+  I("rasto_flores", "rasto", "Flores", "🌸", 1200, "coins", 2, "Um jardim por onde passas"),
+  I("rasto_flocos", "rasto", "Flocos de neve", "❄️", 1400, "coins", 2, "Inverno a cada passo"),
+  I("rasto_doces", "rasto", "Doces", "🍬", 1400, "coins", 3, "Rebuçados e chupa-chupas"),
+  I("rasto_pizza", "rasto", "Pizza", "🍕", 1600, "coins", 3, "Fatias de pizza a voar"),
+  I("rasto_borboletas", "rasto", "Borboletas", "🦋", 1800, "coins", 4, "Borboletas a levantar voo"),
+  I("rasto_confetis", "rasto", "Confetis", "🎉", 1800, "coins", 4, "Uma festa a cada passo"),
+  I("rasto_relampagos", "rasto", "Relâmpagos", "⚡", 2000, "coins", 5, "Mais rápido que um raio"),
+  I("rasto_fantasmas", "rasto", "Fantasmas", "👻", 2200, "coins", 5, "Buuu!"),
+  I("rasto_trevos", "rasto", "Trevos", "🍀", 1000, "coins", 1, "Sorte a cada passo"),
+  I("rasto_patinhas", "rasto", "Patinhas", "🐾", 1000, "coins", 1, "Como um gatinho"),
+  I("rasto_nuvens", "rasto", "Nuvens", "☁️", 1200, "coins", 2, "Andas nas nuvens"),
+  I("rasto_morangos", "rasto", "Morangos", "🍓", 1200, "coins", 2, "Doce como fruta"),
+  I("rasto_luas", "rasto", "Luas", "🌙", 1400, "coins", 2, "Para jogar à noite"),
+  I("rasto_baloes", "rasto", "Balões", "🎈", 1400, "coins", 3, "Uma festa a correr"),
+  I("rasto_bolas", "rasto", "Bolas de futebol", "⚽", 1600, "coins", 3, "Golo!"),
+  I("rasto_donuts", "rasto", "Donuts", "🍩", 1600, "coins", 3, "Com cobertura e tudo"),
+  I("rasto_aboboras", "rasto", "Abóboras", "🎃", 1800, "coins", 4, "Halloween o ano inteiro"),
+  I("rasto_planetas", "rasto", "Planetas", "🪐", 2400, "coins", 5, "Um sistema solar atrás de ti"),
+  I("rasto_unicornios", "rasto", "Unicórnios", "🦄", 60, "gems", 7, "Mágico e cheio de cor"),
+  I("rasto_diamantes", "rasto", "Diamantes", "💎", 85, "gems", 9, "Só para os mais ricos"),
+  I("rasto_caveiras", "rasto", "Caveiras", "💀", 45, "gems", 6, "Para os mais assustadores"),
+  I("rasto_moedas", "rasto", "Moedas", "🪙", 70, "gems", 8, "Corres a deitar dinheiro fora"),
 ];
 export const DEFAULT_EQUIP = { boneco: "boneco_iniciante", arma: "arma_pistola", emote: "emote_aceno", rasto: "rasto_nada" };
 export const FREE = ITEMS.filter((i) => i.price === 0).map((i) => i.id);
@@ -158,6 +190,59 @@ export function buildWeapon(id, paint) {
       add(new THREE.CylinderGeometry(0.05, 0.07, 0.35, 12), white, 0, -0.72, 0.62, X);
       for (const z of [0.5, 0.62, 0.74]) add(new THREE.TorusGeometry(0.08, 0.025, 8, 18), paint, 0, -0.72, z);
       add(new THREE.BoxGeometry(0.1, 0.24, 0.12), dark, 0, -0.9, 0.06);
+      break;
+    }
+    case "arma_baguete":                                                          // baguete: pão comprido com cortes e a ponta pintada
+      add(new THREE.CylinderGeometry(0.075, 0.07, 0.78, 12), M(0xd9a05b), 0, -0.74, 0.25, X);
+      for (const z of [0.05, 0.25, 0.45]) add(new THREE.BoxGeometry(0.1, 0.02, 0.06), M(0xf3d29a), 0, -0.67, z, 0, 0.5);
+      add(new THREE.SphereGeometry(0.075, 12, 8), paint, 0, -0.74, 0.64);
+      break;
+    case "arma_flor": {                                                           // girassol: caule, pétalas amarelas e o meio da cor da tinta
+      add(new THREE.CylinderGeometry(0.03, 0.03, 0.6, 8), M(0x2fa84a), 0, -0.75, 0.2, X);
+      add(new THREE.TorusGeometry(0.17, 0.07, 8, 16), M(0xffd21f), 0, -0.75, 0.55);
+      add(new THREE.CylinderGeometry(0.13, 0.13, 0.06, 16), paint, 0, -0.75, 0.57, X);
+      break;
+    }
+    case "arma_garrafa":                                                          // garrafa verde com rótulo da cor da tinta
+      add(new THREE.CylinderGeometry(0.1, 0.1, 0.4, 14), M(0x2f8f4a, { roughness: 0.2 }), 0, -0.74, 0.15, X);
+      add(new THREE.CylinderGeometry(0.105, 0.105, 0.14, 14), paint, 0, -0.74, 0.15, X);
+      add(new THREE.CylinderGeometry(0.04, 0.07, 0.2, 10), M(0x2f8f4a, { roughness: 0.2 }), 0, -0.74, 0.45, X);
+      add(new THREE.CylinderGeometry(0.045, 0.045, 0.06, 10), M(0xffd21f), 0, -0.74, 0.57, X);
+      break;
+    case "arma_martelo":                                                          // martelo de brincar: cabo de madeira e cabeça grande da cor da tinta
+      add(new THREE.CylinderGeometry(0.035, 0.035, 0.55, 8), wood, 0, -0.75, 0.15, X);
+      add(new THREE.CylinderGeometry(0.11, 0.11, 0.34, 14), paint, 0, -0.75, 0.46, 0, X);
+      for (const s of [-1, 1]) add(new THREE.CylinderGeometry(0.115, 0.115, 0.04, 14), white, s * 0.17, -0.75, 0.46, 0, X);
+      break;
+    case "arma_microfone":                                                        // microfone: cabo preto, grelha de metal e um anel da cor da tinta
+      add(new THREE.CylinderGeometry(0.05, 0.035, 0.42, 12), dark, 0, -0.75, 0.15, X);
+      add(new THREE.TorusGeometry(0.06, 0.02, 8, 16), paint, 0, -0.75, 0.37);
+      add(new THREE.SphereGeometry(0.11, 14, 10), metal, 0, -0.75, 0.46);
+      break;
+    case "arma_vassoura":                                                         // vassoura: cabo comprido e palha que abre para a frente
+      add(new THREE.CylinderGeometry(0.03, 0.03, 0.8, 8), wood, 0, -0.75, 0.22, X);
+      add(new THREE.ConeGeometry(0.17, 0.32, 12), M(0xd8b45a), 0, -0.75, 0.75, -X);
+      add(new THREE.CylinderGeometry(0.06, 0.06, 0.06, 10), paint, 0, -0.75, 0.6, X);
+      break;
+    case "arma_tridente": {                                                       // tridente: cabo de metal e três pontas douradas
+      const gold = M(0xffd21f, { metalness: 0.6, roughness: 0.3 });
+      add(new THREE.CylinderGeometry(0.03, 0.03, 0.9, 8), metal, 0, -0.75, 0.28, X);
+      add(new THREE.BoxGeometry(0.3, 0.05, 0.05), gold, 0, -0.75, 0.72);
+      for (const x of [-0.13, 0, 0.13]) add(new THREE.ConeGeometry(0.035, 0.22, 8), gold, x, -0.75, 0.85, X);
+      add(new THREE.SphereGeometry(0.06, 10, 8), paint, 0, -0.75, 0.7);
+      break;
+    }
+    case "arma_varinha":                                                          // varinha mágica: pau escuro e uma estrela (bola) de tinta a brilhar
+      add(new THREE.CylinderGeometry(0.022, 0.03, 0.58, 8), dark, 0, -0.75, 0.2, X);
+      add(new THREE.CylinderGeometry(0.032, 0.032, 0.06, 8), M(0xffd21f), 0, -0.75, 0.46, X);
+      add(new THREE.OctahedronGeometry(0.11), paint, 0, -0.75, 0.6);
+      add(new THREE.TorusGeometry(0.15, 0.012, 6, 20), white, 0, -0.75, 0.6);
+      break;
+    case "arma_arcoiris": {                                                       // canhão arco-íris: tubo branco com anéis de todas as cores
+      add(new THREE.CylinderGeometry(0.11, 0.12, 0.62, 16), white, 0, -0.74, 0.25, X);
+      [0xff3b4a, 0xff8a1f, 0xffd21f, 0x47e06a, 0x2f7bff, 0xa447ff].forEach((c, i) => add(new THREE.TorusGeometry(0.12, 0.022, 6, 18), M(c, { emissive: c, emissiveIntensity: 0.3 }), 0, -0.74, 0.0 + i * 0.1));
+      add(new THREE.SphereGeometry(0.09, 12, 8), paint, 0, -0.74, 0.58);
+      add(new THREE.BoxGeometry(0.1, 0.22, 0.1), dark, 0, -0.9, 0.08);
       break;
     }
     case "arma_bazuca": {                                                         // bazuca de tinta: tubo grande ao ombro com depósito e mira
