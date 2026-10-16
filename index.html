@@ -275,6 +275,25 @@
   .fbBig:hover { transform: translateY(-2px); } .fbBig:active { transform: translateY(3px); box-shadow: 0 2px 0 #0007; }
   .fbOr { text-align: center; opacity: .75; font-size: 14px; }
   .fbHint { opacity: .75; font-size: 13px; line-height: 1.4; text-align: center; }
+  /* Configurações (lobby) */
+  .lbIcon.set { background: linear-gradient(160deg, #9aa3b5, #5d6680); }
+  #setBox { position: fixed; inset: 0; z-index: 60; display: none; place-items: center; background: #0d0b1f99; backdrop-filter: blur(3px); }
+  #setBox.open { display: grid; }
+  .cfgCard { text-align: left; width: min(560px, 94vw); max-height: 92vh; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 18px 22px; color: #fff; background: #0d0b1fee; border: 4px solid #fff; border-radius: 24px; box-shadow: 0 10px 0 #0008; scrollbar-width: thin; }
+  .cfgHead { display: flex; justify-content: space-between; align-items: center; } .cfgHead h3 { margin: 0; font-size: 26px; color: #9be7ff; }
+  .cfgCard section { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: 16px; background: #ffffff0d; }
+  .cfgCard h4 { margin: 0 0 2px; font-size: 15px; letter-spacing: .1em; text-transform: uppercase; color: #ffd21f; }
+  .cfgRow { display: grid; grid-template-columns: 1fr minmax(110px, 170px) 64px; align-items: center; gap: 12px; }
+  .cfgName { display: flex; flex-direction: column; font-size: 16px; } .cfgName small { font-size: 11.5px; opacity: .65; }
+  .cfgVal { text-align: right; font-size: 14px; white-space: nowrap; }
+  .cfgRow input[type=range] { width: 100%; accent-color: #47e06a; cursor: pointer; }
+  .cfgCheck { display: flex; align-items: center; gap: 8px; font-size: 14px; opacity: .9; cursor: pointer; } .cfgCheck input { width: 18px; height: 18px; accent-color: #47e06a; }
+  .cfgChips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .cfgChip { cursor: pointer; font: inherit; font-size: 15px; padding: 7px 14px; border-radius: 14px; color: #fff; background: #ffffff14; border: 2px solid #ffffff55; }
+  .cfgChip.on { color: #1a1033; background: #47e06a; border-color: #fff; }
+  .cfgTip { font-size: 12.5px; opacity: .7; }
+  .cfgFs { align-self: center; font-size: 17px; }
+  @media (max-width: 520px) { .cfgRow { grid-template-columns: 1fr 100px 60px; gap: 8px; } }
   .fbCode { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px; border-radius: 18px; background: #ffffff10; }
   .fbCode b { font-family: var(--display); font-size: 54px; letter-spacing: .25em; color: #ffd21f; }
   .fbSmall { cursor: pointer; font: inherit; font-size: 14px; padding: 5px 14px; border-radius: 999px; color: #1a1033; background: #fff; border: 2px solid #1a1033; align-self: center; }
@@ -543,6 +562,23 @@
   #replayTag span { font-size: 13px; opacity: .85; letter-spacing: .08em; }
   #replayTag span::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #ff3b4a; margin-right: 7px; animation: rbRec 1s steps(2) infinite; }
   @keyframes rbIn { from { height: 0; } } @keyframes rbRec { 50% { opacity: 0; } }
+  /* fim do round: faixa na diagonal ("REPLAY" e "FIM DO ROUND") */
+  #endBanner { position: absolute; inset: 0; display: none; overflow: hidden; pointer-events: none; }
+  #endBanner .ebStripe { position: absolute; left: -20vw; right: -20vw; top: 50%; padding: 18px 0 14px; transform: translateY(-50%) rotate(-8deg); display: flex; flex-direction: column; align-items: center; gap: 2px;
+    background: linear-gradient(90deg, transparent, #0d0b1fee 18%, #0d0b1fee 82%, transparent); border-top: 6px solid var(--c, #ffd21f); border-bottom: 6px solid var(--c, #ffd21f); animation: ebIn .45s cubic-bezier(.2,.9,.3,1.2) both; }
+  #endBanner b { font-family: var(--display); font-weight: 400; font-size: clamp(44px, 9vw, 110px); line-height: 1; letter-spacing: .06em; color: var(--c, #ffd21f); text-shadow: 0 4px 0 #000a; animation: ebText .6s .1s ease-out both; }
+  #endBanner span { font-size: clamp(15px, 1.8vw, 22px); letter-spacing: .08em; opacity: .92; animation: ebText .6s .25s ease-out both; }
+  #endBanner.replay b { font-style: italic; }
+  #endBanner.replay span::before { content: ""; display: inline-block; width: 11px; height: 11px; border-radius: 50%; background: #ff3b4a; margin-right: 8px; animation: rbRec 1s steps(2) infinite; }
+  #endBanner.out .ebStripe { animation: ebOut .35s ease-in both; }
+  @keyframes ebIn { from { transform: translate(-120%, -50%) rotate(-8deg); } }
+  @keyframes ebOut { to { transform: translate(120%, -50%) rotate(-8deg); } }
+  @keyframes ebText { from { opacity: 0; letter-spacing: .5em; } }
+  body.paused #endBanner { visibility: hidden; }
+  /* números de dano (visual/damage-numbers.js) */
+  .dmgNum { position: absolute; left: 0; top: 0; opacity: 0; pointer-events: none; font-family: var(--display); font-size: 17px; color: #ff3b4a; -webkit-text-stroke: 3px #1a0710; paint-order: stroke fill; will-change: transform, opacity; }
+  #roundNext { pointer-events: auto; margin-top: 6px; padding: 10px 26px; border: 0; border-radius: 14px; background: var(--c, #ffd21f); color: #0d0b1f; font: inherit; font-weight: 700; font-size: 17px; cursor: pointer; }
+  #roundNext:hover { filter: brightness(1.1); } #roundNext.dim { opacity: .4; }
   #roundBox { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: max-content; max-width: 96vw; max-height: 94vh; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #ffffff55 transparent; box-sizing: border-box; display: none; flex-direction: column; align-items: center; gap: 8px; padding: 16px 40px; border-radius: 22px; background: #0d0b1fee; border: 5px solid var(--c, #fff); text-align: center; }
   #roundBox b { font-family: var(--display); font-weight: 400; font-size: 34px; letter-spacing: .04em; } #roundBox span { font-size: 18px; opacity: .92; }
   #upgradeCards { display: flex; gap: 14px; margin-top: 8px; pointer-events: auto; }
@@ -663,7 +699,8 @@
   #pauseMenu h3 { margin: 0 0 8px; display: flex; align-items: center; gap: 12px; font-size: 68px; line-height: 1; letter-spacing: .08em; text-shadow: 0 4px 0 #ff3b4a, 0 8px 0 #2f7bff; }
   .splatLogo { width: 52px; height: 52px; flex: none; filter: drop-shadow(0 4px 0 #0008); }
   .pmBtn { display: flex; align-items: center; gap: 14px; padding: 15px 22px; font: inherit; font-size: 26px; text-align: left; color: #fff; cursor: pointer; background: #1a1240e6; border: 3px solid #ffffff33; border-radius: 16px; box-shadow: 0 4px 0 #0008; transition: transform .1s, background .1s; }
-  .pmBtn i { font-style: normal; width: 26px; text-align: center; opacity: .9; }
+  .pmBtn:disabled { opacity: .5; cursor: not-allowed; }
+  .pmBtn i { font-style: normal; flex: none; width: 1.3em; text-align: center; opacity: .9; }
   .pmBtn b { color: #b8ff2c; }
   .pmBtn:hover { transform: translateX(8px); background: #2b1f66; border-color: #fff; }
   .pmBtn.on { background: #b8ff2c; color: #1a1033; border-color: #fff; box-shadow: 0 0 22px #b8ff2c88, 0 4px 0 #0008; }
@@ -683,6 +720,7 @@
   .ppSection { font-size: 13px; opacity: .85; padding-top: 4px; border-top: 2px solid #ffffff22; }
   .ppKeys { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; } .ppKeys kbd { font-size: 11px; padding: 0 6px; margin-left: 3px; border-width: 2px; border-bottom-width: 3px; }
   @media (max-width: 1400px) { #pausePanel { zoom: 1.15; } }
+  @media (max-height: 720px) { #pauseMenu { gap: 7px; } #pauseMenu h3 { font-size: 50px; margin-bottom: 4px; } .pmBtn { padding: 10px 18px; font-size: 21px; } }   /* ecrãs baixos: o menu cabe todo */
   @media (max-width: 1000px) { #pause { flex-direction: column; justify-content: center; gap: 14px; } #pausePanel { width: 92vw; zoom: 1; } #pauseMenu { width: 92vw; } #pauseMenu h3 { font-size: 36px; } }
   #crosshair { position: absolute; top: 50%; left: 50%; width: 76px; height: 76px; transform: translate(-50%, -50%); display: flex; align-items: center; justify-content: center; }
   #crosshair svg { position: absolute; inset: 0; transform: rotate(-90deg); }
@@ -938,6 +976,7 @@
     <button id="misBtn" class="lbIcon mis" title="Missões do dia"><i class="lbEmo">📅</i><b id="misBadge"></b><span>Missões do dia</span></button>
     <button id="howBtn" class="lbIcon how" title="Instruções"><svg viewBox="0 0 24 24"><path d="M3.5 5.5c3-1.6 6-1.6 8.5 0v14c-2.5-1.6-5.5-1.6-8.5 0zM20.5 5.5c-3-1.6-6-1.6-8.5 0v14c2.5-1.6 5.5-1.6 8.5 0z"/></svg><span>Instruções</span></button>
     <button id="tutorialBtn" class="lbIcon tut" title="Tutorial"><svg viewBox="0 0 24 24"><path d="M1.5 9.5 12 4.5l10.5 5L12 14.5z"/><path d="M6 12v4.2c3.3 2.6 8.7 2.6 12 0V12l-6 2.8z"/><path class="ln" d="M21 10v6"/></svg><span>Tutorial</span></button>
+    <button id="setBtn" class="lbIcon set" title="Configurações"><i class="lbEmo">⚙️</i><span>Configurações</span></button>
     <button id="fsBtn" class="lbIcon fs" title="Ecrã inteiro"><svg viewBox="0 0 24 24"><path class="ln" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><span>Ecrã inteiro</span></button>
   </div>
   <div id="lbBottom">
@@ -1064,6 +1103,7 @@
       <h3><svg viewBox="0 0 60 60" class="splatLogo"><path fill="#b8ff2c" d="M30 3c4 6 9 5 13 3 0 7 4 9 10 10-3 5-2 9 3 13-6 2-8 6-6 12-6-1-9 1-11 7-4-4-8-4-12 0-2-6-5-8-11-7 2-6 0-10-6-12 5-4 6-8 3-13 6-1 10-3 10-10 4 2 9 3 13-3z"/><circle cx="30" cy="31" r="7" fill="#1a1033"/></svg>PAUSA</h3>
       <button id="resumeBtn" class="pmBtn on"><i>&#9654;</i>Continuar</button>
       <button id="pauseQuality" class="pmBtn"><i>&#9881;</i><span>Qualidade: <b id="pqVal"></b></span></button>
+      <button id="pauseSound" class="pmBtn"><i>&#128266;</i><span>Som: <b id="psVal"></b></span></button>
       <button id="pauseWeather" class="pmBtn"><i>&#9729;</i><span>Clima: <b id="pwVal"></b></span></button>
       <button id="pauseStatsBtn" class="pmBtn"><i>&#127942;</i>Classificações</button>
       <button id="pauseFs" class="pmBtn"><i>&#9974;</i><span>Ecrã inteiro</span></button>
@@ -1080,7 +1120,8 @@
   </div>
   <div id="targetInfo"></div>
   <div id="replayBox"><i class="rbBar top"></i><i class="rbBar bot"></i><div id="replayTag"><b id="replayTitle"></b><span>REPETIÇÃO · <kbd>Espaço</kbd> para saltar</span></div></div>
-  <div id="roundBox"><b id="roundTitle"></b><span id="roundScore"></span><div id="roundStats" class="rsWrap"></div><div id="upgradeCards"></div><span id="upgradeHint">Escolhe uma melhoria: clica nela ou carrega em <kbd>1</kbd>, <kbd>2</kbd> ou <kbd>3</kbd></span></div>
+  <div id="roundBox"><b id="roundTitle"></b><span id="roundScore"></span><div id="roundStats" class="rsWrap"></div><div id="upgradeCards"></div><span id="upgradeHint">Escolhe uma melhoria: clica nela ou carrega em <kbd>1</kbd>, <kbd>2</kbd> ou <kbd>3</kbd></span><button id="roundNext">Começar round ▶</button><small id="roundNextHint"></small></div>
+  <div id="endBanner"><div class="ebStripe"><b id="ebTitle"></b><span id="ebSub"></span></div></div>
   <div id="gameOver">
     <div id="goStage1">
       <h2 id="goTitle"></h2><p id="goSub"></p>
@@ -1108,6 +1149,6 @@
   <div id="toast"></div>
 </div>
 
-<script type="module" src="src/map-viewer.js"></script>
+<script type="module" src="src/jogo/map-viewer.js"></script>
 </body>
 </html>

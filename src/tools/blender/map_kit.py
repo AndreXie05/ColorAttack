@@ -10,7 +10,7 @@ senão a tinta fica escondida por baixo.
 Marcadores no .glb:   Col_Box_n (extras w, d, top[, paint]) · Col_Cyl_n (extras r, top) · Col_Ramp_n (extras w, d, axis, y0, y1) · Patrol_n
    paint = 1: topo plano onde se pode pôr os pés e que mostra a tinta (plataformas, caixotes, muretes)
 
-ALTURAS (ver src/surfaces.js): degraus até 0,45 m sobem-se a andar; até ~2,1 m sobe-se a saltar (agarrando a borda);
+ALTURAS (ver src/movimento/surfaces.js): degraus até 0,45 m sobem-se a andar; até ~2,1 m sobe-se a saltar (agarrando a borda);
 mais alto só por rampas/escadas. Níveis usados nos mapas: L1 = 1,0-1,2 m · L2 = 2,0 m · L3 = 3,0 m (por rampa ou a partir do L2).
 Muros/coberturas altas (>= 2,6 m) não se sobem.
 Animações (objetos à parte, com a origem no pivô; extras lidos pelo jogo):
@@ -85,7 +85,7 @@ class Frame:
 
 
 def col_box(x, z, w, d, top, paint=False, **extra):
-    """extra: bottom (ponte), push_x/push_z (tapete), bounce (trampolim) — ver src/surfaces.js"""
+    """extra: bottom (ponte), push_x/push_z (tapete), bounce (trampolim) — ver src/movimento/surfaces.js"""
     colliders.append(("box", x, z, w, d, top, paint, extra))
 
 
