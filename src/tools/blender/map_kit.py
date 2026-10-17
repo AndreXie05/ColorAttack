@@ -8,6 +8,7 @@ REGRA DA TINTA: tudo o que cobre o chão tem de ficar abaixo de z = 0.04 (a cama
 senão a tinta fica escondida por baixo.
 
 Marcadores no .glb:   Col_Box_n (extras w, d, top[, paint]) · Col_Cyl_n (extras r, top) · Col_Ramp_n (extras w, d, axis, y0, y1) · Patrol_n
+   · Glow_n (extras r, c): mancha de luz de néon no chão
    paint = 1: topo plano onde se pode pôr os pés e que mostra a tinta (plataformas, caixotes, muretes)
 
 ALTURAS (ver src/movimento/surfaces.js): degraus até 0,45 m sobem-se a andar; até ~2,1 m sobe-se a saltar (agarrando a borda);
@@ -18,11 +19,12 @@ Animações (objetos à parte, com a origem no pivô; extras lidos pelo jogo):
    anim = "bob"     sobe e desce no eixo vertical:  amp, speed
    anim = "loop"    anda num eixo e volta ao início:  axis, span, speed, phase
    anim = "counter" roda ao contrário do pai (cabinas da roda gigante)
+   anim = "blink"   acende e apaga: speed = piscadelas por segundo, amp = fração do tempo acesa, phase
 """
 import math
 import os
 LOD = True                                     # os mapas usam menos polígonos nos objetos pequenos
-COMMON = "/home/andrexie/Documents/ColorAttack/tools/blender/common.py"
+COMMON = "/home/andrexie/Documents/ColorAttack/src/tools/blender/common.py"
 exec(open(COMMON).read())
 
 rad = math.radians
@@ -539,6 +541,14 @@ def drawbridge(gid, x, z, w, length, dx, dz, y, period=26.0, open_s=15.0, move=2
     gates.append(dict(gid=gid, x=x, z=z, w=w, len=length, dx=dx, dz=dz, y=y, period=period, open=open_s, move=move, phase=phase))
 
 
+glows = []                     # manchas de luz no chão (néon): (x, z, r, cor hex) — o jogo desenha-as (src/visual/neon-glow.js)
+
+
+def glow_pool(x, z, r, color):
+    """Mancha de luz colorida no chão por baixo de um néon (só visual, desenhada pelo jogo: não tapa a tinta)."""
+    glows.append((x, z, r, color))
+
+
 def water(x, z, w, d, top=0.0):
     """Zona de água que elimina quem lá pousa os pés (o desenho da água é feito à parte)."""
     waters.append((x, z, w, d, top))
@@ -609,6 +619,10 @@ def finish_map(map_id, patrol, output, collection=None):
         e = bpy.data.objects.new("Col_Ladder_%d" % i, None)
         e["w"], e["d"], e["top"], e["nx"], e["nz"] = float(w), float(d), float(top), float(nx), float(nz)
         e.empty_display_type = "ARROWS"; e.empty_display_size = 0.5
+        e.location = (x, -z, 0); col.objects.link(e); objs.append(e)
+    for i, (x, z, r, c) in enumerate(glows):
+        e = bpy.data.objects.new("Glow_%d" % i, None)
+        e["r"], e["c"] = float(r), int(c)
         e.location = (x, -z, 0); col.objects.link(e); objs.append(e)
     n = 0
     for (x, z) in patrol:

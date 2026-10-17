@@ -14,6 +14,7 @@ export const CATEGORIES = [
   { id: "arma",   name: "Armas",       icon: "🔫" },
   { id: "emote",  name: "Celebrações", icon: "🕺" },
   { id: "rasto",  name: "Rastos",      icon: "🌠" },
+  { id: "autocolante", name: "Autocolantes", icon: "🏷️" },
 ];
 const I = (id, cat, name, icon, price, cur, level, desc) => ({ id, cat, name, icon, price, cur, level, desc });
 export const ITEMS = [
@@ -112,8 +113,21 @@ export const ITEMS = [
   I("rasto_diamantes", "rasto", "Diamantes", "💎", 85, "gems", 14, "Só para os mais ricos"),
   I("rasto_caveiras", "rasto", "Caveiras", "💀", 45, "gems", 10, "Para os mais assustadores"),
   I("rasto_moedas", "rasto", "Moedas", "🪙", 70, "gems", 13, "Corres a deitar dinheiro fora"),
+  // autocolantes: um desenho colado dos dois lados da arma (qualquer arma)
+  I("autocolante_nada", "autocolante", "Sem autocolante", "🚫", 0, "coins", 1, "A arma limpinha"),
+  I("autocolante_estrela", "autocolante", "Estrela", "⭐", 600, "coins", 1, "Para as estrelas da equipa"),
+  I("autocolante_coracao", "autocolante", "Coração", "❤️", 600, "coins", 1, "Pinta com amor"),
+  I("autocolante_oculos", "autocolante", "Óculos de sol", "😎", 800, "coins", 1, "Sempre na maior"),
+  I("autocolante_flor", "autocolante", "Flor", "🌸", 800, "coins", 1, "Primavera na arma"),
+  I("autocolante_raio", "autocolante", "Raio", "⚡", 1000, "coins", 2, "Rápido como um relâmpago"),
+  I("autocolante_fogo", "autocolante", "Fogo", "🔥", 1000, "coins", 2, "Arma a escaldar"),
+  I("autocolante_alien", "autocolante", "Extraterrestre", "👽", 1200, "coins", 3, "Vindo de outro planeta"),
+  I("autocolante_caveira", "autocolante", "Caveira", "💀", 1200, "coins", 3, "Para meter medo"),
+  I("autocolante_arcoiris", "autocolante", "Arco-íris", "🌈", 1400, "coins", 4, "Todas as cores numa só"),
+  I("autocolante_coroa", "autocolante", "Coroa", "👑", 35, "gems", 9, "Para a realeza da tinta"),
+  I("autocolante_diamante", "autocolante", "Diamante", "💎", 45, "gems", 10, "Brilha mais do que tudo"),
 ];
-export const DEFAULT_EQUIP = { boneco: "boneco_iniciante", arma: "arma_pistola", emote: "emote_aceno", rasto: "rasto_nada" };
+export const DEFAULT_EQUIP = { boneco: "boneco_iniciante", arma: "arma_pistola", emote: "emote_aceno", rasto: "rasto_nada", autocolante: "autocolante_nada" };
 export const FREE = ITEMS.filter((i) => i.price === 0).map((i) => i.id);
 export const itemById = (id) => ITEMS.find((i) => i.id === id);
 
@@ -135,8 +149,51 @@ export function applyCosmetics(model, equip) {
     for (const m of h.origGun) m.visible = false;
     h.gunMeshes = [h.custom];
   }
+  addSticker(model, h, e.autocolante);
   h.key = "";                                                                      // setHeld volta a decidir o que se vê
   for (const m of h.gunMeshes) m.visible = !h.gren.visible && !h.kit.visible;
+}
+
+// ---------- autocolante na arma: o desenho (emoji com contorno branco, como um autocolante recortado) dos dois lados ----------
+// Mede a arma (seja qual for o formato) no espaço do braço e cola o desenho no meio de cada lado. Entra na lista de peças
+// da arma (gunMeshes), por isso esconde-se com ela quando tens a granada ou a cura na mão.
+const stickerTex = new Map();
+function stickerTexture(icon) {
+  if (stickerTex.has(icon)) return stickerTex.get(icon);
+  const c = document.createElement("canvas"); c.width = c.height = 128;
+  const g = c.getContext("2d");
+  g.font = "84px sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+  g.shadowColor = "#ffffff"; g.shadowBlur = 0;
+  for (const [dx, dy] of [[-5, 0], [5, 0], [0, -5], [0, 5], [-4, -4], [4, 4], [-4, 4], [4, -4]]) { g.shadowOffsetX = dx; g.shadowOffsetY = dy; g.fillText(icon, 64, 68); }   // contorno branco
+  g.shadowColor = "transparent"; g.fillText(icon, 64, 68);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  stickerTex.set(icon, t);
+  return t;
+}
+const _inv = new THREE.Matrix4(), _rel = new THREE.Matrix4(), _box = new THREE.Box3(), _b = new THREE.Box3();
+function addSticker(model, h, id) {
+  const u = model.userData;
+  if (h.sticker) { h.sticker.parent?.remove(h.sticker); h.sticker.userData.mat.dispose(); h.sticker.userData.geo.dispose(); h.sticker = null; }
+  const it = itemById(id);
+  if (!it || id === "autocolante_nada") return;
+  u.armR.updateWorldMatrix(true, true); _inv.copy(u.armR.matrixWorld).invert(); _box.makeEmpty();
+  for (const root of h.gunMeshes) root.traverse((m) => {                          // caixa da arma no espaço do braço
+    if (!m.isMesh) return;
+    m.geometry.boundingBox || m.geometry.computeBoundingBox();
+    _b.copy(m.geometry.boundingBox).applyMatrix4(_rel.multiplyMatrices(_inv, m.matrixWorld)); _box.union(_b);
+  });
+  if (_box.isEmpty()) return;
+  const size = Math.min(0.2, Math.max(0.1, (_box.max.y - _box.min.y) * 0.9)), cy = (_box.min.y + _box.max.y) / 2, cz = (_box.min.z + _box.max.z) / 2;
+  const geo = new THREE.PlaneGeometry(size, size), mat = new THREE.MeshBasicMaterial({ map: stickerTexture(it.icon), transparent: true, alphaTest: 0.4, side: THREE.DoubleSide });
+  const g = new THREE.Group(); g.userData = { geo, mat };
+  for (const side of [-1, 1]) {                                                    // dos dois lados
+    const p = new THREE.Mesh(geo, mat);
+    p.position.set(side > 0 ? _box.max.x + 0.006 : _box.min.x - 0.006, cy, cz); p.rotation.y = side * Math.PI / 2;
+    g.add(p);
+  }
+  u.armR.add(g);
+  h.sticker = g;
+  h.gunMeshes = [...h.gunMeshes, g];
 }
 
 // Formatos de arma na mão direita (no espaço do braço: a mão está em y ≈ -0.75 e a arma aponta para +z)

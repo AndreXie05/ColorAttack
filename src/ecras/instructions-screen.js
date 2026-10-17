@@ -2,6 +2,7 @@ import { COLORS, PRIMARIES, SECONDARIES, chipHTML, resolveHit } from "../base/co
 import { WEATHERS, WEATHER_IDS } from "../visual/weather.js";
 import { CONFIG } from "../base/game-config.js";
 import { UPGRADES } from "../jogo/upgrades.js";
+import * as Progress from "../progresso/progress.js";
 
 /* ============================================================
    ECRÃ DE INSTRUÇÕES
@@ -52,7 +53,7 @@ function buildPages() {
   return [
     card("🎯 Objetivo", `
       <p>Duas equipas de 5 (tu + 4 bots contra 5 bots). Cada round dura <b>${Math.round(CONFIG.roundSeconds / 60)} minutos</b> e ganha a equipa com mais pontos.
-      Vence o jogo quem ganhar primeiro <b>${CONFIG.match.toWin} rounds</b>. Se o tempo acabar empatado em eliminações, há <b>morte súbita</b>: a primeira equipa a fazer uma eliminação ganha o round. Nessa altura os baús são reabastecidos, mas só têm item em metade das vezes, todos os itens são igualmente prováveis e cada baú dá uma só caixa de munição, com <b>1 a 5 balas</b> da mesma cor.</p>
+      Vence o jogo quem ganhar primeiro <b>${CONFIG.match.toWin} rounds</b>. Nos <b>últimos 5 segundos</b> o tempo aparece em grande no meio do ecrã. Se o tempo acabar empatado em eliminações, há <b>morte súbita</b>: a primeira equipa a fazer uma eliminação ganha o round. Nessa altura os baús são reabastecidos, mas só têm item em metade das vezes, todos os itens são igualmente prováveis e cada baú dá uma só caixa de munição, com <b>1 a 5 balas</b> da mesma cor.</p>
       <p>Antes de jogar escolhes a <b>dificuldade dos bots</b>: Fácil, Médio, Difícil ou Impossível. Vale para os <b>9 bots</b>, os teus colegas e os adversários, que ficam sempre do mesmo nível. Os bots também apanham e usam itens, e os bots da equipa que ganha cada round ganham melhorias. Cada bot tem uma <b>personalidade</b>, que se nota na forma de jogar: 🔥 Agressivo chega-se perto, 🛡️ Cauteloso fica mais longe e foge mais, 🎒 Caça-itens vai a tudo o que cai dos baús e ⚖️ Equilibrado faz um pouco de tudo. Também usam armas da loja. És novo? Faz o <b>Tutorial</b> no ecrã inicial.</p>
       <p>Quando uma equipa chega a <b>${CONFIG.match.intenseAt} rounds ganhos</b> entra o <b>modo intenso</b>: as cores de toda a gente mudam de 5 em 5 segundos até haver um vencedor. A cada round o mapa muda.</p>
       <p>Os adversários têm cores. <b>Só os eliminas com a cor certa</b>, que tu misturas na arma.</p>
@@ -130,6 +131,7 @@ function buildPages() {
       ${tile("⛲", "", "Fonte de tinta", `<i>Parque e Fábrica de Tintas</i><br>A cada 20 segundos a fonte lança tinta. Antes, um <b>anel a piscar</b> mostra a cor. Quem estiver na praça <b>fica dessa cor</b>.`)}
       ${tile("💥", "E", "Canhão de tinta", `<i>Castelo e Restaurante</i><br>Sobe ao canhão e carrega em <b>E</b>: durante ${CONFIG.cannon.use} segundos, cada clique dispara uma <b>bola gigante</b> que só afeta os adversários: quem já tiver essa cor é eliminado; os outros perdem <b>${CONFIG.cannon.wrongDamage}</b> de vida e ficam dessa cor.`)}
       ${tile("🌉", "", "Pontes do rio", `<i>Castelo</i><br>Acerta numa <b>placa</b> com a mesma cor e uma ponte sobe da água. Quando começar a <b>tremer</b>, sai: afunda e <b>elimina quem estiver em cima</b>.`)}
+      ${tile("🌃", "", "Metro e telhados", `<i>Cidade Neon</i><br>É de noite! Sobe as escadas do <b>metro elevado</b> (5 m, com muretes para te protegeres) ou salta para os <b>telhados</b> pelos <b>pads de salto</b> de néon e pelas escadas de mão. Os letreiros nos telhados servem de esconderijo. Cuidado: <b>saltar do metro para baixo elimina</b> (é uma queda de mais de ${CONFIG.fallDeath} m).`)}
       ${tile("🎨", "", "Chão que muda de cor", `<i>Estúdio de Tinta</i><br>4 <b>poças gigantes</b> mudam a tua cor. A meio do round, metade do chão ganha uma cor (quente = mais rápido, fria = mais lento) e as poças começam a andar.`)}
       </div>`),
 
@@ -158,15 +160,21 @@ function buildPages() {
 
     card("⌨️ Outros comandos", keyTable2(OTHER_KEYS) + `
       <p><b>Placar:</b> está sempre no topo do ecrã. Os rounds ganhos ficam ao lado do relógio (tua equipa à esquerda) e as eliminações do round por baixo.</p>
-      <p><b>⚙️ Configurações</b> (botão no lobby): volume do som por partes (<b>geral</b>, <b>tiros e efeitos</b>, <b>relógio</b> e <b>clima</b>), sem som com o jogo noutra janela, <b>qualidade gráfica</b>, <b>sensibilidade do rato</b> e ecrã inteiro. Na pausa (<kbd>Esc</kbd>) também podes mudar o volume geral, a qualidade e o clima (a jogar com amigos, o clima é o do anfitrião).</p>`),
+      <p><b>⚙️ Configurações</b> (botão no lobby): volume do som por partes (<b>geral</b>, <b>tiros e efeitos</b>, <b>relógio</b> e <b>clima</b>), sem som com o jogo noutra janela, <b>qualidade gráfica</b>, <b>fundo do lobby</b> (Estúdio, Noite Neon ou Dia de Sol), <b>sensibilidade do rato</b> e ecrã inteiro. Na pausa (<kbd>Esc</kbd>) também podes mudar o volume geral, a qualidade e o clima (a jogar com amigos, o clima é o do anfitrião).</p>`),
 
     card("⭐ Níveis, moedas e joias", `
       <p><b>XP e níveis:</b> no fim de cada partida ganhas XP (eliminações, cor certa, rounds ganhos e vitória; mais XP nas dificuldades altas). Para subir de nível precisas de <b>200, 300, 500, 750 e 1000 XP</b> nos primeiros níveis; depois <b>1500</b> e mais <b>300</b> em cada nível (1800, 2100, 2400…).</p>
       <p><b>🪙 Moedas em cada partida:</b> +5 por jogares · +5 por eliminação (+2 se for com a cor certa) · vitória: <b>Fácil +10, Médio +20, Difícil +30, Impossível +50</b> · +20 a cada 3 vitórias seguidas · +50 na primeira vitória do dia. Se perderes, ganhas na mesma as moedas de jogar e das eliminações. No máximo ganhas <b>500 moedas por dia</b> nas partidas.</p>
       <p><b>⬆️ Subir de nível:</b> dá <b>💎 +5 joias</b> e <b>🪙 +100 moedas</b> (estas não contam para o máximo do dia). As joias são raras: guarda-as para as coisas mais especiais da loja.</p>
-      <p><b>🏅 Conquistas:</b> objetivos que só se fazem uma vez, em grupos: eliminações, vitórias, dificuldade, modos de jogo, climas (ganhar com trovoada ou nevoeiro, e no Impossível!), mapas, baús, amigos e níveis (5, 10, 20… até 100). As mais fáceis dão <b>🪙 100 a 600 moedas</b> e as mais difíceis <b>💎 2 a 5 joias</b> (estas moedas não contam para o máximo do dia). Vês todas, e quanto te falta, no <b>Perfil</b>.</p>
+      <p><b>🏅 Conquistas:</b> objetivos que só se fazem uma vez, em grupos: eliminações, vitórias, dificuldade, modos de jogo, climas (ganhar com trovoada, nevoeiro ou de noite, e no Impossível!), mapas, baús, amigos e níveis (5, 10, 20… até 100). As mais fáceis dão <b>🪙 100 a 600 moedas</b> e as mais difíceis <b>💎 2 a 5 joias</b> (estas moedas não contam para o máximo do dia). Vês todas, e quanto te falta, no <b>Perfil</b>.</p>
+      <p><b>🎁 Prémio diário:</b> entra no jogo todos os dias e recebe um prémio (abre sozinho no lobby, ou no botão 🎁): do <b>dia 1 ao 6</b> moedas (de 🪙 50 a 250) e no <b>dia 7</b> 🪙 300 e <b>💎 2 joias</b>. Se falhares um dia, voltas ao dia 1. Estas moedas não contam para o máximo do dia.</p>
+      <p><b>⭐ Subir de nível:</b> quando voltas ao lobby depois de subires de nível, aparece uma faixa com o nível novo e o prémio (💎 ${Progress.GEMS_PER_LEVEL} joias e 🪙 ${Progress.COINS_PER_LEVEL} moedas por cada nível). No lobby há também uma <b>💡 dica</b> diferente de cada vez que lá entras.</p>
+      <p><b>🎡 Roda da sorte:</b> uma volta por dia (botão 🎡 no lobby). Pode sair 🪙 moedas (50 a 500), ⭐ XP, 💎 uma joia ou 🎁 um item da loja que ainda não tens. Estas moedas não contam para o máximo do dia.</p>
+      <p><b>🎁 Caixa-surpresa:</b> no topo da <b>Loja</b>, por 🪙 ${Progress.MYSTERY_PRICE} sai um item à sorte que ainda não tens (só dos que o teu nível já deixa comprar). <b>📜 Últimas partidas:</b> no <b>Perfil</b> vês as tuas últimas 10 partidas (resultado, modo, mapas, eliminações e mortes).</p>
+      <p><b>✏️ O teu nome:</b> escolhe-o no <b>Perfil</b> (até 14 letras). Aparece no pódio e para os amigos nas salas.</p>
+      <p><b>🏆 Pódio:</b> no fim do jogo, a equipa que ganhou sobe ao pódio pela ordem das eliminações e faz as suas celebrações (tu fazes a que tens equipada no Inventário).</p>
       <p><b>📅 Missões do dia:</b> todos os dias há <b>3 missões novas</b> (botão 📅 no lobby), que dão moedas e, às vezes, joias. <b>🏷️ Títulos:</b> algumas conquistas dão um título; escolhe-o no Perfil e aparece por baixo do teu nome (os amigos da tua equipa também o veem). Só os colegas têm o nome por cima da cabeça; os adversários não, para o ecrã ficar mais limpo.</p>
-      <p><b>🛒 Loja, Inventário e Perfil:</b> gasta as moedas e as joias na <b>Loja</b> do lobby (skins, formatos de arma, celebrações e rastos ao correr; tudo só de visual) e equipa o que compraste no <b>Inventário</b>. Muitos itens pedem um <b>nível mínimo</b> (🔒): quanto mais raro, mais alto, até ao <b>nível 15</b> — quem chega ao 15 pode comprar tudo. No <b>Perfil</b> vês as tuas estatísticas de sempre e a tua personagem e cor preferidas.</p>
+      <p><b>🛒 Loja, Inventário e Perfil:</b> gasta as moedas e as joias na <b>Loja</b> do lobby (skins, formatos de arma, autocolantes para a arma, celebrações e rastos ao correr; tudo só de visual) e equipa o que compraste no <b>Inventário</b>. Muitos itens pedem um <b>nível mínimo</b> (🔒): quanto mais raro, mais alto, até ao <b>nível 15</b> — quem chega ao 15 pode comprar tudo. No <b>Perfil</b> vês as tuas estatísticas de sempre e a tua personagem e cor preferidas.</p>
       <p><b>🔥 Mapa de calor:</b> no fim de cada round vês no mapa onde houve mais eliminações, com ✔ onde eliminaste e ✖ onde foste eliminado.</p>      <p><b>🔥 Vitórias seguidas:</b> no lobby vês a quantas vitórias seguidas vais; perder um jogo acaba com a série. O teu recorde fica no Perfil.</p>`),
   ];
 }
@@ -180,8 +188,8 @@ const TOPICS = [
   { icon: "🟣", name: "Poças",               desc: "Mudam a cor e a velocidade",     pages: [5] },
   { icon: "🎁", name: "Baús e itens",        desc: "Granadas, curas, armadilhas…",   pages: [6, 7] },
   { icon: "🎮", name: "Modos de jogo",       desc: "Latas, zonas, relâmpago…",       pages: [8, 9] },
-  { icon: "🗺️", name: "Surpresas dos mapas", desc: "Fontes, canhões, pontes…",       pages: [10] },
-  { icon: "🌦️", name: "Clima",               desc: "Chuva, nevoeiro, trovoada",      pages: [11] },
+  { icon: "🗺️", name: "Surpresas dos mapas", desc: "Fontes, canhões, pontes, metro…",       pages: [10] },
+  { icon: "🌦️", name: "Clima",               desc: "Chuva, nevoeiro, trovoada, noite",      pages: [11] },
   { icon: "⬆️", name: "Melhorias",           desc: "O que ganhas ao vencer",         pages: [12] },
   { icon: "🕹️", name: "Movimento",           desc: "Andar, saltar, agachar, subir",  pages: [14, 13] },
   { icon: "⌨️", name: "Teclas",              desc: "Todos os comandos",              pages: [15] },

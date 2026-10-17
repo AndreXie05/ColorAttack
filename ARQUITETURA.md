@@ -34,7 +34,9 @@ src/
 ### `jogo/` — a partida
 | Ficheiro | O que faz |
 |---|---|
-| `map-viewer.js` | **O coração do jogo**: ecrãs, ciclo de cada frame, teclas, HUD, rounds, fim do round |
+| `map-viewer.js` | **O coração do jogo**: ecrãs, ciclo de cada frame, teclas, rounds, combate do jogador, fim do round (liga as outras partes) |
+| `game-state.js` | O estado partilhado da partida (`state`), teclas, o desenhador, a cena e a câmara, nomes e cores dos jogadores |
+| `hud.js` | O que se vê por cima do jogo: avisos, lista de eliminações, bolinhas das equipas, placar, relógio, contagem, munição, mira |
 | `combat.js` | Tiros, granadas, armadilhas, dano e eliminações |
 | `bots.js` | A inteligência dos bots (personalidades, para onde vão, quando disparam) |
 | `upgrades.js` | Melhorias escolhidas no fim de cada round |
@@ -74,6 +76,7 @@ src/
 | `progress.js` | XP, níveis, moedas, joias, comprar e equipar |
 | `achievements.js` | Conquistas 🏅 e títulos |
 | `missions.js` | Missões diárias 📅 |
+| `daily-login.js` | Prémio diário 🎁 (7 dias seguidos; o 7.º dá joias) |
 | `stats.js` | Classificações e estatísticas |
 
 ### `visual/`
@@ -81,8 +84,11 @@ src/
 |---|---|
 | `materials-and-geometry.js` | Materiais e formas partilhadas |
 | `paint-layer.js` | A tinta no chão |
-| `weather.js` | Clima: chuva, nevoeiro, trovoada… |
+| `weather.js` | Clima: chuva, nevoeiro, trovoada…; céu de noite (estrelas, lua) nos mapas noturnos |
 | `map-look.js` | Sombras e texturas dos mapas .glb |
+| `minimap.js` | Minimapa: fotografia do mapa vista de cima + tinta, colegas e baú dourado |
+| `quality.js` | Qualidade gráfica (Alta…Silenciosa) e tamanho do ecrã |
+| `neon-glow.js` | Brilho do néon (halo dos tubos "Tube…" e manchas de luz no chão), sem pós-processamento |
 | `symbol-sprites.js` | Símbolos por cima dos bonecos |
 | `damage-numbers.js` | Números de dano vermelhos por cima de quem acertas (somam-se, 1 s) |
 
@@ -99,12 +105,16 @@ src/
 |---|---|
 | `online.js` | Salas com código (criar, entrar, equipas) |
 | `net-game.js` | O que passa entre os PCs durante a partida |
+| `net-match.js` | Liga as salas à partida: começar, rounds, baús, canhão, amigo que sai; o teu nome |
 
 ### `ecras/`
 | Ficheiro | O que faz |
 |---|---|
 | `lobby.js` | O lobby: loja, inventário, perfil, conquistas |
 | `settings.js` | ⚙️ Configurações: som, gráficos, rato |
+| `round-summary.js` | O HTML das estatísticas do round, mapa de calor, destaques e resumo do jogo |
+| `daily-screen.js` | Calendário do prémio diário 🎁 (abre sozinho no lobby uma vez por dia) |
+| `victory-podium.js` | Pódio 3D do fim do jogo: a equipa vencedora a celebrar |
 | `instructions-screen.js` | Ecrã de instruções |
 | `color-selector.js` | Escolher e misturar cores (teclas 1, 2, 3) |
 

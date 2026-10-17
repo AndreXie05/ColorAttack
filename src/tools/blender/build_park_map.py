@@ -9,7 +9,7 @@ nuvens com cara, bichinhos nos muros.
 """
 import math
 import os
-exec(open("/home/andrexie/Documents/ColorAttack/tools/blender/map_kit.py").read())
+exec(open("/home/andrexie/Documents/ColorAttack/src/tools/blender/map_kit.py").read())
 OUTPUT = globals().get("OUTPUT")
 
 MATERIALS.update({
@@ -174,7 +174,7 @@ def build():
             blossom_tree(s * 34, sz * 26, 1.1)
             swing(s * 4, sz * 22)
     patrol = [(8, 0), (0, -12), (0, 12), (17, 0), (17, -20), (17, 20), (25, -20), (25, 20), (34, -14), (34, 14), (10, -27), (10, 27), (30, 0), (8, 31)]
-    exec(open("/home/andrexie/Documents/ColorAttack/tools/blender/map_extras.py").read(), globals())
+    exec(open("/home/andrexie/Documents/ColorAttack/src/tools/blender/map_extras.py").read(), globals())
     decorate(seed=5, wall_h=2.4, patrol=patrol)
     return finish_map("parque", patrol, OUTPUT)
 

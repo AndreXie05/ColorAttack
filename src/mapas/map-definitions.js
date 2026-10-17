@@ -305,8 +305,8 @@ export function buildStudio() {
 
 // Mapas feitos no Blender (assets/maps/*.glb); se um ficheiro falhar, usa-se a versão feita em código (build).
 // load.preload(): começa já a carregar (ex.: durante as estatísticas do round); o load() seguinte usa esse mapa (uma vez só)
-const GLB = (id, name, bg, sky, lighting) => {
-  const go = () => loadGlbMap(`assets/maps/${id}.glb`, { id, name, background: bg, skyTop: sky, lighting });
+const GLB = (id, name, bg, sky, lighting, extra = {}) => {
+  const go = () => loadGlbMap(`assets/maps/${id}.glb`, { id, name, background: bg, skyTop: sky, lighting, ...extra });
   let pre = null;
   const load = () => { const p = pre || go(); pre = null; return p; };
   load.preload = () => { if (!pre) { pre = go(); pre.catch(() => { pre = null; }); } };
@@ -326,6 +326,8 @@ export const MAPS = [
     load: GLB("fabrica", "Fábrica de Tintas", 0xbcd4ea, 0x4f8fd0, { sky: 0xe8f1ff, ground: 0xc8d0dc, hemi: 1.4, sunI: 1.4, pos: [30, 70, -20] }) },
   { id: "castelo",     name: "Castelo",             icon: "🏰", desc: "Muralhas, salões, canhões e um rio com pontes-levadiças", c1: "#6f6a62", c2: "#4e3522", build: buildPark,
     load: GLB("castelo", "Castelo", 0x8a929c, 0x55606c, { sky: 0xd8dde4, ground: 0x5a5048, hemi: 1.15, sun: 0xffe2c0, sunI: 1.3, pos: [-35, 60, 25] }) },
+  { id: "neon",        name: "Cidade Neon",         icon: "🌃", desc: "Ruas de néon à noite, metro elevado e telhados com letreiros", c1: "#ff3fd8", c2: "#2bf0ff", build: buildPark,
+    load: GLB("neon", "Cidade Neon", 0x2a1a55, 0x070b22, { sky: 0x8f9cff, ground: 0x3a2a66, hemi: 1.25, sun: 0xb4c2ff, sunI: 0.8, pos: [-50, 45, 60] }, { night: true }) },
   { id: "estudio",     name: "Estúdio de Tinta",    icon: "🎨", desc: "Poças gigantes e, a meio do round, o chão muda de cor", c1: "#ff8a1f", c2: "#a447ff", build: buildStudio },
 ];
 

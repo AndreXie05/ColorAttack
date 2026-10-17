@@ -17,7 +17,7 @@ try {
 } catch { /* sem localStorage: fica só em memória */ }
 for (const d of DIFFICULTIES) data[d] = { ...EMPTY(), ...(data[d] || {}) };
 // extras para o perfil (todas as dificuldades juntas): jogos por personagem, tiros por cor e o melhor jogo
-const EXTRA = () => ({ charGames: {}, colorShots: {}, bestKills: 0, winStreak: 0, bestWinStreak: 0 });   // winStreak: vitórias seguidas agora
+const EXTRA = () => ({ charGames: {}, colorShots: {}, bestKills: 0, winStreak: 0, bestWinStreak: 0, history: [] });   // winStreak: vitórias seguidas agora; history: as últimas partidas
 data.extra = { ...EXTRA(), ...(data.extra || {}) };
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(data)); } catch { /* ignora */ } };
 
@@ -41,12 +41,14 @@ export function recordKill(sameColor) {
 }
 export function recordDeath() { S().deaths++; current.deaths++; current.rd++; save(); }
 export function recordAssist() { S().assists++; current.assists++; current.ra++; save(); }
-export function recordRound(won, n) {
+export function recordRound(won, n, map = "") {
   const s = S(); s.rounds++; current.rounds++; if (won) s.roundsWon++; save();
-  current.rows.push({ n, won, kills: current.rk, deaths: current.rd, assists: current.ra }); current.rk = 0; current.rd = 0; current.ra = 0;
+  current.rows.push({ n, won, map, kills: current.rk, deaths: current.rd, assists: current.ra }); current.rk = 0; current.rd = 0; current.ra = 0;
 }
 // final: "A" (ganhaste) ou "B" (perdeste)
-export function recordGame(final, characterId) {
+// info = { score: [rounds teus, rounds deles], mode, online } (vai para o histórico das últimas partidas)
+export const HISTORY_MAX = 10;
+export function recordGame(final, characterId, info = {}) {
   const s = S(); s.games++; s.gameKills += current.kills; s.gameAssists += current.assists;
   if (final === "A") s.wins++; else s.losses++;
   const x = data.extra;
@@ -54,6 +56,10 @@ export function recordGame(final, characterId) {
   for (const [c, n] of Object.entries(current.colors)) x.colorShots[c] = (x.colorShots[c] || 0) + n;
   x.bestKills = Math.max(x.bestKills, current.kills);
   x.winStreak = final === "A" ? x.winStreak + 1 : 0; x.bestWinStreak = Math.max(x.bestWinStreak, x.winStreak);
+  x.history.unshift({ t: Date.now(), res: final === "A" ? "win" : final === null ? "draw" : "loss", score: info.score || [0, 0], mode: info.mode || "normal",
+    diff: current.diff, online: !!info.online, char: characterId || "", maps: [...new Set(current.rows.map((r) => r.map).filter(Boolean))],
+    kills: current.kills, deaths: current.deaths, assists: current.assists });
+  x.history.length = Math.min(x.history.length, HISTORY_MAX);
   save();
 }
 export function resetStats() { for (const d of DIFFICULTIES) data[d] = EMPTY(); data.extra = EXTRA(); save(); }
@@ -66,6 +72,7 @@ export function profile() {
   return { ...t, favChar: top(known), favColor: top(x.colorShots), bestKills: x.bestKills, winStreak: x.winStreak, bestWinStreak: x.bestWinStreak };
 }
 export const winStreak = () => data.extra.winStreak;
+export const history = () => data.extra.history;                                   // as últimas partidas (a mais recente primeiro)
 
 const pct = (a, b) => (b > 0 ? Math.round((a / b) * 100) + "%" : "–");
 const per = (a, b) => (b > 0 ? (a / b).toFixed(1).replace(".", ",") : "–");

@@ -8,7 +8,7 @@ Corre dentro do Blender:  OUTPUT = "/caminho/assets/maps/restaurante.glb"; exec(
 """
 import math
 import os
-exec(open("/home/andrexie/Documents/ColorAttack/tools/blender/map_kit.py").read())
+exec(open("/home/andrexie/Documents/ColorAttack/src/tools/blender/map_kit.py").read())
 OUTPUT = globals().get("OUTPUT")
 
 MATERIALS.update({
@@ -221,7 +221,7 @@ def build():
         for (x, z) in [(16, -4), (16, 4), (38, -30), (38, 30)]:
             lamp(s * x, z, 5.4)
     patrol = [(8, -22), (8, 22), (20, -4), (20, 4), (28, -8), (28, 8), (40, -14), (40, 14), (0, -24), (0, 22), (16, -24), (36, 28), (26, 30)]
-    exec(open("/home/andrexie/Documents/ColorAttack/tools/blender/map_extras.py").read(), globals()); decorate(seed=2, wall_h=2.6, patrol=patrol)
+    exec(open("/home/andrexie/Documents/ColorAttack/src/tools/blender/map_extras.py").read(), globals()); decorate(seed=2, wall_h=2.6, patrol=patrol)
     return finish_map("restaurante", patrol, OUTPUT)
 
 

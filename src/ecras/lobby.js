@@ -9,10 +9,13 @@ import * as Emotes from "../personagens/emotes.js";
 import * as Stats from "../progresso/stats.js";
 import * as Ach from "../progresso/achievements.js";
 import * as Missions from "../progresso/missions.js";
+import { Sfx } from "../som/sfx.js";
+import { playerName, setPlayerName, NAME_MAX } from "../progresso/player-name.js";
 import { portraitUrl, fullBodyUrl } from "../personagens/portraits.js";
 import * as ShopArt from "../loja/shop-art.js";
 import { CHARACTERS } from "../personagens/characters.js";
-import { TEAM } from "../base/game-config.js";
+import { TEAM, MODES, BOT_PRESETS } from "../base/game-config.js";
+import { MAPS } from "../mapas/map-definitions.js";
 import { chipHTML } from "../base/colors.js";
 import { COLORS, PRIMARIES, SECONDARIES } from "../base/colors.js";
 
@@ -77,10 +80,10 @@ function splat2d(g, x, y, r, color, rnd) {
 }
 const seeded = (seed) => () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
 // chão: 60 x 60 m numa imagem de 1024 (≈ 17 px por metro)
-function floorTexture() {
+function floorTexture(tiles = ["#3a2878", "#2e2063"]) {                               // tiles = as duas cores dos azulejos (muda com o tema)
   return canvasTex(1024, 1024, (g, w) => {
     const rnd = seeded(7), px = w / 60, X = (x) => (x + 30) * px, Z = (z) => (z + 30) * px;
-    for (let i = 0; i < 30; i++) for (let j = 0; j < 30; j++) { g.fillStyle = (i + j) % 2 ? "#3a2878" : "#2e2063"; g.fillRect(i * 2 * px, j * 2 * px, 2 * px + 1, 2 * px + 1); }   // azulejos de 2 m
+    for (let i = 0; i < 30; i++) for (let j = 0; j < 30; j++) { g.fillStyle = (i + j) % 2 ? tiles[0] : tiles[1]; g.fillRect(i * 2 * px, j * 2 * px, 2 * px + 1, 2 * px + 1); }   // azulejos de 2 m
     g.strokeStyle = "rgba(255,255,255,0.05)"; g.lineWidth = 2;
     for (let i = 0; i <= 30; i++) { g.beginPath(); g.moveTo(i * 2 * px, 0); g.lineTo(i * 2 * px, w); g.stroke(); g.beginPath(); g.moveTo(0, i * 2 * px); g.lineTo(w, i * 2 * px); g.stroke(); }
     [[-5, -4, 1.8], [5.2, -3.5, 1.6], [-8, 1, 2.2], [8.2, 0.5, 2], [-2.5, -9, 2.6], [3, -9.5, 2.8], [-11, -8, 2.8], [11, -8, 3], [-13, -2, 1.6], [13, -1, 1.8], [0, -13, 2.4], [-7, -13, 2], [7, -14, 2.2], [-4, 3, 0.9], [4.5, 3.5, 1]]
@@ -92,10 +95,10 @@ function floorTexture() {
   });
 }
 // parede: fundo roxo com bolinhas, quadros pintados e salpicos (a imagem dá a volta ao arco)
-function wallTexture() {
+function wallTexture(grad = ["#5a3aa8", "#3b2580"]) {                                 // grad = cor da parede em cima e em baixo (muda com o tema)
   return canvasTex(2048, 256, (g, w, h) => {
     const rnd = seeded(3), grd = g.createLinearGradient(0, 0, 0, h);
-    grd.addColorStop(0, "#5a3aa8"); grd.addColorStop(1, "#3b2580"); g.fillStyle = grd; g.fillRect(0, 0, w, h);
+    grd.addColorStop(0, grad[0]); grd.addColorStop(1, grad[1]); g.fillStyle = grd; g.fillRect(0, 0, w, h);
     g.fillStyle = "rgba(255,255,255,0.08)";
     for (let x = 12; x < w; x += 34) for (let y = 70; y < h; y += 34) { g.beginPath(); g.arc(x + ((y / 34) % 2) * 17, y, 5, 0, Math.PI * 2); g.fill(); }   // bolinhas
     for (let i = 0; i < 9; i++) {                                                     // quadros com desenhos abstratos
@@ -121,6 +124,17 @@ function artTexture(n) {
     } else for (let i = 0; i < 7; i++) splat2d(g, rnd() * w, rnd() * h, 18 + rnd() * 26, CSS6[i % 6], rnd);   // pintura abstrata
   });
 }
+// Temas do fundo do lobby (escolhidos nas Configurações). bg = céu em degradé; tint = cor por cima do chão e da parede;
+// lights = força das duas luzes coloridas; colors = cores fixas dessas luzes (sem colors vão mudando de cor)
+const THEME_KEY = "colorattack.lobbyTheme";
+export const LOBBY_THEMES = {
+  estudio: { name: "Estúdio", icon: "🎨", bg: ["#3b1f78", "#22164f", "#0d0b1f"], fog: 0x2a1a5c, hemi: [0xffffff, 0x4a3a7a, 1.3], sun: 1.6, tint: 0xffffff, cloud: 0xfdf6ff, stars: true, lights: 30,
+             tiles: ["#3a2878", "#2e2063"], wall: ["#5a3aa8", "#3b2580"] },
+  neon:    { name: "Noite Neon", icon: "🌃", bg: ["#170b45", "#0b0626", "#03020b"], fog: 0x0e0828, hemi: [0xb8c2ff, 0x2a1a55, 1.0], sun: 0.9, tint: 0xffffff, cloud: 0x3a2f70, stars: true, lights: 14, colors: [0xff3fd8, 0x2bf0ff],
+             tiles: ["#1c1446", "#120c33"], wall: ["#24164f", "#0f0a2a"] },
+  dia:     { name: "Dia de Sol", icon: "☀️", bg: ["#4fb6ff", "#a9e2ff", "#fff1cf"], fog: 0xbfe6ff, hemi: [0xffffff, 0xffe3b0, 1.5], sun: 1.8, tint: 0xffffff, cloud: 0xffffff, stars: false, lights: 6,
+             tiles: ["#f3dfb4", "#e8cf9c"], wall: ["#8fd6ff", "#5fb3f0"] },
+};
 function buildBackdrop(scene, lights) {
   const root = new THREE.Group(); scene.add(root);
   const T = PAL6;
@@ -153,10 +167,10 @@ function buildBackdrop(scene, lights) {
   const hub = new THREE.Mesh(new THREE.CircleGeometry(0.9, 32), new THREE.MeshBasicMaterial({ color: 0xffffff })); hub.position.z = 0.02; wheel.add(hub);
   const hubRing = new THREE.Mesh(new THREE.RingGeometry(0.9, 1.05, 32), new THREE.MeshBasicMaterial({ color: 0x1a1033 })); hubRing.position.z = 0.03; wheel.add(hubRing);
   // nuvens fofas no céu (bolas brancas com contorno)
-  const clouds = [];
+  const clouds = [], cloudMat = toon(0xfdf6ff);
   [[-9, 7.2, -18, 1.2], [6, 7.8, -19, 1.4], [14, 6.6, -14, 1.0], [-15, 6.4, -12, 1.1], [0, 8.6, -21, 1.3]].forEach(([x, y, z, k]) => {
     const g = new THREE.Group(); g.position.set(x, y, z); g.scale.setScalar(k); root.add(g);
-    [[0, 0, 1.2], [1.2, -0.2, 0.9], [-1.2, -0.25, 0.85], [0.5, 0.55, 0.8], [-0.6, 0.45, 0.7]].forEach(([px, py, r]) => { const b = outlined(new THREE.SphereGeometry(r, 16, 12), toon(0xfdf6ff), 1.07); b.position.set(px, py, 0); g.add(b); });
+    [[0, 0, 1.2], [1.2, -0.2, 0.9], [-1.2, -0.25, 0.85], [0.5, 0.55, 0.8], [-0.6, 0.45, 0.7]].forEach(([px, py, r]) => { const b = outlined(new THREE.SphereGeometry(r, 16, 12), cloudMat, 1.07); b.position.set(px, py, 0); g.add(b); });
     clouds.push({ g, x, v: 0.15 + Math.random() * 0.15 });
   });
   // latas de tinta gigantes (cartoon, com contorno), com tinta a escorrer; duas tombadas a derramar
@@ -212,6 +226,8 @@ function buildBackdrop(scene, lights) {
   root.add(drops);
   let hue = 0;
   return {
+    mats: { floor: floor.material, wall: wall.material, cloud: cloudMat }, stars,       // (os temas do lobby mudam estas cores)
+    fixedColors: null,                                                                  // [cor1, cor2] = luzes coloridas paradas; null = vão mudando de cor
     update(dt, t) {
       wheel.rotation.z -= dt * 0.15;
       for (const c of clouds) { c.g.position.x += c.v * dt; if (c.g.position.x > 22) c.g.position.x = -22; }
@@ -226,17 +242,17 @@ function buildBackdrop(scene, lights) {
       for (let i = 0; i < NST; i++) { const st = S[i], k = 0.4 + 0.8 * Math.abs(Math.sin(t * 2 + st.ph)); m4.makeRotationY(t + st.ph).scale(_sv.set(k, k * 1.6, k)).setPosition(st.x, st.y, st.z); stars.setMatrixAt(i, m4); }
       stars.instanceMatrix.needsUpdate = true;
       hue = (hue + dt * 0.05) % 1;
-      lights[0].color.setHSL(hue, 0.9, 0.6); lights[1].color.setHSL((hue + 0.5) % 1, 0.9, 0.6);
+      if (this.fixedColors) { lights[0].color.setHex(this.fixedColors[0]); lights[1].color.setHex(this.fixedColors[1]); }
+      else { lights[0].color.setHSL(hue, 0.9, 0.6); lights[1].color.setHSL((hue + 0.5) % 1, 0.9, 0.6); }
     },
   };
 }
 
 export function createLobby({ renderer, template, onEquip, onPanel, getTemplate }) {   // getTemplate(id): modelo de uma skin (para a experimentar na loja)
   const scene = new THREE.Scene();
-  scene.background = gradientTexture(["#3b1f78", "#22164f", "#0d0b1f"]);              // céu em degradé (roxo → azul-noite)
-  scene.fog = new THREE.Fog(0x2a1a5c, 24, 48);
+  scene.fog = new THREE.Fog(0x2a1a5c, 24, 48);                                        // (céu e nevoeiro: ver applyTheme)
   const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x4a3a7a, 1.3));
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x4a3a7a, 1.3); scene.add(hemi);
   const sun = new THREE.DirectionalLight(0xffffff, 1.6); sun.position.set(3, 8, 5); sun.castShadow = true;
   sun.shadow.mapSize.set(512, 512); Object.assign(sun.shadow.camera, { left: -4, right: 4, top: 4, bottom: -4, near: 1, far: 20 });
   scene.add(sun);
@@ -255,6 +271,24 @@ export function createLobby({ renderer, template, onEquip, onPanel, getTemplate 
   ring.rotation.x = Math.PI / 2; stage.add(ring);
 
   const backdrop = buildBackdrop(scene, [spot, spot2]);                              // estúdio de tinta à volta do palco
+  // tema do lobby (Configurações): muda o céu, o nevoeiro, a luz e as cores do estúdio; fica guardado
+  const bgCache = {}, texCache = {};
+  function applyTheme(id) {
+    const th = LOBBY_THEMES[id] || LOBBY_THEMES.estudio;
+    theme = LOBBY_THEMES[id] ? id : "estudio";
+    scene.background = bgCache[theme] ||= gradientTexture(th.bg);
+    scene.fog.color.setHex(th.fog);
+    hemi.color.setHex(th.hemi[0]); hemi.groundColor.setHex(th.hemi[1]); hemi.intensity = th.hemi[2];
+    sun.intensity = th.sun;
+    backdrop.mats.floor.color.setHex(th.tint); backdrop.mats.wall.color.setHex(th.tint); backdrop.mats.cloud.color.setHex(th.cloud);
+    const tx = texCache[theme] ||= { floor: floorTexture(th.tiles), wall: wallTexture(th.wall) };   // chão e parede de cada tema (desenhados uma vez)
+    backdrop.mats.floor.map = tx.floor; backdrop.mats.wall.map = tx.wall;
+    backdrop.stars.visible = th.stars;
+    spot.intensity = spot2.intensity = th.lights; backdrop.fixedColors = th.colors || null;
+    try { localStorage.setItem(THEME_KEY, theme); } catch { /* ignora */ }
+  }
+  let theme = "estudio";
+  applyTheme((() => { try { return localStorage.getItem(THEME_KEY); } catch { return null; } })());
 
   let model = null, spin = 0, drag = null, shift = 0, last = 0;
   const celeb = {};                                                                 // celebração do boneco do lobby
@@ -299,9 +333,10 @@ export function createLobby({ renderer, template, onEquip, onPanel, getTemplate 
     const pct = (a, b) => (b > 0 ? Math.round((a / b) * 100) + "%" : "–"), per = (a, b) => (b > 0 ? (a / b).toFixed(1).replace(".", ",") : "–");
     const ch = p.favChar && CHARACTERS.find((c) => c.id === p.favChar[0]), url = ch && portraitUrl(ch.id, TEAM.A.color);
     const card = (v, label) => `<div class="pfCard"><b>${v}</b><span>${label}</span></div>`;
-    const eq = ["boneco", "arma", "emote", "rasto"].map((k) => itemById(w.equip[k])).filter(Boolean);
+    const eq = ["boneco", "arma", "autocolante", "emote", "rasto"].map((k) => itemById(w.equip[k])).filter(Boolean);
     return `<div class="pfHead"><span class="lvStar big"><b>${lv.level}</b></span><div><b class="pfLv">Nível ${lv.level}</b> <span class="pfTitle">🏷️ ${Ach.titleName()}</span><small>${lv.total} XP no total · faltam ${lv.need - lv.into} XP para o nível ${lv.level + 1}</small>
         <div class="pfMoney"><span>🪙 ${w.coins}</span><span>💎 ${w.gems}</span><span>🎒 ${w.owned.length} itens</span></div></div></div>
+      <div class="pfName"><label for="pfNameIn">✏️ O teu nome</label><input id="pfNameIn" maxlength="${NAME_MAX}" spellcheck="false" autocomplete="off" value="${playerName().replace(/[&"<>]/g, (c) => ({ "&": "&amp;", '"': "&quot;", "<": "&lt;", ">": "&gt;" })[c])}"><button data-savename>Guardar</button><small>Aparece no pódio e para os amigos</small></div>
       <div class="pfFavs">
         <div class="pfFav">${url ? `<img src="${url}" alt="">` : "<i>❔</i>"}<div><small>Personagem preferida</small><b>${ch ? ch.name : "Ainda nenhuma"}</b>${p.favChar ? `<small>${p.favChar[1]} ${p.favChar[1] === 1 ? "jogo" : "jogos"}</small>` : ""}</div></div>
         <div class="pfFav">${p.favColor ? chipHTML(p.favColor[0], 54) : "<i>❔</i>"}<div><small>Cor preferida</small><b>${p.favColor ? COLORS[p.favColor[0]].name : "Ainda nenhuma"}</b>${p.favColor ? `<small>${p.favColor[1]} tiros</small>` : ""}</div></div>
@@ -309,9 +344,25 @@ export function createLobby({ renderer, template, onEquip, onPanel, getTemplate 
       <div class="pfGrid">${card(p.games, "Jogos")}${card(pct(p.wins, p.games), "Vitórias")}${card(p.roundsWon, "Rounds ganhos")}${card(p.kills, "Eliminações")}
         ${card(per(p.kills, p.deaths), "Elim. / mortes")}${card(pct(p.killsSame, p.kills), "Com a cor certa")}${card(per(p.gameKills, p.games), "Elim. por jogo")}${card(p.bestKills, "Recorde de eliminações")}
         ${card("🔥 " + p.winStreak, "Vitórias seguidas agora")}${card(p.bestWinStreak, "Recorde de vitórias seguidas")}</div>
+      ${historyHTML()}
       <div class="pfEq"><small>Equipado:</small>${eq.map((it) => `<span title="${it.name}">${it.icon} ${it.name}</span>`).join("")}</div>
       ${titlesHTML()}
       <button class="pfAchLink" data-tab="ach">🏅 Conquistas: ${Ach.list().filter((a) => a.done).length} / ${Ach.list().length} feitas · ver todas</button>`;
+  }
+  // Últimas partidas (Stats.history): resultado, rounds, modo, mapas, eliminações/mortes e quando foi
+  function historyHTML() {
+    const h = Stats.history();
+    const when = (t) => { const d = new Date(t), p = (n) => String(n).padStart(2, "0"); return `${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`; };
+    const RES = { win: ["🏆", "Vitória"], loss: ["💔", "Derrota"], draw: ["🤝", "Empate"] };
+    const rows = h.map((g) => {
+      const [ic, txt] = RES[g.res] || RES.loss, mode = MODES[g.mode] || MODES.normal;
+      const maps = g.maps.map((id) => MAPS.find((m) => m.id === id)).filter(Boolean).map((m) => `<span title="${m.name}">${m.icon}</span>`).join("");
+      return `<div class="hiRow ${g.res}"><b class="hiRes">${ic} ${txt}</b><span class="hiScore">${g.score[0]} – ${g.score[1]}</span>
+        <span class="hiMode" title="${mode.name}">${mode.icon} ${mode.name}${g.online ? " · 👥" : ""}</span><span class="hiMaps">${maps}</span>
+        <span class="hiKd" title="Eliminações / mortes">💥 ${g.kills} · 💀 ${g.deaths}</span><small>${when(g.t)} · ${BOT_PRESETS[g.diff]?.name || ""}</small></div>`;
+    }).join("");
+    return `<h4 class="pfAchT">📜 Últimas partidas <small>${h.length ? `as ${h.length} mais recentes` : ""}</small></h4>` +
+      (rows ? `<div class="hiList">${rows}</div>` : `<p class="hiNone">Ainda não acabaste nenhuma partida. Joga uma e ela aparece aqui!</p>`);
   }
   // Títulos: os que já ganhaste podem ser escolhidos (aparecem por baixo do teu nome, também para os amigos); os outros mostram a conquista que os dá
   function titlesHTML() {
@@ -360,7 +411,10 @@ export function createLobby({ renderer, template, onEquip, onPanel, getTemplate 
     $("lbCats").innerHTML = CATEGORIES.map((c) => `<button class="chip${cat === c.id ? " on" : ""}" data-cat="${c.id}">${c.icon} ${c.name}</button>`).join("");
     const list = ITEMS.filter((it) => it.cat === cat && (tab === "inv" ? Progress.owns(it.id) : !Progress.owns(it.id)))
       .sort((a, b) => rarityRank(a) - rarityRank(b) || a.price - b.price);           // por raridade: verdes, azuis, roxos e dourados (e, dentro de cada uma, do mais barato ao mais caro)
-    $("lbItems").innerHTML = list.length ? list.map((it) => {
+    const mysWhy = Progress.cantMystery();                                                   // caixa-surpresa: no topo da Loja, em todas as categorias
+    const box = tab === "shop" ? `<div class="mysCard"><span class="mysGift">🎁</span><div><b>Caixa-surpresa</b><small>Sai um item da loja que ainda não tens (até ao teu nível). Pode ser raro ou épico!</small></div>
+      <button class="lbBtn buy" data-mystery ${mysWhy ? "disabled" : ""} title="${mysWhy}">🪙 ${Progress.MYSTERY_PRICE}</button></div>` : "";
+    $("lbItems").innerHTML = box + (list.length ? list.map((it) => {
       const eq = w.equip[it.cat] === it.id, why = tab === "shop" ? Progress.cantBuy(it.id) : "", locked = tab === "shop" && lv < it.level;
       const price = `${it.cur === "gems" ? "💎" : "🪙"} ${it.price}`;
       const btn = tab === "inv" ? (eq ? `<span class="lbOn">✔ Equipado</span>` : `<button class="lbBtn" data-equip="${it.id}">Equipar</button>`)
@@ -369,7 +423,7 @@ export function createLobby({ renderer, template, onEquip, onPanel, getTemplate 
       const rar = rarity(it);
       const icon = pic ? `<span class="lbSkinPic ${rar}"><img src="${pic}" alt=""><i>${it.icon}</i></span>` : `<span class="lbIcon">${it.icon}</span>`;
       return `<div class="lbItem${eq ? " eq" : ""}${locked ? " locked" : ""}${pic ? " skin" : ""}" data-try="${it.id}">${icon}<b>${it.name}</b><small>${it.desc}</small>${btn}</div>`;
-    }).join("") : `<p class="lbEmpty">${tab === "shop" ? "Já compraste tudo desta categoria! 🎉" : "Ainda não tens nada desta categoria: vai à Loja."}</p>`;
+    }).join("") : `<p class="lbEmpty">${tab === "shop" ? "Já compraste tudo desta categoria! 🎉" : "Ainda não tens nada desta categoria: vai à Loja."}</p>`);
     renderTop();
   }
   // passar o rato por cima de um item da loja: experimenta-o no boneco
@@ -387,6 +441,9 @@ export function createLobby({ renderer, template, onEquip, onPanel, getTemplate 
     setCharacterPaint(model, PAINT);
   }
   $("lbPanel").addEventListener("click", (e) => {
+    if (e.target.closest("[data-savename]")) { saveName(); return; }
+    const mb = e.target.closest("[data-mystery]");
+    if (mb && !mb.disabled) { openMysteryBox(); return; }
     const tt = e.target.closest("[data-title]");
     if (tt && !tt.disabled) { Ach.setTitle(tt.dataset.title); renderPanel(); flash(`🏷️ Título: ${Ach.titleName()}`); return; }
     const card = itemById(e.target.closest("[data-try]")?.dataset.try);
@@ -401,6 +458,29 @@ export function createLobby({ renderer, template, onEquip, onPanel, getTemplate 
   });
   $("lbPanel").addEventListener("mouseover", (e) => { const t = e.target.closest("[data-try]"); const id = t?.dataset.try || null; if (id !== trying) { trying = id; preview(id); } });
   $("lbPanel").addEventListener("mouseleave", () => { trying = null; preview(null); });
+  // Caixa-surpresa: a caixa abana, abre e mostra o item (com a foto e a raridade); podes equipá-lo logo
+  const RAR_NAME = { rare: "Raro", epic: "Épico", gold: "Dourado", free: "Comum" };
+  function openMysteryBox() {
+    const it = Progress.openMystery();
+    if (!it) return;
+    renderPanel();
+    const el = $("mysteryBox"), pic = it.cat === "boneco" ? fullBodyUrl(it.id.slice(7)) : ShopArt.get(it.id), rar = rarity(it);
+    el.innerHTML = `<div class="mysStage"><div class="mysBoxBig">🎁</div>
+      <div class="mysPrize ${rar}">${pic ? `<img src="${pic}" alt="">` : `<span class="mysIcon">${it.icon}</span>`}<em>${RAR_NAME[rar] || ""}</em><b>${it.icon} ${it.name}</b><small>${it.desc}</small>
+        <div class="mysBtns"><button class="lbBtn" data-mysequip="${it.id}">Equipar</button><button class="lbBtn ghostBtn" data-mysclose>Fechar</button></div></div></div>`;
+    el.style.display = "flex"; el.classList.remove("open"); void el.offsetWidth; el.classList.add("open");
+    Sfx.play("chest"); setTimeout(() => Sfx.play("golden"), 1250);
+  }
+  $("mysteryBox").addEventListener("click", (e) => {
+    const eqb = e.target.closest("[data-mysequip]");
+    if (eqb) { Progress.equip(eqb.dataset.mysequip); onEquip?.(); renderPanel(); flash("✔ Equipado!"); }
+    if (eqb || e.target.closest("[data-mysclose]") || e.target.id === "mysteryBox") $("mysteryBox").style.display = "none";
+  });
+  function saveName() {                                                              // Perfil: guardar o teu nome
+    const inp = $("pfNameIn"); if (!inp) return;
+    const n = setPlayerName(inp.value); inp.value = n; inp.blur(); flash(`✏️ O teu nome agora é ${n}`);
+  }
+  $("lbPanel").addEventListener("keydown", (e) => { if (e.target.id === "pfNameIn") { e.stopPropagation(); if (e.key === "Enter") saveName(); } });
   function flash(text) { const f = $("lbFlash"); f.textContent = text; f.classList.remove("show"); void f.offsetWidth; f.classList.add("show"); }
   function openPanel(t) {
     tab = t; $("lbPanel").classList.add("open"); $("lobby").classList.add("panel"); renderPanel(); onPanel?.(t);
@@ -412,6 +492,7 @@ export function createLobby({ renderer, template, onEquip, onPanel, getTemplate 
 
   return {
     setModel, openPanel, closePanel, renderTop, flash,
+    setTheme: applyTheme, get theme() { return theme; },
     get paint() { return PAINT; },
     emote(id) { Emotes.stop(celeb); Emotes.play(celeb, id, performance.now()); },   // faz já uma celebração (testes)
     face(a = 0) { spin = a; },

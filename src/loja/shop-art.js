@@ -7,7 +7,7 @@ import * as Emotes from "../personagens/emotes.js";
 import { TRAILS } from "./trails.js";
 
 /* ============================================================
-   IMAGENS DA LOJA (armas, celebrações e rastos)
+   IMAGENS DA LOJA (armas, celebrações, rastos e autocolantes)
    Fotografias tiradas uma só vez, quando a loja abre pela primeira vez (não atrasam o arranque do jogo):
    - armas: a arma em 3D, de lado;  - celebrações: o boneco a meio da celebração;
    - rastos: um desenho com o rasto a sair de quem corre.
@@ -97,6 +97,17 @@ export function build() {
       g.globalAlpha = 1; g.font = "58px serif"; g.save(); g.translate(118, 146); g.scale(-1, 1); g.fillText("🏃", 0, 0); g.restore();   // quem corre (virado para a direita)
       g.strokeStyle = "rgba(255,255,255,0.7)"; g.lineWidth = 3; g.lineCap = "round";                // linhas de velocidade
       for (const [y, l] of [[128, 22], [142, 30], [156, 18]]) { g.beginPath(); g.moveTo(84 - l, y); g.lineTo(84, y); g.stroke(); }
+      urls.set(it.id, c.toDataURL("image/png"));
+    }
+    // ---- autocolantes: o desenho com contorno branco, inclinado, como um autocolante recortado ----
+    for (const it of ITEMS.filter((i) => i.cat === "autocolante" && i.id !== "autocolante_nada")) {
+      const c = document.createElement("canvas"); c.width = W; c.height = H;
+      const g = c.getContext("2d");
+      g.translate(W / 2, H / 2 + 4); g.rotate(-0.18);
+      g.font = "92px sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+      g.shadowColor = "#ffffff";
+      for (let a = 0; a < 16; a++) { g.shadowOffsetX = Math.cos(a / 16 * Math.PI * 2) * 7; g.shadowOffsetY = Math.sin(a / 16 * Math.PI * 2) * 7; g.fillText(it.icon, 0, 0); }
+      g.shadowColor = "rgba(0,0,0,0.35)"; g.shadowOffsetX = 0; g.shadowOffsetY = 6; g.shadowBlur = 8; g.fillText(it.icon, 0, 0);
       urls.set(it.id, c.toDataURL("image/png"));
     }
   })().catch((err) => console.warn("Não foi possível criar as imagens da loja.", err));

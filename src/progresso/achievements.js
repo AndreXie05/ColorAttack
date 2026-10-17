@@ -10,7 +10,7 @@ import * as Stats from "./stats.js";
 import { WEATHER_IDS } from "../visual/weather.js";
 
 const KEY = "colorattack.achievements";
-const MAP_IDS = ["parque", "escola", "restaurante", "diversoes", "fabrica", "castelo", "estudio"];
+const MAP_IDS = ["parque", "escola", "restaurante", "diversoes", "fabrica", "castelo", "neon", "estudio"];
 const MODE_IDS = ["normal", "secreto", "paleta", "relampago", "latas", "zonas"];
 
 // Cada conquista: cat (grupo no ecrã), n (número a chegar), v(c) = quanto já tens (c = contadores de sempre) e o prémio (coins ou gems)
@@ -78,6 +78,8 @@ export const ACHIEVEMENTS = [
   { cat: "clima", id: "nevoeiro1",   icon: "🌫️", name: "Às cegas",              desc: "Ganha um round com nevoeiro",                      coins: 200, n: 1,    v: (c) => X(c, "nevoeiro") },
   { cat: "clima", id: "trovoada10",  icon: "🌩️", name: "Senhor da tempestade",  desc: "Ganha 10 rounds com trovoada",                     gems: 2, title: "Senhor da tempestade",    n: 10,   v: (c) => X(c, "trovoada") },
   { cat: "clima", id: "nevoeiro10",  icon: "👻", name: "Fantasma do nevoeiro",  desc: "Ganha 10 rounds com nevoeiro",                     gems: 2, title: "Fantasma do nevoeiro",    n: 10,   v: (c) => X(c, "nevoeiro") },
+  { cat: "clima", id: "noite1",      icon: "🌙", name: "Coruja",                desc: "Ganha um round de noite",                          coins: 200, n: 1,    v: (c) => X(c, "noite") },
+  { cat: "clima", id: "noite10",     icon: "🦉", name: "Rei da noite",          desc: "Ganha 10 rounds de noite",                         gems: 2, title: "Rei da noite",    n: 10,   v: (c) => X(c, "noite") },
   { cat: "clima", id: "difNevoeiro", icon: "🌁", name: "Nevoeiro cerrado",      desc: "Ganha um round no Difícil com nevoeiro",           coins: 500, n: 1,    v: (c) => XD(c, "dificil", "nevoeiro") },
   { cat: "clima", id: "impTrovoada", icon: "⚡", name: "Raio impossível",       desc: "Ganha um round no Impossível com trovoada",        gems: 4,    n: 1,    v: (c) => XD(c, "impossivel", "trovoada") },
   { cat: "clima", id: "impNevoeiro", icon: "🕶️", name: "Visão de raio-x",       desc: "Ganha um round no Impossível com nevoeiro",        gems: 5,    n: 1,    v: (c) => XD(c, "impossivel", "nevoeiro") },

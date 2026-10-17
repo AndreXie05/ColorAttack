@@ -15,7 +15,7 @@ const KINDS = {
   leaf:     { scale: 1.6, strength: 0.18, names: ["Leaf1", "Leaf2", "Frond", "Hedge", "HedgeTop", "Pine", "PineDark", "Blossom1", "Blossom2"] },
   wood:     { scale: 1.8, strength: 0.2, names: ["Wood", "WoodDark", "Trunk", "PalmTrunk", "Crate", "CrateDark", "Desk", "Fence", "PencilWood", "Ladder", "BoothBack", "Hull", "Cabin"] },
   stone:    { scale: 3.0, strength: 0.17, names: ["Stone", "StoneDark", "StoneLight", "Cobble", "Path", "RiverBed", "Wall", "WallCap", "OvenDark"] },
-  concrete: { scale: 4.0, strength: 0.09, names: ["Concrete", "Plaza", "Sidewalk", "Road", "FactFloor", "FloorCream", "SchoolWall", "PlatSide", "PlatTop", "Silo", "Court", "RampTop"] },
+  concrete: { scale: 4.0, strength: 0.09, names: ["Concrete", "Plaza", "Sidewalk", "Road", "FactFloor", "FloorCream", "SchoolWall", "PlatSide", "PlatTop", "Silo", "Court", "RampTop", "Sidewalk", "Asphalt", "CurbStone", "NWall", "ShopWall", "Plinth", "PlinthTop", "Deck", "DeckTop", "Bldg1", "Bldg2", "Bldg3", "Bldg4"] },
   brick:    { scale: 2.0, strength: 0.22, names: ["Brick", "OvenBrick"] },
   metal:    { scale: 2.0, strength: 0.1, names: ["Steel", "SteelDark", "SteelTop", "Metal", "Iron", "IronLight", "Machine", "Container1", "Container2", "Container3", "Container4", "Container5", "Vat", "VatRim", "Pipe", "Crane", "Rail", "Rail2", "TankWhite"] },
   hay:      { scale: 1.0, strength: 0.22, names: ["Hay"] },

@@ -4,6 +4,7 @@ import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { MapBuilder, baseSetup } from "./map-builder.js";
 import { gateAngle } from "../movimento/surfaces.js";
 import { applyMapLook, loadGroundAo, KIND_OF } from "../visual/map-look.js";
+import { addNeonGlow } from "../visual/neon-glow.js";
 
 /* ============================================================
    MAPAS FEITOS NO BLENDER (assets/maps/*.glb)
@@ -17,10 +18,11 @@ import { applyMapLook, loadGroundAo, KIND_OF } from "../visual/map-look.js";
      extras opcionais: paint = 1 (topo plano que mostra a tinta), bottom (pontes: passa-se por baixo),
        push_x/push_z (tapete rolante, m/s), spin (carrossel: mesma velocidade da animação), bounce (trampolim, m/s)
      Patrol_n                       ponto de patrulha dos bots
+     Glow_n (extras r, c)           mancha de luz de néon no chão (cor c); os materiais "Tube…" ganham halo (ver neon-glow.js)
    As bases, os pontos de reaparecimento e os baús são criados aqui, como nos mapas feitos em código.
    Devolve o mesmo objeto que as funções buildX() de map-definitions.js.
    ============================================================ */
-export function mapFromGltf(gltf, { id, name, background, skyTop, lighting }, groundAo = null) {
+export function mapFromGltf(gltf, { id, name, background, skyTop, lighting, night = false }, groundAo = null) {
   const b = new MapBuilder(id, name);
   b.background = background; b.skyTop = skyTop;
   b.outerColor = null;                                   // o chão exterior (mar, etc.) vem no próprio modelo
@@ -30,7 +32,7 @@ export function mapFromGltf(gltf, { id, name, background, skyTop, lighting }, gr
   root.updateMatrixWorld(true);
   const markers = [];
   root.traverse((o) => {
-    if (o.name.startsWith("Col_") || o.name.startsWith("Patrol_")) markers.push(o);
+    if (o.name.startsWith("Col_") || o.name.startsWith("Patrol_") || o.name.startsWith("Glow_")) markers.push(o);
     else if (o.isMesh) {
       o.castShadow = true; o.receiveShadow = true;
       b.disposables.push(o.geometry);
@@ -48,11 +50,13 @@ export function mapFromGltf(gltf, { id, name, background, skyTop, lighting }, gr
       o.position[u.axis] = base[u.axis] + ((((t * u.speed + u.phase) % u.span) + u.span) % u.span) - u.span / 2;   // (velocidade negativa = anda ao contrário)
     });
     else if (u.anim === "counter") b.updaters.push(() => { o.rotation[u.axis] = -o.parent.rotation[u.axis]; });   // cabinas ficam direitas
+    else if (u.anim === "blink") b.updaters.push((dt, t) => { o.visible = ((((t * u.speed + u.phase) % 1) + 1) % 1) < u.amp; });   // luzes a piscar
     else if (u.anim === "gate") b.updaters.push((dt, t) => { o.rotation[u.axis] = u.gsign * gateAngle(u, t); });   // ponte-levadiça (sobe e desce)
   }
 
   const p = new THREE.Vector3();
   b.ladders = []; b.waters = [];
+  const pools = [];
   const extra = (c, u) => {                                // pontes, tapetes rolantes, carrosséis e trampolins
     if (u.bottom) c.bottom = u.bottom;
     if (u.push_x || u.push_z) c.push = { x: u.push_x || 0, z: u.push_z || 0 };
@@ -63,6 +67,11 @@ export function mapFromGltf(gltf, { id, name, background, skyTop, lighting }, gr
   };
   for (const o of markers) {
     o.getWorldPosition(p);
+    if (o.name.startsWith("Glow_")) {
+      pools.push({ x: p.x, z: p.z, r: o.userData.r, c: o.userData.c });
+      o.parent.remove(o);
+      continue;
+    }
     if (o.name.startsWith("Col_Water")) {
       const { w, d, top } = o.userData;
       b.waters.push({ minX: p.x - w / 2, maxX: p.x + w / 2, minZ: p.z - d / 2, maxZ: p.z + d / 2, top: top || 0 });
@@ -111,10 +120,11 @@ export function mapFromGltf(gltf, { id, name, background, skyTop, lighting }, gr
   mergeStatic(root, b);                                  // (antes do aspeto: os materiais juntos recebem-no como os outros)
   const look = applyMapLook(root, groundAo);             // luz cozida + texturas de detalhe (ver map-look.js)
   if (groundAo) b.disposables.push(groundAo);
+  b.disposables.push(...addNeonGlow(root, pools));        // (depois do aspeto: os halos têm o seu próprio material)
   b.root.add(root);
   baseSetup(b);                                          // placas das equipas, bandeiras e reaparecimentos
   b.scatterChests();                                     // baús junto a objetos/paredes, espalhados
-  return Object.assign(b.finish(), { look });
+  return Object.assign(b.finish(), { look, night });
 }
 
 // As peças são juntadas numa malha por TIPO de material: a cor de cada peça passa para os vértices (o desenho fica igual:

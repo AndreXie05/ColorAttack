@@ -131,6 +131,23 @@ export function buy(id) {
   wallet[it.cur] -= it.price; wallet.owned.push(id); saveWallet();
   return true;
 }
+// CAIXA-SURPRESA 🎁: por moedas, sai um item da loja (de moedas) que ainda não tens e que o teu nível já deixa comprar
+export const MYSTERY_PRICE = 1800;                                                  // mais do que a maioria dos itens: é uma aposta
+export const mysteryPool = () => ITEMS.filter((it) => it.cur === "coins" && it.price > 0 && !owns(it.id) && levelInfo().level >= it.level);
+export function cantMystery() {
+  if (!mysteryPool().length) return "Já tens tudo o que a caixa pode dar (sobe de nível para haver mais)";
+  if (wallet.coins < MYSTERY_PRICE) return "Moedas insuficientes";
+  return "";
+}
+/** Dá um item de graça (roda da sorte). */
+export function giveItem(id) { if (itemById(id) && !owns(id)) { wallet.owned.push(id); saveWallet(); } }
+/** Abre a caixa: paga, ganha o item e devolve-o (ou null se não puder). */
+export function openMystery() {
+  if (cantMystery()) return null;
+  const pool = mysteryPool(), it = pool[Math.floor(Math.random() * pool.length)];
+  wallet.coins -= MYSTERY_PRICE; wallet.owned.push(it.id); saveWallet();
+  return it;
+}
 export function equip(id) {
   const it = itemById(id);
   if (!it || !owns(id)) return false;

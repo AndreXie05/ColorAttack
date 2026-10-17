@@ -8,6 +8,8 @@ import { G } from "./materials-and-geometry.js";
    Para acrescentar um clima novo basta uma entrada em WEATHERS.
    O clima muda a luz, o céu, o nevoeiro, as nuvens, a chuva e (na trovoada) os relâmpagos.
    `play` = efeito no jogo: paintLife (duração da tinta e das poças), range (alcance dos tiros), sight (até onde os bots veem).
+   Noite: mapas de noite (map.night, ex.: Cidade Neon) e o clima "Noite" (em qualquer mapa): luar azulado, nuvens escuras,
+   estrelas e lua (somem com a chuva e o nevoeiro). Os candeeiros dos mapas já brilham sozinhos.
    ============================================================ */
 export const WEATHERS = {
   sol:      { id: "sol",      icon: "☀️",  name: "Sol",      sky: 0x8fd3ff, top: null, skyMix: 0,    fogNear: 150, fogFar: 420, hemi: 1,    sun: 1,    rain: 0,    wind: 0, cloud: 0xffffff, lightning: false,
@@ -16,6 +18,8 @@ export const WEATHERS = {
               play: { paintLife: 0.6, range: 1, sight: 1, desc: "a chuva lava a tinta: as poças duram menos" } },
   trovoada: { id: "trovoada", icon: "⛈️", name: "Trovoada", sky: 0x2b3340, top: 0x1c222c, skyMix: 0.85, fogNear: 50,  fogFar: 220, hemi: 0.4,  sun: 0.1,  rain: 6000, wind: 7, cloud: 0x4a5261, lightning: true,
               play: { paintLife: 0.45, range: 1, sight: 0.85, desc: "chuva forte: as poças duram muito pouco" } },
+  noite:    { id: "noite",    icon: "🌙", name: "Noite",    sky: 0x1c1846, top: 0x060a22, skyMix: 0.93, fogNear: 80,  fogFar: 340, hemi: 0.55, sun: 0.5,  rain: 0,    wind: 0.3, cloud: 0x2a2450, lightning: false, night: 1,
+              play: { paintLife: 1, range: 1, sight: 0.8, desc: "de noite os bots veem menos longe" } },
   nevoeiro: { id: "nevoeiro", icon: "🌫️", name: "Nevoeiro", sky: 0xc9d2da, top: 0xaab4bf, skyMix: 0.9,  fogNear: 8,   fogFar: 62,  hemi: 0.75, sun: 0.3,  rain: 0,    wind: 0.5, cloud: 0xd8dde2, lightning: false,
               play: { paintLife: 1, range: 0.75, sight: 0.55, desc: "os tiros chegam menos longe e ninguém vê ao longe" } },
 };
@@ -26,6 +30,7 @@ const VOL = { x: 70, z: 52, top: 46 };                 // volume de chuva sobre 
 // trovão: ver sfx.js (respeita o volume do jogo)
 const playThunder = (k) => Sfx.play("thunder", k);
 
+const _moonSky = new THREE.Color(0x8fa0ff), _moonGround = new THREE.Color(0x3a2a66), _moonSun = new THREE.Color(0xb4c2ff);
 const _c1 = new THREE.Color(), _c2 = new THREE.Color(), _bg = new THREE.Color(), _flashC = new THREE.Color(0xdfe8ff);   // reutilizadas em cada frame (sem lixo para o coletor de memória)
 
 export class WeatherSystem {
@@ -100,6 +105,35 @@ export class WeatherSystem {
     this.bolt.frustumCulled = false; this.bolt.visible = false;
     this.group.add(this.bolt);
 
+    // noite: estrelas (um só desenho de pontos) e lua na direção da luz principal (o "sol" é o luar)
+    this.night = !!map.night;
+    {                                                                  // (criados sempre: só aparecem de noite)
+      const N = 700, sp = new Float32Array(N * 3);
+      for (let i = 0; i < N; i++) {
+        const a = Math.random() * Math.PI * 2, y = 0.12 + Math.pow(Math.random(), 0.7) * 0.88, r = Math.sqrt(1 - y * y);
+        sp.set([Math.cos(a) * r * 430, y * 430, Math.sin(a) * r * 430], i * 3);
+      }
+      const sg = new THREE.BufferGeometry(); sg.setAttribute("position", new THREE.BufferAttribute(sp, 3));
+      this.starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 2, sizeAttenuation: false, transparent: true, fog: false, depthWrite: false });
+      this.stars = new THREE.Points(sg, this.starMat);
+      this.stars.frustumCulled = false; this.stars.renderOrder = -9;
+      const dir = this.sun.position.clone().normalize();
+      this.moonMat = new THREE.MeshBasicMaterial({ color: 0xf4f1ff, transparent: true, fog: false, depthWrite: false });
+      this.moon = new THREE.Mesh(new THREE.SphereGeometry(13, 24, 12), this.moonMat);
+      this.moon.position.copy(dir).multiplyScalar(400); this.moon.renderOrder = -8;
+      const c = document.createElement("canvas"); c.width = c.height = 128;
+      const g = c.getContext("2d"), grad = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+      grad.addColorStop(0, "rgba(200,190,255,0.55)"); grad.addColorStop(0.35, "rgba(160,140,255,0.18)"); grad.addColorStop(1, "rgba(120,100,255,0)");
+      g.fillStyle = grad; g.fillRect(0, 0, 128, 128);
+      this.moonGlowTex = new THREE.CanvasTexture(c);
+      this.moonGlowMat = new THREE.SpriteMaterial({ map: this.moonGlowTex, blending: THREE.AdditiveBlending, transparent: true, fog: false, depthWrite: false });
+      this.moonGlow = new THREE.Sprite(this.moonGlowMat);
+      this.moonGlow.position.copy(this.moon.position); this.moonGlow.scale.setScalar(130); this.moonGlow.renderOrder = -7;
+      this.group.add(this.stars, this.moon, this.moonGlow);
+    }
+    this.cloudEmDay = new THREE.Color(0xb8b8b8); this.cloudEmNight = new THREE.Color(0x241a40);
+    this.lightBase = { sky: this.hemi.color.clone(), ground: this.hemi.groundColor.clone(), sun: this.sun.color.clone() };
+
     this.cloudsVisible = true;
     this.rainScale = 1;                                // a qualidade gráfica reduz a chuva
     this.cur = null; this.target = WEATHERS.sol;
@@ -117,7 +151,7 @@ export class WeatherSystem {
     this.target = WEATHERS[id] || WEATHERS.sol;
     if (instant || !this.cur) {
       const t = this.target;
-      this.cur = { hemi: t.hemi, sun: t.sun, skyMix: t.skyMix, fogNear: t.fogNear, fogFar: t.fogFar, rain: t.rain, wind: t.wind };
+      this.cur = { hemi: t.hemi, sun: t.sun, skyMix: t.skyMix, fogNear: t.fogNear, fogFar: t.fogFar, rain: t.rain, wind: t.wind, night: t.night || 0 };
       this.cloudColor.set(t.cloud);
     }
     this.skyColor.set(this.target.sky);
@@ -140,8 +174,20 @@ export class WeatherSystem {
   update(dt, t) {
     const T = this.target, C = this.cur, k = 1 - Math.exp(-dt * 1.6);
     for (const key of ["hemi", "sun", "skyMix", "fogNear", "fogFar", "rain", "wind"]) C[key] += (T[key] - C[key]) * k;
+    C.night += ((T.night || 0) - C.night) * k;
     this.cloudColor.lerp(_c1.set(T.cloud), k);
     this.cloudMat.color.copy(this.cloudColor);
+    const dark = this.night ? 1 : C.night;                                // 0 = de dia, 1 = de noite (mapa de noite ou clima "Noite")
+    this.cloudMat.color.multiplyScalar(1 - 0.78 * dark);                 // nuvens escuras à noite
+    this.cloudMat.emissive.copy(this.cloudEmDay).lerp(this.cloudEmNight, dark);
+    const stars = this.night ? Math.max(0, 1 - C.skyMix * 1.4) : C.night;  // céu limpo = estrelas e lua; chuva/nevoeiro tapam-nas
+    this.starMat.opacity = stars; this.moonMat.opacity = stars; this.moonGlowMat.opacity = stars;
+    this.stars.visible = this.moon.visible = this.moonGlow.visible = stars > 0.01;
+    if (!this.night) {                                                    // clima "Noite": a luz do mapa fica azulada (luar)
+      this.hemi.color.copy(this.lightBase.sky).lerp(_moonSky, C.night * 0.7);
+      this.hemi.groundColor.copy(this.lightBase.ground).lerp(_moonGround, C.night * 0.7);
+      this.sun.color.copy(this.lightBase.sun).lerp(_moonSun, C.night * 0.8);
+    }
 
     // relâmpagos e trovões
     if (T.lightning) {
@@ -189,5 +235,9 @@ export class WeatherSystem {
     this.boltGeo.dispose(); this.boltMat.dispose(); this.cloudMat.dispose();
     this.sky.geometry.dispose(); this.skyMat.dispose();
     for (const g of this.cloudGeos) g.dispose();
+    {
+      this.stars.geometry.dispose(); this.starMat.dispose(); this.moon.geometry.dispose(); this.moonMat.dispose();
+      this.moonGlowTex.dispose(); this.moonGlowMat.dispose();
+    }
   }
 }

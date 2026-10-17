@@ -1,0 +1,28 @@
+<!doctype html><meta charset="utf-8"><title>Reset da roda</title>
+<body style="font:20px sans-serif;background:#0d0b1f;color:#fff;padding:40px">
+<h2>Reset da roda 🎡 (página temporária)</h2>
+<p>XP agora: <b id="xp"></b></p>
+<p>Quanto XP te saiu na roda?</p>
+<button onclick="go(100)" style="font-size:22px">⭐ 100 XP</button>
+<button onclick="go(300)" style="font-size:22px">⭐ 300 XP</button>
+<p id="msg"></p>
+<script>
+const FIRST = [200, 300, 500, 750, 1000];
+const need = (n) => (n <= FIRST.length ? FIRST[n - 1] : 1500 + 300 * (n - FIRST.length - 1));
+const level = (xp) => { let l = 1; while (xp >= need(l)) { xp -= need(l); l++; } return l; };
+const xp = Number(localStorage.getItem("colorattack.xp")) || 0;
+document.getElementById("xp").textContent = xp + " (nível " + level(xp) + ")";
+function go(n) {
+  const nx = Math.max(0, xp - n), ups = level(xp) - level(nx);
+  localStorage.setItem("colorattack.xp", String(nx));
+  if (ups > 0) {                       // a roda tinha-te feito subir de nível: tira também as moedas e joias dessa subida
+    const w = JSON.parse(localStorage.getItem("colorattack.wallet"));
+    w.coins = Math.max(0, w.coins - 100 * ups); w.gems = Math.max(0, w.gems - 5 * ups);
+    localStorage.setItem("colorattack.wallet", JSON.stringify(w));
+    localStorage.setItem("colorattack.levelSeen", String(level(nx)));
+  }
+  localStorage.removeItem("colorattack.wheel");
+  document.getElementById("msg").textContent = "Feito! XP " + xp + " → " + nx + (ups ? " (e −" + 100 * ups + " moedas, −" + 5 * ups + " joias da subida de nível)" : "") + ". A abrir o jogo…";
+  setTimeout(() => location.href = "/", 1500);
+}
+</script>

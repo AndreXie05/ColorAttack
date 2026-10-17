@@ -6,7 +6,7 @@ import os
 DECIMATE = 0.35                                    # fração de triângulos que fica ao exportar (o jogo fica mais leve)
 OUTPUT = globals().get("OUTPUT")   # defina antes de executar para exportar o .glb, ex.: OUTPUT = "/caminho/assets/character.glb"
 COLLECTION = "Character"
-exec(open("/home/andrexie/Documents/ColorAttack/tools/blender/common.py").read())
+exec(open("/home/andrexie/Documents/ColorAttack/src/tools/blender/common.py").read())
 
 
 # ---------- construção ----------

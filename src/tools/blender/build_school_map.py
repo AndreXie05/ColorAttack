@@ -6,7 +6,7 @@ Corre dentro do Blender:  OUTPUT = "/caminho/assets/maps/escola.glb"; exec(open(
 """
 import math
 import os
-exec(open("/home/andrexie/Documents/ColorAttack/tools/blender/map_kit.py").read())
+exec(open("/home/andrexie/Documents/ColorAttack/src/tools/blender/map_kit.py").read())
 OUTPUT = globals().get("OUTPUT")
 PAINT_NAMES = ["Red", "Blue", "Yellow", "Purple", "Orange", "Green"]
 
@@ -217,7 +217,7 @@ def build():
             lamp(s * 13, sz * 13); lamp(s * 18, sz * 25)
     patrol = [(8, 0), (12, -11), (12, 11), (0, -16), (0, 16), (19.5, -18.5), (19.5, 18.5), (28, -11), (28, 11), (26, 0),
               (33, -22), (33, 22), (19, -29), (19, 29), (40, -15), (40, 15)]
-    exec(open("/home/andrexie/Documents/ColorAttack/tools/blender/map_extras.py").read(), globals()); decorate(seed=1, wall_h=2.4, patrol=patrol)
+    exec(open("/home/andrexie/Documents/ColorAttack/src/tools/blender/map_extras.py").read(), globals()); decorate(seed=1, wall_h=2.4, patrol=patrol)
     return finish_map("escola", patrol, OUTPUT)
 
 

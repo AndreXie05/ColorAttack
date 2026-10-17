@@ -4,7 +4,7 @@ import { MAPS } from "../mapas/map-definitions.js";
 import { resolveCollisions } from "../movimento/collisions.js";
 import { floorAt, topAt, ceilingAt, ladderState, ladderAt, hugLadder, surfaceEffects, inWater, near } from "../movimento/surfaces.js";
 import { openChest, updateChests, resetChests, makeGolden, instanceChests } from "./chests-and-loot.js";
-import { createDummy, setDummyAmmo, setDummyGhost, setDummyColor } from "./test-dummy.js";
+import { createDummy, setDummyGhost, setDummyColor } from "./test-dummy.js";
 import { ColorSelector } from "../ecras/color-selector.js";
 import { loadCharacter, cloneCharacter, setCharacterPaint, addHeldItems, setHeld, setCharacterLod, disposeCharacter } from "../personagens/character-model.js";
 import { Bot } from "./bots.js";
@@ -23,50 +23,45 @@ import { setupMapFeatures } from "../mapas/map-features.js";
 import { UPGRADES, offerUpgrades, fx } from "./upgrades.js";
 import * as Stats from "../progresso/stats.js";
 import { Tutorial, STEPS as TUT_STEPS } from "./tutorial.js";
-import { COLORS, PRIMARIES, SECONDARIES, symbolSVG, chipHTML, ingredients, mixColors, COLOR_RULES, TERTIARY, paletteColors, hitDamage, shuffleMixes, resetMixes, getMixes, setMixes } from "../base/colors.js";
+import { COLORS, PRIMARIES, SECONDARIES, chipHTML, ingredients, COLOR_RULES, paletteColors, hitDamage, shuffleMixes, resetMixes, getMixes } from "../base/colors.js";
 import * as Progress from "../progresso/progress.js";
 import * as Ach from "../progresso/achievements.js";
 import * as Missions from "../progresso/missions.js";
 import { applyCosmetics, ITEMS } from "../loja/cosmetics.js";
 import { createTrails } from "../loja/trails.js";
-import { createLobby } from "../ecras/lobby.js";
+import { createLobby, LOBBY_THEMES } from "../ecras/lobby.js";
 import * as Emotes from "../personagens/emotes.js";
 import { Replay } from "./replay.js";
-import { createOnline } from "../online/online.js";
-import { createNetGame, Puppet } from "../online/net-game.js";
+import { Puppet } from "../online/net-game.js";
 import { Sfx } from "../som/sfx.js";
 import { DamageNumbers } from "../visual/damage-numbers.js";
 import { createSettings, mouseSens } from "../ecras/settings.js";
+import { createDailyScreen } from "../ecras/daily-screen.js";
+import { createWheelScreen } from "../ecras/wheel-screen.js";
+import { checkLevelUp } from "../ecras/level-banner.js";
+import { randomTip } from "../ecras/tips.js";
+import { playerName } from "../progresso/player-name.js";
+import { createPodium } from "../ecras/victory-podium.js";
+import { prizeText } from "../progresso/daily-login.js";
+import { state, keys, $, renderer, scene, camera, hex6, personName, hexOf, nameOf } from "./game-state.js";
+import { QUALITY, QUALITY_IDS, QUALITY_TIPS, applyQuality, resize, buildQualityChips } from "../visual/quality.js";
+import { showToast, fmtTime, ITEM_KEYS, buildLootPanel, updateAmmoUi, buildTeamPips, labelPips, refreshPips, reportFall, reportKill, setPlayerOut, resetPips, updateCrosshair, updateTimerStyle, updateScoreUi, isIntense, showCountdown, tickCountdown, updateLastSeconds, updateMixHint, renderMixTable, updateZoneTable } from "./hud.js";
+import { setupNetMatch } from "../online/net-match.js";
+import { roundStatsHTML, heatmapURL, heatHTML, addRoundToGameStats, showSummary, summaryHTML, xpBarHTML } from "../ecras/round-summary.js";
+import { bakeMinimap, updateMinimap } from "../visual/minimap.js";
 // import { PointerLockControls } from "three/addons/controls/PointerLockControls.js"; // fase da câmara em 1.ª pessoa
 
 /* ============================================================
    10. ESTADO DO VISUALIZADOR
    ============================================================ */
-const state = {
-  screen: "title", map: null, def: null,
-  player: { pos: new THREE.Vector3(), motion: createMotionState(), facing: 0 },
-  cam: { yaw: 0, pitch: 0.35, dist: 9, aerial: false, prev: null, focus: new THREE.Vector3(), curDist: 9, fov: 60, ready: false },
-  quality: (() => { try { const q = localStorage.getItem("colorattack.quality"); return ["alta", "media", "baixa", "silenciosa"].includes(q) ? q : "media"; } catch { return "media"; } })(), fpsAcc: 0, fpsFrames: 0, fpsTime: 0, lowFpsTime: 0, grace: 0,
-  roundTime: CONFIG.roundSeconds, opened: 0, empty: 0, lastUiTimer: "",
-  invisible: 0, round: null, upg: {}, botUpg: {}, feedQueue: [], tutorial: null, tutorialMode: false, startTutorial: false, upgradeChoices: null, intermission: 0, over: false, bots: [], world: null, me: null, ammo: { vermelho: 0, azul: 0, amarelo: 0 }, playerColor: "vermelho", dead: false, deathInfo: null, firing: false, fireCd: 0, noAmmoMsg: 0, aimingGrenade: false, grenadeColor: "vermelho", grenadeColor2: null, grenadeSlot: 0, intenseT: 5, radarT: 0, ads: false, healingT: 0, tracked: [], aimRing: null, gameTime: 0, targetT: 0, targetKey: "", hpShown: -1, hurtT: 0, starting: false, shownCrossColor: "", characterId: "iniciante", rosters: null, pickups: null, pips: { A: [], B: [] }, loot: {}, paused: false, weather: null, paint: null, colors: null, shownColor: "", weatherId: "sol", weatherChoice: "random",
-  countdown: 0, goT: 0, online: false, net: null, myIndex: 0, netFlip: false, netPlayers: [], netWait: false, mixHintT: 0, mixHintKey: "", gameStats: {}, goldenDone: false, mode: "normal", secret: false, clues: {}, cannon: null,
-};
-const keys = new Set();
 let lobby = null;                                                                   // ecrã principal (lobby.js); criado no fim deste ficheiro
+let daily = null;                                                                   // prémio diário (daily-screen.js); idem
 
 /* ============================================================
    11. RENDERIZAÇÃO
    ============================================================ */
-const $ = (id) => document.getElementById(id);
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.domElement.id = "gameCanvas";
-document.body.appendChild(renderer.domElement);
-
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 600);
 let dummy = createDummy();
+const podium = createPodium(renderer);                                              // pódio da equipa vencedora no fim do jogo
 const trails = createTrails(scene);                                                 // rasto do jogador ao correr (loja)                           // boneco simples; é trocado pelo do Blender quando o carregamento termina
 
 state.characterId = (Progress.wallet.equip.boneco || "boneco_iniciante").slice(7);       // a skin equipada (loja/inventário)
@@ -90,45 +85,7 @@ async function setCharacter(id) {
   if (state.me) paintPlayer(state.playerColor);
 }
 
-// Qualidade gráfica: resolução, sombras, chuva e imagens por segundo (fps). Q muda; se os FPS ficarem baixos, desce sozinha.
-// shadowEvery: as sombras recalculam-se de X em X frames (o sol não se mexe; só as sombras dos bonecos atrasam um pouco)
-// paintMs: de quanto em quanto tempo a textura da tinta no chão é enviada para a placa gráfica (é grande: menos vezes = menos esforço)
-// Silenciosa: 30 fps, sem sombras e pouca chuva — o mínimo de esforço para a placa gráfica (menos calor e ventoinha)
-const QUALITY = {
-  alta:       { label: "Alta",       icon: "✨", pixelRatio: 2,    shadows: true,  shadowMap: 2048, rain: 1,    fps: 60, shadowEvery: 1, paintMs: 160 },
-  media:      { label: "Média",      icon: "⚖️", pixelRatio: 1.25, shadows: true,  shadowMap: 1024, rain: 0.6,  fps: 60, shadowEvery: 3, paintMs: 220 },
-  baixa:      { label: "Baixa",      icon: "🔋", pixelRatio: 1,    shadows: false, shadowMap: 512,  rain: 0.3,  fps: 60, shadowEvery: 2, paintMs: 300 },
-  silenciosa: { label: "Silenciosa", icon: "🔇", pixelRatio: 1,    shadows: false, shadowMap: 512,  rain: 0.15, fps: 30, shadowEvery: 2, paintMs: 400 },
-};
 renderer.shadowMap.autoUpdate = false;                                              // as sombras só se recalculam quando pedimos (ver frame)
-const QUALITY_IDS = Object.keys(QUALITY);
-function applyQuality(id) {
-  const q = QUALITY[id];
-  state.quality = id;
-  try { localStorage.setItem("colorattack.quality", id); } catch { /* ignora */ }   // fica guardada
-  document.querySelectorAll("#qualityPick .chip").forEach((c) => c.classList.toggle("on", c.dataset.q === id));
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, q.pixelRatio));
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  const shadowsChanged = renderer.shadowMap.enabled !== q.shadows;
-  renderer.shadowMap.enabled = q.shadows;
-  const soft = id === "alta" ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;    // sombras suaves só na Alta (são mais caras)
-  if (renderer.shadowMap.type !== soft) { renderer.shadowMap.type = soft; renderer.shadowMap.needsUpdate = true; if (!shadowsChanged) scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; }); }
-  if (state.map) {
-    for (const l of state.map.lights) {
-      if (!l.isDirectionalLight) continue;
-      l.castShadow = q.shadows;
-      if (l.shadow.mapSize.x !== q.shadowMap) { l.shadow.mapSize.set(q.shadowMap, q.shadowMap); l.shadow.map?.dispose(); l.shadow.map = null; }
-    }
-    if (shadowsChanged) scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; });
-    if (state.weather) state.weather.rainScale = q.rain;
-    if (state.paint) state.paint.uploadMs = q.paintMs;
-  }
-}
-function resize() {
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-}
 window.addEventListener("resize", resize);
 resize();
 
@@ -139,7 +96,7 @@ function showScreen(name) {
   state.screen = name;
   if (name !== "viewer") Sfx.ambient();                                                // fora da partida (lobby, menus): sem chuva nem vento
   $("lobby").style.display = name === "lobby" ? "flex" : "none";
-  if (name === "lobby") { refreshLevelBadge(); lobby?.renderTop(); }
+  if (name === "lobby") { refreshLevelBadge(); lobby?.renderTop(); checkLevelUp(); daily?.auto(); $("lbTip").innerHTML = `<b>DICA</b>${randomTip()}`; }   // faixa "NÍVEL X!" se subiste; o prémio diário abre sozinho uma vez por dia
   $("titleScreen").style.display = name === "title" ? "flex" : "none";
   $("charSelect").style.display = name === "chars" ? "flex" : "none";
   $("mapSelect").style.display = name === "select" ? "flex" : "none";
@@ -171,19 +128,6 @@ function buildMapCards() {
   }
 }
 
-const FEED_MS = 3500;                                  // tempo que cada mensagem fica visível
-// Mensagens do jogo: aparecem em fila no canto superior esquerdo (por baixo da lista de itens) e desaparecem sozinhas
-function showToast(text, color = "#fff") {
-  const feed = $("feed");
-  const row = document.createElement("div");
-  row.className = "feedRow";
-  row.style.borderColor = color;
-  row.textContent = text;
-  feed.appendChild(row);
-  while (feed.children.length > 4) feed.firstChild.remove();
-  setTimeout(() => row.classList.add("out"), FEED_MS);
-  setTimeout(() => row.remove(), FEED_MS + 500);
-}
 
 // Página das configurações: o mapa escolhido em cima (com a imagem) e as opções da partida por baixo
 let chosenMap = null;
@@ -202,35 +146,6 @@ $("setupPlay").addEventListener("click", () => {
   startMap(chosenMap.id === "random" ? MAPS[Math.floor(Math.random() * MAPS.length)] : chosenMap);
 });
 
-function fmtTime(s) {
-  s = Math.max(0, Math.ceil(s));
-  return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
-}
-// Itens apanhados (canto superior esquerdo, sem moldura): um ícone por item e a quantidade à frente.
-// Munição conta tiros (cada caixa = 15; 40 no Pinta e Conquista) e há uma linha por cor; os restantes itens contam unidades.
-function lootIcon(key) {
-  if (key.startsWith("ammo:")) {
-    const c = COLORS[key.slice(5)];
-    return `<span class="ammoIcon" style="--c:#${c.hex.toString(16).padStart(6, "0")}">${symbolSVG(c.symbol, 15)}</span>`;
-  }
-  return `<span class="emoji">${CONFIG.rewards.find((r) => r.id === key).icon}</span>`;
-}
-const ITEM_KEYS = { health: "T", invisible: "F", grenade: "G", trap: "C" };
-function buildLootPanel() {
-  const panel = $("lootRows");
-  panel.innerHTML = "";
-  for (const k in ammoShown) delete ammoShown[k];                                       // linhas novas: volta a escrever as munições
-  state.loot = {};
-  const keys = [...PRIMARIES.map((c) => "ammo:" + c), ...CONFIG.rewards.filter((r) => r.id !== "ammo" && (!r.modes || r.modes.includes(state.mode))).map((r) => r.id)];   // (a armadilha só nos modos em que existe)
-  for (const key of keys) {
-    state.loot[key] = 0;
-    const row = document.createElement("div");
-    row.className = "lootRow"; row.id = "loot-" + key.replace(":", "-");
-    const hint = ITEM_KEYS[key] || (key.startsWith("ammo:") ? COLORS[key.slice(5)].key : "");
-    row.innerHTML = `<kbd class="kh">${hint}</kbd><div class="lootMain">${lootIcon(key)}<span class="qty">0</span></div>`;
-    panel.appendChild(row);
-  }
-}
 function addLoot(key, amount = 1) {
   state.loot[key] += amount;
   const row = $("loot-" + key.replace(":", "-"));
@@ -245,150 +160,11 @@ function addAmmo(colorId, shots) {
   const row = $("loot-ammo-" + colorId);
   if (row) { row.classList.remove("flash"); void row.offsetWidth; row.classList.add("flash"); }
 }
-const ammoShown = {};                                                                // última quantidade mostrada de cada cor: o HTML só muda quando o número muda
-function updateAmmoUi() {
-  for (const id of PRIMARIES) {
-    const n = Math.floor(state.ammo[id]);
-    if (ammoShown[id] === n) continue;
-    const row = $("loot-ammo-" + id);
-    if (!row) continue;
-    ammoShown[id] = n;
-    row.querySelector(".qty").textContent = n;
-    row.classList.toggle("empty", n < 1);
-  }
-}
 
-// Uma bolinha por jogador (5 por equipa), sem moldura. Eliminado = a mesma cor, mas muito clara.
-// `colors` pode ter uma cor por jogador (a cor do personagem); por defeito é a cor da equipa.
-const hex6 = (c) => "#" + c.toString(16).padStart(6, "0");
-const lighten = (c, t) => { const m = (v) => Math.round(v + (255 - v) * t); return hex6((m((c >> 16) & 255) << 16) | (m((c >> 8) & 255) << 8) | m(c & 255)); };
-function buildTeamPips() {
-  state.pips = { A: [], B: [] };
-  for (const [team, id] of [["A", "teamA"], ["B", "teamB"]]) {
-    const box = $(id);
-    box.innerHTML = "";
-    for (let i = 0; i < 5; i++) {
-      const el = document.createElement("span");
-      el.className = "pip";
-      el.appendChild(document.createElement("img"));
-      el.style.setProperty("--c", hex6(TEAM[team].color));
-      el.style.setProperty("--cl", lighten(TEAM[team].color, 0.82));
-      box.appendChild(el);
-      state.pips[team].push(el);
-    }
-  }
-}
-// Nome de cada jogador: nomes de pessoas sorteados em cada partida (o 1.º da equipa A és tu: "Tu")
-function personName(team, i) { return state.rosters?.names?.[team]?.[i] || "?"; }
-// Mostra o nome e a skin ao passar o rato por cima de cada bolinha
-function labelPips() {
-  if (!state.rosters) return;
-  for (const t of ["A", "B"]) {
-    state.pips[t].forEach((el, i) => {
-      el.title = personName(t, i) + " · " + charById(state.rosters[t][i]).name;
-    });
-  }
-}
-// Cada bolinha mostra a cara do personagem em campo (Pinta, Gota, ...) com a cor da equipa
-function refreshPips() {
-  if (!state.rosters) return;
-  for (const t of ["A", "B"]) {
-    state.pips[t].forEach((el, i) => {
-      const img = el.firstChild, url = portraitUrl(state.rosters[t][i], TEAM[t].color);
-      if (url) { img.src = url; img.style.display = "block"; } else img.style.display = "none";
-    });
-  }
-}
-// ---------- lista de eliminações (lado direito) ----------
-// killer / victim = { team: "A"|"B", index: 0..4 }; byColor = true se foi eliminado com a cor certa.
-// É esta a função que o sistema de tiro vai chamar quando alguém for eliminado.
-const KILL_MS = Number(new URLSearchParams(location.search).get("killms")) || 5500;   // ?killms=60000 deixa as linhas mais tempo (testes)
-// Queda de muito alto (sem ninguém a eliminar)
-function reportFall(victim, via) {
-  setPlayerOut(victim.team, victim.index, true);
-  const url = portraitUrl(state.rosters[victim.team][victim.index], TEAM[victim.team].color), col = hex6(TEAM[victim.team].color);
-  const row = document.createElement("div");
-  row.className = "killRow bad";
-  row.innerHTML = `
-    <div class="kfIcons"><span class="kfColor" style="font-size:26px">💥</span><span class="kfFace victim" style="--c:${col}">${url ? `<img src="${url}" alt="">` : ""}</span></div>
-    <div class="kfText"><b>${victim.isPlayer ? "Tu" : personName(victim.team, victim.index)}</b> ${via === "water" ? "caiu ao rio" : "caiu de muito alto"}<small>${via === "water" ? "🌊 Cair à água elimina" : `⬇️ Queda de ${CONFIG.fallDeath} m ou mais`}</small></div>`;
-  const feed = $("killfeed");
-  feed.appendChild(row);
-  while (feed.children.length > 5) feed.firstChild.remove();
-  setTimeout(() => row.classList.add("out"), KILL_MS);
-  setTimeout(() => row.remove(), KILL_MS + 500);
-}
 
-function reportKill(killer, victim, colorId, byColor) {
-  setPlayerOut(victim.team, victim.index, true);
-  const info = (who) => {
-    return { name: personName(who.team, who.index), url: portraitUrl(state.rosters[who.team][who.index], TEAM[who.team].color), color: hex6(TEAM[who.team].color) };
-  };
-  const k = info(killer), v = info(victim);
-  const face = (i, extra = "") => `<span class="kfFace ${extra}" style="--c:${i.color}">${i.url ? `<img src="${i.url}" alt="">` : ""}</span>`;
-  const row = document.createElement("div");
-  row.className = "killRow " + (byColor ? "ok" : "bad");
-  row.innerHTML = `
-    <div class="kfIcons">${face(k)}<span class="kfColor">${chipHTML(colorId, 30)}</span>${face(v, "victim")}</div>
-    <div class="kfText"><b>${k.name}</b> ${k.name === "Tu" ? "eliminaste" : "eliminou"} <b>${v.name === "Tu" ? "a ti" : v.name}</b>
-      <small>${byColor ? "🎯 Cor certa! Eliminação direta" : "💥 Sem a cor certa: caiu aos tiros"}</small></div>`;
-  const feed = $("killfeed");
-  feed.appendChild(row);
-  while (feed.children.length > 5) feed.firstChild.remove();
-  setTimeout(() => row.classList.add("out"), KILL_MS);
-  setTimeout(() => row.remove(), KILL_MS + 500);
-}
 
-function setPlayerOut(team, index, out) { state.pips[team][index].classList.toggle("out", out); }
-function resetPips() { for (const t of ["A", "B"]) state.pips[t].forEach((el) => el.classList.remove("out")); }
 
-// O relógio muda de cor no último minuto (amarelo) e nos últimos 30 s (vermelho), e pulsa nos últimos 10 s
-// Mira ao centro: bolinha com o símbolo da cor atual e um anel que enche durante a mistura
-const XR_LEN = 2 * Math.PI * 44;
-// "Na mão": mostra a cor da munição da arma (e a mistura a decorrer) e realça as linhas dos tanques dessa cor
-const HAND_LEN = 2 * Math.PI * 28;
-function updateHand(cs) {
-  const aimG = state.aimingGrenade, cur = aimG ? state.grenadeColor : cs.current;      // a apontar a granada, a mão mostra a cor da granada
-  const cur2 = aimG ? state.grenadeColor2 : null, sig = (aimG ? "g" : "") + cur + (cur2 || "") + state.grenadeSlot;
-  if (sig !== state.shownColor) {
-    state.shownColor = sig;
-    const c = COLORS[cur];
-    $("handChip").innerHTML = chipHTML(cur, cur2 ? 32 : 40) + (cur2 ? chipHTML(cur2, 32) : "");
-    $("handName").classList.toggle("dual", !!cur2 && cur2 !== cur);
-    $("handName").textContent = aimG ? `${cur2 && cur2 !== cur ? "" : "💣 "}${c.name}${cur2 && cur2 !== cur ? " + " + COLORS[cur2].name : ""}` : c.name;
-    $("handHint").textContent = aimG ? (cur2 ? `roda: cor ${state.grenadeSlot + 1} · X: trocar` : "roda do rato: mudar a cor") : c.kind === "primaria" ? `tecla ${c.key}` : c.parts.map((p) => COLORS[p].name).join(" + ");
-    for (const id of PRIMARIES) {
-      const row = $("loot-ammo-" + id);
-      if (row) row.classList.toggle("active", !aimG && (id === cur || !!(c.parts && c.parts.includes(id))));
-    }
-  }
-  const prog = $("handProg");
-  if (cs.mixing) {
-    prog.style.stroke = "#" + COLORS[cs.mix.result].hex.toString(16).padStart(6, "0");
-    prog.style.strokeDashoffset = String(HAND_LEN * (1 - cs.progress));
-    prog.style.opacity = "1";
-  } else prog.style.opacity = "0";
-}
 
-function updateCrosshair() {
-  const cs = state.colors;
-  updateHand(cs);
-  if (cs.current !== state.shownCrossColor) {
-    state.shownCrossColor = cs.current;
-    $("xChip").innerHTML = chipHTML(cs.current, 34);
-  }
-  setDummyAmmo(dummy, cs.current, cs.mixing ? cs.mix.result : null, cs.progress);   // arma: cor da munição (não muda a cor do boneco)
-  const xh = $("crosshair"), mode = state.over || state.paused || state.upgradeChoices || state.intermission > 0 || state.healingT > 0 ? "none" : state.aimingGrenade || state.cannon ? "gren" : "col";   // cura na mão: sem mira; granada e canhão: mira de lançar
-  if (xh.dataset.mode !== mode) xh.dataset.mode = mode;
-  xh.style.setProperty("--xc", hex6(hexOf(state.aimingGrenade ? state.grenadeColor : cs.current)));
-  if (!CONFIG.ui.crosshair) return;
-  const prog = $("xProg");
-  if (cs.mixing) {
-    prog.style.stroke = "#" + COLORS[cs.mix.result].hex.toString(16).padStart(6, "0");
-    prog.style.strokeDashoffset = String(XR_LEN * (1 - cs.progress));
-    prog.style.opacity = "1";
-  } else prog.style.opacity = "0";
-}
 
 // F: gasta uma Invisibilidade guardada e fica invisível durante `duration` segundos
 function useInvisibility() {
@@ -433,12 +209,7 @@ function roundSounds(st) {
   const s = Math.ceil(st.roundTime);
   if (s > 10) st.tickSnd = 0;
   if (!r.sudden && st.countdown <= 0 && s > 0 && s <= 10 && s !== st.tickSnd) { st.tickSnd = s; Sfx.play(s <= 3 ? "tick2" : "tick"); }
-}
-function updateTimerStyle() {
-  const left = state.roundTime, badge = $("timerBadge");
-  badge.classList.toggle("warn", left <= 60 && left > 30);
-  badge.classList.toggle("danger", left <= 30);
-  badge.classList.toggle("pulse", left <= 10);
+  updateLastSeconds();                                                               // 5, 4, 3, 2, 1 em grande
 }
 
 /* ============================================================
@@ -470,7 +241,7 @@ function unloadMap() {
 async function startMap(def, keepMatch = false) {
   if (state.starting) return;
   state.starting = true;
-  hideBanner();
+  hideBanner(); hidePodium();
   state.tutorialMode = state.startTutorial; state.startTutorial = false;
   state.tutorial = null; document.body.classList.toggle("tut", state.tutorialMode);
   $("pauseMapsBtn").innerHTML = state.tutorialMode ? "<i>&#10005;</i>Sair do tutorial" : "<i>&#10005;</i>Sair da partida";
@@ -499,10 +270,13 @@ async function startMap(def, keepMatch = false) {
   unloadMap();
   let map;
   if (def.load) {                                          // mapa feito no Blender (carregamento assíncrono)
-    $("loading").style.display = "flex";
+    // ecrã de carregamento: capa do mapa, nome e uma dica (só aparece se demorar mais de 150 ms: o mapa seguinte já vem carregado)
+    $("loading").innerHTML = `<div class="ldCard"><div class="ldShot" style="background-image:url(assets/previews/${def.id}.jpg)"></div>
+      <b class="ldName">${def.icon} ${def.name}</b><i class="ldBar"><u></u></i><small class="ldTip">💡 ${randomTip()}</small></div>`;
+    const ldTimer = setTimeout(() => { $("loading").style.display = "flex"; }, 150);
     try { map = await def.load(); }
     catch (err) { console.warn("Mapa do Blender indisponível; a usar a versão em código.", err); map = def.build(); }
-    $("loading").style.display = "none";
+    clearTimeout(ldTimer); $("loading").style.display = "none";
   } else map = def.build();
   state.starting = false;
   state.map = map; state.def = def;
@@ -525,7 +299,7 @@ async function startMap(def, keepMatch = false) {
   state.forceWeather = null;
   state.weather.setMode(state.weatherId, true);
   applyQuality(state.quality);
-  bakeMinimap(map);
+  bakeMinimap(map, [dummy]);
   state.grace = 4; state.lowFpsTime = 0;
   buildLootPanel();
   if (kept) for (const [k, v] of Object.entries(kept.loot)) if (v > 0 && k in state.loot) addLoot(k, v);
@@ -601,7 +375,7 @@ async function startMap(def, keepMatch = false) {
 }
 
 function leaveViewer() {
-  resetMixes(); renderMixTable(); hideBanner(); Sfx.ambient(); dmgNums.clear();
+  resetMixes(); renderMixTable(); hideBanner(); hidePodium(); Sfx.ambient(); dmgNums.clear();
   state.tutorial = null; state.tutorialMode = false; document.body.classList.remove("tut");
   if (document.pointerLockElement) document.exitPointerLock();
   if (state.net === "host") { online.broadcast({ t: "end" }); online.setPlaying(false); }   // o anfitrião saiu: os amigos voltam ao lobby
@@ -624,15 +398,6 @@ function newMatch() {
   state.intermission = 0; state.over = false;
   $("roundBox").style.display = "none"; $("gameOver").style.display = "none";
   updateScoreUi();
-}
-function updateScoreUi() {
-  const r = state.round;
-  $("scoreA").textContent = r.wins.A; $("scoreB").textContent = r.wins.B;
-  $("killsA").textContent = r.kills.A; $("killsB").textContent = r.kills.B;
-  const hot = isIntense();
-  $("killsLabel").textContent = (r.sudden ? "MORTE SÚBITA" : `Round ${r.n}`) + (hot ? ` 🔥 ${Math.max(1, Math.ceil(state.intenseT))}s` : "");
-  $("killsBar").classList.toggle("intense", hot);
-  $("killsBar").classList.toggle("sudden", r.sudden);
 }
 const FX = () => fx(state.upg);
 // bónus da cor certa: devolve balas da cor usada (primária +3; secundária +2 de cada ingrediente)
@@ -734,7 +499,7 @@ function endRound(winner, fromHost = false) {
   if (state.intermission > 0 || state.over) return;
   if (state.net === "host") online.broadcast({ t: "end", w: winner });
   r.wins[winner]++;
-  Stats.recordRound(winner === "A", r.n);
+  Stats.recordRound(winner === "A", r.n, state.def?.id);
   if (winner === "A") achieve("roundWon", { map: state.def?.id, weather: state.weatherId, diff: Stats.current.diff });   // (mapas e climas das conquistas)
   addRoundToGameStats();
   r.sudden = false;
@@ -746,7 +511,7 @@ function endRound(winner, fromHost = false) {
   if (decided) {
     state.over = true;
     const fin = r.wins.A === r.wins.B ? null : r.wins.A > r.wins.B ? "A" : "B";
-    Stats.recordGame(fin, state.characterId);
+    Stats.recordGame(fin, state.characterId, { score: [r.wins.A, r.wins.B], mode: state.mode, online: !!state.online });
     roundEndShow(winner, true, () => showGameOver(fin));
     return;
   }
@@ -837,135 +602,9 @@ function startNextRound() {
   state.nextMap = null;
   startMap(next, true);
 }
-// ---------- ESTATÍSTICAS DO ROUND (cada equipa, com o MVP) ----------
-// MVP = mais eliminações; empate: menos mortes, depois melhor precisão
-const mvpScore = (c) => c.rs.kills * 1000 + c.rs.assists * 100 - c.rs.deaths * 10 + (c.rs.shots ? c.rs.hits / c.rs.shots : 0);
-function roundStatsHTML() {
-  if (!state.world) return "";
-  const team = (t) => {
-    const list = state.world.combatants.filter((c) => c.team === t).sort((a, b) => mvpScore(b) - mvpScore(a));
-    const mvp = list[0] && list[0].rs.kills > 0 ? list[0] : null;                  // sem eliminações não há MVP
-    const rows = list.map((c) => {
-      const r = c.rs, fav = Object.entries(r.colors).sort((a, b) => b[1] - a[1])[0];
-      return `<tr class="${c.isPlayer ? "me" : ""}${c === mvp ? " mvp" : ""}"><td>${c === mvp ? "⭐ " : ""}${c.isPlayer ? "Tu" : nameOf(c)}</td><td>${r.kills}</td><td>${r.assists}</td><td>${r.deaths}</td>
-        <td>${r.shots ? Math.round((r.hits / r.shots) * 100) + "%" : "–"}</td><td>${fav ? chipHTML(fav[0], 20) : "–"}</td></tr>`;
-    }).join("");
-    return `<table class="rsTable" style="--c:${hex6(TEAM[t].color)}"><tr><th>${TEAM[t].name}</th><th>Elim.</th><th>Assist.</th><th>Mortes</th><th>Precisão</th><th>Cor</th></tr>${rows}</table>`;
-  };
-  return team("A") + team("B");
-}
 
-// ---------- MAPA DE CALOR: onde houve mais eliminações no round (por cima do minimapa), com ✔ onde eliminaste e ✖ onde foste eliminado ----------
-const HEAT_PAL = [[0, 0, 0, 0], [47, 123, 255, 150], [71, 224, 106, 190], [255, 210, 31, 220], [255, 59, 74, 240]];   // frio → quente
-function heatmapURL() {
-  if (!MM.base || !state.heat) return "";
-  const W = 322, H = 460, X = (z) => ((z + ARENA.halfZ) / (ARENA.halfZ * 2)) * W, Y = (x) => ((ARENA.halfX - x) / (ARENA.halfX * 2)) * H;
-  const c = document.createElement("canvas"); c.width = W; c.height = H;
-  const g = c.getContext("2d");
-  g.drawImage(MM.base, 0, 0, W, H); g.fillStyle = "rgba(13,11,31,0.45)"; g.fillRect(0, 0, W, H);   // o mapa um pouco escurecido
-  // calor: soma de manchas suaves numa camada à parte e depois cor por intensidade
-  const hc = document.createElement("canvas"); hc.width = W; hc.height = H;
-  const hg = hc.getContext("2d"); hg.globalCompositeOperation = "lighter";
-  for (const e of state.heat) {
-    const x = X(e.z), y = Y(e.x), grd = hg.createRadialGradient(x, y, 0, x, y, 30);
-    grd.addColorStop(0, "rgba(255,255,255,0.58)"); grd.addColorStop(1, "rgba(255,255,255,0)");   // 1 eliminação = verde; várias juntas = amarelo/vermelho
-    hg.fillStyle = grd; hg.fillRect(x - 30, y - 30, 60, 60);
-  }
-  const img = hg.getImageData(0, 0, W, H), d = img.data;
-  for (let i = 0; i < d.length; i += 4) {
-    const v = Math.min(1, d[i + 3] / 255) * (HEAT_PAL.length - 1), a = Math.floor(v), b = Math.min(HEAT_PAL.length - 1, a + 1), f = v - a;
-    for (let k = 0; k < 4; k++) d[i + k] = HEAT_PAL[a][k] + (HEAT_PAL[b][k] - HEAT_PAL[a][k]) * f;
-  }
-  hg.putImageData(img, 0, 0); g.drawImage(hc, 0, 0);
-  g.font = "bold 18px sans-serif"; g.textAlign = "center"; g.textBaseline = "middle"; g.lineWidth = 4; g.strokeStyle = "#1a1033";
-  for (const e of state.heat) {                                                       // as tuas eliminações e onde foste eliminado
-    if (!e.mine && !e.me) continue;
-    const x = X(e.z), y = Y(e.x), t = e.me ? "✖" : "✔";
-    g.strokeText(t, x, y); g.fillStyle = e.me ? "#ff3b4a" : "#47e06a"; g.fillText(t, x, y);
-  }
-  return c.toDataURL("image/png");
-}
-function heatHTML(url, small = false) {
-  if (!url) return "";
-  return `<div class="heatBox${small ? " small" : ""}"><b>🔥 Mapa de calor</b><img src="${url}" alt=""><small><span style="color:#47e06a">✔</span> eliminaste · <span style="color:#ff3b4a">✖</span> foste eliminado</small></div>`;
-}
 
-// ---------- DESTAQUES DO JOGO: soma o round de cada jogador e, no fim, dá prémios aos melhores ----------
-function addRoundToGameStats() {
-  if (!state.world || state.tutorial) return;
-  for (const c of state.world.combatants) {
-    const g = state.gameStats[c.id] ||= { team: c.team, index: c.index, isPlayer: c.isPlayer, kills: 0, deaths: 0, assists: 0, killsSame: 0, grenadeKills: 0, grenades: 0, traps: 0, shots: 0, hits: 0, dist: 0, bestStreak: 0 };
-    for (const k of ["kills", "deaths", "assists", "killsSame", "grenadeKills", "grenades", "traps", "shots", "hits", "dist"]) g[k] += c.rs[k];
-    g.bestStreak = Math.max(g.bestStreak, c.rs.bestStreak);
-  }
-}
-const AWARDS = [
-  { icon: "🎯", title: "Mestre das cores", desc: "mais eliminações com a cor certa", val: (g) => g.killsSame, fmt: (v) => `${v} com a cor certa` },
-  { icon: "💣", title: "Rei das granadas", desc: "mais eliminações com granadas e armadilhas", val: (g) => g.grenadeKills * 100 + g.grenades + g.traps, fmt: (v, g) => `${g.grenadeKills} eliminações · ${g.grenades} granadas` },
-  { icon: "🤝", title: "Bom colega", desc: "mais assistências", val: (g) => g.assists, fmt: (v) => `${v} ${v === 1 ? "assistência" : "assistências"}` },
-  { icon: "🔥", title: "Imparável", desc: "maior série sem morrer", val: (g) => g.bestStreak, fmt: (v) => `série de ${v}` },
-  { icon: "🏹", title: "Pontaria afinada", desc: "melhor precisão (mín. 20 tiros)", val: (g) => (g.shots >= 20 ? g.hits / g.shots : 0), fmt: (v) => `${Math.round(v * 100)}% de acertos` },
-  { icon: "🏃", title: "Maratonista", desc: "mais distância percorrida", val: (g) => g.dist, fmt: (v) => `${Math.round(v)} m` },
-  { icon: "🛡️", title: "Sobrevivente", desc: "menos mortes (com pelo menos 1 eliminação)", val: (g) => (g.kills > 0 ? 1000 - g.deaths : 0), fmt: (v, g) => `${g.deaths} ${g.deaths === 1 ? "morte" : "mortes"}` },
-];
-function awardsHTML() {
-  const all = Object.values(state.gameStats);
-  if (!all.length) return "";
-  const cards = AWARDS.map((a) => {
-    const best = all.reduce((b, g) => (a.val(g) > a.val(b) ? g : b), all[0]), v = a.val(best);
-    if (!(v > 0)) return "";
-    const url = portraitUrl(state.rosters[best.team][best.index], TEAM[best.team].color);
-    return `<div class="awCard${best.isPlayer ? " me" : ""}" style="--c:${hex6(TEAM[best.team].color)}" title="${a.desc}">
-      <span class="awIcon">${a.icon}</span><b>${a.title}</b>
-      <span class="awWho">${url ? `<img src="${url}" alt="">` : ""}${best.isPlayer ? "Tu" : nameOf(best)}</span><small>${a.fmt(v, best)}</small></div>`;
-  }).join("");
-  return cards ? `<h4>Destaques</h4><div class="awGrid">${cards}</div>` : "";
-}
 
-// ---------- RESUMO DO JOGO ----------
-function showSummary() {
-  $("goStage1").style.display = "none"; $("goStage2").style.display = "flex";
-}
-function summaryHTML(final) {
-  const c = Stats.current, r = state.round, f1 = (v) => (Math.round(v * 10) / 10).toString().replace(".", ",");
-  const card = (label, value, sub = "", cls = "") => `<div class="stCard ${cls}"><b>${value}</b><span>${label}</span>${sub ? `<small>${sub}</small>` : ""}</div>`;
-  const rows = c.rows.map((x) => `<tr class="${x.won ? "won" : "lost"}"><td>Round ${x.n}</td><td>${x.won ? "🏆 Ganhaste" : "💔 Perdeste"}</td><td>${x.kills}</td><td>${x.assists ?? 0}</td><td>${x.deaths}</td></tr>`).join("");
-  const ups = Object.entries(state.upg).map(([id, n]) => { const u = UPGRADES.find((x) => x.id === id); return `<span class="sumUp">${u.icon} ${u.name}${n > 1 ? " ×" + n : ""}</span>`; }).join("") || "<span class=\"sumUp none\">nenhuma</span>";
-  const itemRow = (icon, name, got, used) => `<tr><td>${icon} ${name}</td><td>${got}</td><td>${used}</td></tr>`;
-  const dmgPerKill = c.kills > 0 ? f1(c.damage / c.kills) : "–";
-  return `
-    <h4>Resultado</h4>
-    <div class="stGrid">${card(final === "A" ? "Vitória" : "Derrota", `${r.wins.A} – ${r.wins.B}`, `${c.rounds} ${c.rounds === 1 ? "round" : "rounds"} · ${BOT_PRESETS[c.diff].name}`, final === "A" ? "good" : "bad")}</div>
-    ${xpHTML(state.lastXP && state.xpDone ? state.lastXP : null)}
-    ${awardsHTML()}
-    <h4>Último round</h4>
-    <div class="rsWrap">${roundStatsHTML()}${heatHTML(state.lastHeat || heatmapURL())}</div>
-    <h4>Eliminações</h4>
-    <div class="stGrid">
-      ${card("Eliminações no jogo", c.kills)}
-      ${card("Com a cor certa", c.killsSame, c.kills ? Math.round((c.killsSame / c.kills) * 100) + "%" : "", "good")}
-      ${card("Sem a cor certa", c.killsOther, c.kills ? Math.round((c.killsOther / c.kills) * 100) + "%" : "")}
-      ${card("Assistências no jogo", c.assists)}
-      ${card("Mortes no jogo", c.deaths)}
-      ${card("Eliminações/mortes", c.deaths > 0 ? f1(c.kills / c.deaths) : c.kills ? "∞" : "–")}
-    </div>
-    <h4>Por round</h4>
-    <table class="sumTable"><tr><th>Round</th><th>Resultado</th><th>Eliminações</th><th>Assistências</th><th>Mortes</th></tr>${rows || "<tr><td colspan=5>–</td></tr>"}</table>
-    <h4>Dano</h4>
-    <div class="stGrid">${card("Dano total", Math.round(c.damage))}${card("Dano médio por eliminação", dmgPerKill)}${card("Tiros disparados", c.shots)}</div>
-    <h4>Melhorias escolhidas</h4>
-    <div class="sumUps">${ups}</div>
-    <h4>Percurso e baús</h4>
-    <div class="stGrid">${card("Distância percorrida", f1(c.distance) + " m")}${card("Baús abertos", c.chests)}</div>
-    <h4>Itens</h4>
-    <table class="sumTable"><tr><th>Item</th><th>Recolhidos</th><th>Usados</th></tr>
-      ${itemRow("📦", "Munição (caixas / balas disparadas)", `${c.got.ammo} caixas · ${c.got.bullets} balas`, `${c.shots} balas`)}
-      ${itemRow("💣", "Granadas", c.got.grenade, c.used.grenade)}
-      ${itemRow("💊", "Curas", c.got.health, c.used.health)}
-      ${itemRow("👻", "Invisibilidade", c.got.invisible, c.used.invisible)}
-      ${itemRow("🪤", "Armadilhas", c.got.trap, c.used.trap)}
-    </table>`;
-}
 // XP da partida (uma vez por jogo; o tutorial não conta): soma ao total guardado e devolve o resumo para o ecrã final
 function grantMatchXP(final) {
   if (state.xpDone || state.tutorialMode) return state.lastXP || null;
@@ -977,19 +616,6 @@ function grantMatchXP(final) {
   state.lastXP.ach = Ach.endMatch({ won, deaths: c.deaths, kills: c.kills, roundsLost: c.rows.filter((x) => !x.won).length, diff: c.diff, mode: state.mode, online: state.online });   // (depois do XP: as de nível também contam)
   refreshLevelBadge();
   return state.lastXP;
-}
-function xpBarHTML(info, cls = "") {
-  return `<div class="xpBar ${cls}"><span class="xpLv">⭐ Nível ${info.level}</span><i><b style="width:${Math.round((info.into / info.need) * 100)}%"></b></i><small>${info.into} / ${info.need} XP</small></div>`;
-}
-function xpHTML(x) {
-  if (!x) return "";
-  const up = x.after.level > x.before.level;
-  return `<h4>Experiência</h4><div class="xpBox">
-    <div class="xpRows">${x.rows.map(([t, v]) => `<div><span>${t}</span><b>+${v}</b></div>`).join("")}${x.mult !== 1 ? `<div><span>🤖 Dificuldade ${BOT_PRESETS[Stats.current.diff].name}</span><b>×${String(x.mult).replace(".", ",")}</b></div>` : ""}<div class="xpTot"><span>Total</span><b>+${x.total} XP</b></div></div>
-    ${x.match ? `<div class="xpRows coinRows">${x.match.rows.map(([t, v]) => `<div><span>${t}</span><b>+${v}</b></div>`).join("")}<div class="xpTot"><span>Moedas</span><b>🪙 +${x.match.total}</b></div>${x.match.capped ? `<small class="coinCap">Chegaste ao máximo de ${Progress.COIN_RULES.dayMax} moedas de hoje: amanhã há mais!</small>` : ""}</div>` : ""}
-    ${up ? `<div class="xpUp">🎉 Subiste para o nível ${x.after.level}! 💎 +${x.gems} joias · 🪙 +${x.coins} moedas</div>` : ""}
-    ${x.ach?.length ? `<div class="achNew">${x.ach.map((a) => `<span>${a.icon} <b>${a.name}</b> · ${Ach.prize(a).replace(" ", " +")}${a.title ? ` · 🏷️ título "${a.title}"` : ""}</span>`).join("")}</div>` : ""}
-    ${x.mis?.length ? `<div class="achNew mis">${x.mis.map((m) => `<span>📅 ${m.desc} · ${Missions.prize(m).replace(" ", " +")}</span>`).join("")}</div>` : ""}${xpBarHTML(x.after)}</div>`;
 }
 // Nível no ecrã inicial
 function refreshLevelBadge() {
@@ -1015,7 +641,27 @@ function showGameOver(final) {
   $("goAgain").style.display = state.net === "guest" ? "none" : "";                     // com amigos, só o anfitrião começa outra partida                // 1.º a faixa VITÓRIA/DERROTA; Esc ou o botão abrem o resumo
   $("gameOver").style.display = "flex";
   if (document.pointerLockElement) document.exitPointerLock();
+  if (!state.tutorialMode && final) showPodium(final);                                // (empate: sem pódio)
 }
+// ---------- PÓDIO (victory-podium.js): quem ganhou (a tua equipa ou a adversária) sobe ao pódio por ordem de eliminações ----------
+async function showPodium(final) {
+  const team = final || "A", over = state.round;
+  const list = (state.world?.combatants || []).filter((c) => c.team === team).map((c) => {
+    const canon = state.netFlip ? (team === "A" ? "B" : "A") : team;
+    const human = !c.isPlayer && state.net ? state.netPlayers?.find((p) => p.team === canon && p.slot === c.index) : null;
+    const equip = c.isPlayer ? Progress.wallet.equip : human ? human.equip || {} : { arma: state.rosters?.extra?.[team]?.[c.index]?.arma || "arma_pistola" };
+    return { c, kills: state.gameStats[c.id]?.kills || 0, equip, isPlayer: !!c.isPlayer, name: c.isPlayer ? playerName() : human?.name || personName(c.team, c.index),
+             emote: c.isPlayer ? Progress.wallet.equip.emote || "emote_aceno" : human?.equip?.emote || null,
+             charId: c.isPlayer ? state.characterId : c.characterId };
+  }).sort((a, b) => b.kills - a.kills || b.isPlayer - a.isPlayer).slice(0, 5);
+  const tpls = await Promise.all(list.map((e) => botTemplate(e.charId).catch(() => null)));
+  if (state.round !== over || $("gameOver").style.display !== "flex") return;          // entretanto já começou outra partida
+  const entries = list.map((e, i) => ({ ...e, tpl: tpls[i], paint: TEAM[team].color })).filter((e) => e.tpl);
+  podium.show(entries, { teamColor: TEAM[team].color });
+  $("gameOver").classList.toggle("podium", podium.active);
+  document.body.classList.toggle("podium", podium.active);                          // esconde o placar de cima (o resultado já está por baixo do título)
+}
+function hidePodium() { podium.hide(); $("gameOver").classList.remove("podium"); document.body.classList.remove("podium"); }
 function tickRound(dt) {
   if (state.tutorial) return;                                                     // no tutorial não há tempo nem rounds
   if (state.net === "guest") { state.roundTime = Math.max(0, state.roundTime - dt); return; }   // convidado: o relógio certo vem do anfitrião (é ele que acaba o round)
@@ -1028,8 +674,6 @@ function tickRound(dt) {
   else { r.sudden = true; resetChests(state.map.chests); updateScoreUi(); showToast("⚡ MORTE SÚBITA: a próxima eliminação decide! Baús reabastecidos", "#ff3b4a"); }
 }
 
-// Modo intenso: quando uma equipa já tem 4 rounds, as cores de toda a gente mudam de 5 em 5 segundos (dá hipóteses de virar o jogo)
-const isIntense = () => !!state.round && !state.over && Math.max(state.round.wins.A, state.round.wins.B) >= CONFIG.match.intenseAt;
 function tickIntense(dt) {
   if (state.tutorial) return;
   if (!isIntense()) { if (state.intenseT !== CONFIG.match.intenseEvery) { state.intenseT = CONFIG.match.intenseEvery; updateScoreUi(); } return; }
@@ -1050,16 +694,6 @@ function tickIntense(dt) {
   updateScoreUi();
 }
 
-// ---------- Mistura Relâmpago: de 30 em 30 s as receitas das secundárias rodam (ver shuffleMixes em colors.js) ----------
-function renderMixTable() {
-  const box = $("mixTable");
-  if (!box) return;
-  const on = state.mode === "relampago" && !state.tutorialMode;
-  box.style.display = on ? "flex" : "none";
-  if (!on) return;
-  box.innerHTML = `<b>⚡ Misturas <span id="mixTimer"></span></b>` + SECONDARIES.map((id) => `<div class="mtRow">${chipHTML(COLORS[id].parts[0], 22)}<i>+</i>${chipHTML(COLORS[id].parts[1], 22)}<i>=</i>${chipHTML(id, 26)}</div>`).join("");
-  state.mixTimerTxt = "";
-}
 function tickMixShuffle(dt) {
   if (state.mode !== "relampago" || state.tutorial || !(state.mixT > 0)) return;
   state.mixT -= dt;
@@ -1081,20 +715,6 @@ function mixesChanged() {
   showToast("⚡ As misturas trocaram! " + SECONDARIES.map((id) => `${COLORS[COLORS[id].parts[0]].name} + ${COLORS[COLORS[id].parts[1]].name} = ${COLORS[id].name}`).join(" · "), "#ffd21f");
 }
 
-// ---------- Pinta e Conquista: quadro com a % de tinta de cada equipa em cada zona (sempre "nós / eles", do ponto de vista de quem joga) ----------
-function updateZoneTable(dt) {
-  const box = $("zoneTable"), terr = state.features?.terr;
-  if (!terr) { if (box.style.display !== "none") box.style.display = "none"; return; }
-  if ((state.zoneUiT = (state.zoneUiT || 0) - dt) > 0) return;
-  state.zoneUiT = 0.25;
-  const mine = state.me?.team || "A", theirs = mine === "A" ? "B" : "A", info = terr.info(), col = (t) => hex6(TEAM[t].color);
-  const html = `<b>🖌️ Zonas · ponto em ${Math.ceil(info.next)} s</b>` + info.zones.map((z) =>
-    `<div class="ztRow"><span class="ztDot" style="${z.owner ? `background:${col(z.owner)}` : ""}"></span><span class="ztName">${z.label}</span><span class="ztPct"><span style="color:${col(mine)}">${z.pct[mine]}%</span> / <span style="color:${col(theirs)}">${z.pct[theirs]}%</span></span>` +
-    `<span class="ztBar" title="${z.pct[mine] + z.pct[theirs]}% pintado"><i style="width:${z.pct[mine]}%;background:${col(mine)}"></i><i style="width:${z.pct[theirs]}%;background:${col(theirs)}"></i></span></div>`).join("");   // barra: nós | eles | por pintar (cinzento)
-  if (html !== state.zoneHtml) { state.zoneHtml = html; box.innerHTML = html; }
-  box.style.display = "flex";
-  box.classList.toggle("soon", info.next <= 3);
-}
 
 /* ============================================================
    14. INPUT
@@ -1401,21 +1021,12 @@ buildModeChips();
 buildWeatherChips();
 buildDifficultyChips();
 buildMatchChips();
-const QUALITY_TIPS = { alta: "O mais bonito (pesa mais)", media: "Equilíbrio entre bonito e leve", baixa: "Sem sombras, 60 fps", silenciosa: "30 fps, sem sombras: o mínimo de esforço para o PC (menos ventoinha)" };
-function buildQualityChips() {                                                      // gráficos (fica guardado): a Silenciosa poupa a placa gráfica e a ventoinha
-  const box = $("qualityPick"), tips = QUALITY_TIPS;
-  for (const id of QUALITY_IDS) {
-    const b = document.createElement("button");
-    b.className = "chip" + (id === state.quality ? " on" : ""); b.dataset.q = id; b.title = tips[id];
-    b.textContent = `${QUALITY[id].icon} ${QUALITY[id].label}`;
-    b.addEventListener("click", () => applyQuality(id));
-    box.appendChild(b);
-  }
-}
 buildQualityChips();
 const settings = createSettings({                                                   // ⚙️ Configurações do lobby (ecras/settings.js)
   qualities: QUALITY_IDS.map((id) => ({ id, label: QUALITY[id].label, icon: QUALITY[id].icon, tip: QUALITY_TIPS[id] })),
   getQuality: () => state.quality, setQuality: (id) => applyQuality(id), toggleFullscreen,
+  lobbyThemes: Object.entries(LOBBY_THEMES).map(([id, t]) => ({ id, name: t.name, icon: t.icon })),
+  getLobbyTheme: () => lobby?.theme, setLobbyTheme: (id) => lobby?.setTheme(id),
 });
 $("setBtn").addEventListener("click", () => settings.open());
 applyQuality(state.quality);
@@ -1528,8 +1139,6 @@ function botExtras() {
 }
 
 // ---------- COMBATE: disparo, munição, vida, cura, morte e reaparecimento ----------
-const hexOf = (id) => COLORS[id].hex;
-const nameOf = (c) => personName(c.team, c.index);
 
 // Cor do boneco do jogador (a que os adversários têm de acertar) — separada da cor da munição
 // Enquanto está protegido (acabou de reaparecer) o boneco fica branco: os adversários não sabem a cor
@@ -1831,106 +1440,6 @@ function completeCure() {
   const bar = $("hpBox"); bar.classList.remove("heal"); void bar.offsetWidth; bar.classList.add("heal");
 }
 
-// ---------- MINIMAPA: vista de cima do mapa (desenhada uma vez) + tinta + os teus colegas com a cara; os adversários não aparecem ----------
-const MM = { w: 644, h: 920, base: null, imgs: new Map(), last: 0, canvas: $("minimap") };
-function bakeMinimap(map) {
-  const rt = new THREE.WebGLRenderTarget(MM.w, MM.h);
-  rt.texture.colorSpace = THREE.SRGBColorSpace;
-  const cam = new THREE.OrthographicCamera(-ARENA.halfZ, ARENA.halfZ, ARENA.halfX, -ARENA.halfX, 1, 400);   // na vertical: a tua base em baixo, a dos adversários em cima
-  cam.up.set(1, 0, 0); cam.position.set(0, 200, 0); cam.lookAt(0, 0, 0);
-  const hide = [state.weather && state.weather.group, dummy, state.paint && state.paint.mesh, state.paint && state.paint.tops, state.pickups && state.pickups.group].filter(Boolean);
-  map.group.traverse((o) => { if (o.name.startsWith("Anim_Sky")) hide.push(o); });   // arco-íris, papagaios, etc. no ar: de cima tapavam o mapa
-  const was = hide.map((o) => o.visible), fog = scene.fog;
-  hide.forEach((o) => { o.visible = false; }); scene.fog = null;
-  const prevTarget = renderer.getRenderTarget();
-  renderer.setRenderTarget(rt); renderer.render(scene, cam); renderer.setRenderTarget(prevTarget);
-  hide.forEach((o, i) => { o.visible = was[i]; }); scene.fog = fog;
-  const px = new Uint8Array(MM.w * MM.h * 4);
-  renderer.readRenderTargetPixels(rt, 0, 0, MM.w, MM.h, px);
-  rt.dispose();
-  const flipped = new Uint8ClampedArray(px.length);                                  // a leitura vem de cabeça para baixo
-  for (let y = 0; y < MM.h; y++) flipped.set(px.subarray((MM.h - 1 - y) * MM.w * 4, (MM.h - y) * MM.w * 4), y * MM.w * 4);
-  MM.base = document.createElement("canvas"); MM.base.width = MM.w; MM.base.height = MM.h; MM.layer = null;                                   // (o fundo com tinta é refeito para o mapa novo)
-  MM.base.getContext("2d").putImageData(new ImageData(flipped, MM.w, MM.h), 0, 0);
-}
-function mmImage(url) {
-  if (!url) return null;
-  let im = MM.imgs.get(url);
-  if (!im) { im = new Image(); im.src = url; MM.imgs.set(url, im); }
-  return im.complete && im.naturalWidth ? im : null;
-}
-function updateMinimap(now) {
-  if (!MM.base || now - MM.last < 100) return;                                       // 10 vezes por segundo chega
-  MM.last = now;
-  // fundo = mapa + tinta, numa imagem à parte que só é refeita quando a tinta muda (no máximo ~3 vezes por segundo):
-  // rodar e encolher a textura grande da tinta em cada atualização era o que mais custava no minimapa
-  const paintAt = state.paint?.sentAt || 0;
-  if (!MM.layer || (paintAt !== MM.layerPaint && now - MM.layerAt > 300)) {
-    const L = MM.layer || (MM.layer = Object.assign(document.createElement("canvas"), { width: MM.w, height: MM.h })), lg = L.getContext("2d");
-    lg.setTransform(1, 0, 0, 1, 0, 0); lg.clearRect(0, 0, MM.w, MM.h); lg.drawImage(MM.base, 0, 0, MM.w, MM.h);
-    if (state.paint) {                                                               // a tinta é rodada 90° para acompanhar o mapa
-      const pc = state.paint.canvas;
-      lg.globalAlpha = 0.92; lg.setTransform(0, -MM.h / pc.width, MM.w / pc.height, 0, 0, MM.h); lg.drawImage(pc, 0, 0); lg.globalAlpha = 1;
-    }
-    MM.layerPaint = paintAt; MM.layerAt = now;
-  }
-  const g = MM.canvas.getContext("2d"), X = (z) => ((z + ARENA.halfZ) / (ARENA.halfZ * 2)) * 322, Y = (x) => ((ARENA.halfX - x) / (ARENA.halfX * 2)) * 460;       // recebem (z) e (x) do jogo
-  g.setTransform(1, 0, 0, 1, 0, 0);
-  g.clearRect(0, 0, MM.w, MM.h); g.drawImage(MM.layer, 0, 0);
-  g.setTransform(MM.w / 322, 0, 0, MM.h / 460, 0, 0);                                   // desenha em coordenadas 322x460 (o canvas tem o dobro da resolução)
-  for (const c of state.world.combatants) {                                          // só os colegas de equipa
-    if (c.team !== "A" || c.isPlayer || !c.alive) continue;
-    const x = X(c.pos.z), y = Y(c.pos.x), r = 17, im = mmImage(portraitUrl(state.rosters.A[c.index], TEAM.A.color));
-    g.save(); g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.closePath();
-    g.fillStyle = hex6(TEAM.A.color); g.fill(); g.clip();
-    if (im) g.drawImage(im, x - r, y - r, r * 2, r * 2);
-    g.restore();
-    g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.lineWidth = 3; g.strokeStyle = "#fff"; g.stroke();
-  }
-  if (state.radarT > 0) {                                                            // bónus: os adversários aparecem no minimapa
-    const pulse = 1 + 0.18 * Math.sin(now / 90);
-    for (const c of state.world.combatants) {
-      if (c.team === "A" || !c.alive || c.hidden) continue;
-      const x = X(c.pos.z), y = Y(c.pos.x), r = 16 * pulse, im = mmImage(portraitUrl(state.rosters.B[c.index], TEAM.B.color));
-      g.save(); g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.closePath();
-      g.fillStyle = hex6(TEAM.B.color); g.fill(); g.clip();
-      if (im) g.drawImage(im, x - r, y - r, r * 2, r * 2);
-      g.restore();
-      g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.lineWidth = 3.5; g.strokeStyle = "#ff3b4a"; g.stroke();
-    }
-  }
-  if (state.tracked.length) {                                                        // melhoria: adversários rastreados (sempre visíveis)
-    for (const i of state.tracked) {
-      const c = state.world.combatants.find((u) => u.team === "B" && u.index === i);
-      if (!c || !c.alive || c.hidden) continue;
-      const x = X(c.pos.z), y = Y(c.pos.x), r = 16, im = mmImage(portraitUrl(state.rosters.B[i], TEAM.B.color));
-      g.save(); g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.closePath(); g.fillStyle = hex6(TEAM.B.color); g.fill(); g.clip();
-      if (im) g.drawImage(im, x - r, y - r, r * 2, r * 2);
-      g.restore();
-      g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.lineWidth = 3.5; g.strokeStyle = "#ff8a1f"; g.stroke();
-      g.beginPath(); g.arc(x, y, r + 6, 0, Math.PI * 2); g.lineWidth = 2; g.setLineDash([4, 4]); g.strokeStyle = "#ffd21f"; g.stroke(); g.setLineDash([]);
-    }
-  }
-  state.features?.minimap?.(g, X, Y, now);                                           // poças do Estúdio, canhões...
-  if (state.tutorial && !state.tutorial.finished) {                                  // tutorial: os baús aparecem no minimapa
-    for (const c of state.map.chests) {
-      if (c.state !== "ready") continue;
-      const x = X(c.z), y = Y(c.x);
-      g.fillStyle = "#ffd21f"; g.strokeStyle = "#1a1033"; g.lineWidth = 3; g.beginPath(); g.rect(x - 7, y - 7, 14, 14); g.fill(); g.stroke();
-    }
-  }
-  for (const c of state.map.chests) {                                               // baú dourado: estrela a pulsar
-    if (!c.golden) continue;
-    const x = X(c.z), y = Y(c.x), r = 13 * (1 + 0.2 * Math.sin(now / 120));
-    g.beginPath();
-    for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + (i * Math.PI) / 5, rr = i % 2 ? r * 0.45 : r; g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); }
-    g.closePath(); g.fillStyle = "#ffd21f"; g.fill(); g.lineWidth = 3; g.strokeStyle = "#1a1033"; g.stroke();
-  }
-  const p = state.player, f = p.facing, x = X(p.pos.z), y = Y(p.pos.x);              // tu: seta amarela a apontar para onde olhas
-  g.save(); g.translate(x, y); g.rotate(Math.PI / 2 - f);
-  g.beginPath(); g.moveTo(0, -17); g.lineTo(12, 12); g.lineTo(0, 6); g.lineTo(-12, 12); g.closePath();
-  g.fillStyle = "#ffd21f"; g.fill(); g.lineWidth = 3; g.strokeStyle = "#1a1033"; g.stroke(); g.restore();
-}
 
 function updateCombatUi(dt, t) {
   if (state.aimingGrenade) {                                                         // o círculo segue o ponto de queda, com a cor da mão
@@ -2110,25 +1619,6 @@ function lerpAngle(a, b, k) {
   return a + d * k;
 }
 
-// Contagem no início do round: 3, 2, 1 (cada número com a cor de uma primária) e depois "PINTA!" com as 6 cores
-const CD_COLORS = ["#ffd21f", "#2f7bff", "#ff3b4a"], RAINBOW = ["#ff3b4a", "#ffd21f", "#47e06a", "#2f7bff", "#a447ff", "#ff8a1f"];
-function showCountdown(text, color) {
-  const el = $("countdown");
-  if (el.dataset.t === text) return;
-  el.dataset.t = text;
-  el.innerHTML = text ? (color ? `<b style="--c:${color}">${text}</b>` : [...text].map((ch, i) => `<b style="--c:${RAINBOW[i % 6]};--d:${i * 0.05}s">${ch}</b>`).join("")) : "";
-  el.classList.remove("pop"); void el.offsetWidth; if (text) el.classList.add("pop");
-  if (text === "PINTA!") Sfx.play("go"); else if (/^\d$/.test(text)) Sfx.play("beep");
-}
-function tickCountdown(dt) {
-  if (state.countdown > 0) {
-    state.countdown -= dt;
-    if (state.countdown <= 0) { state.countdown = 0; state.goT = 0.9; showCountdown("PINTA!"); return; }
-    const n = Math.ceil(state.countdown);
-    showCountdown(String(n), CD_COLORS[(n - 1) % 3]);
-  } else if (state.goT > 0) { state.goT -= dt; if (state.goT <= 0) showCountdown(""); }
-  else if ($("countdown").dataset.t) showCountdown("");
-}
 
 // Baú dourado: aparece uma vez por round, a meio do tempo (não no tutorial nem na morte súbita); tem um feixe de luz por cima
 function tickGolden() {
@@ -2165,21 +1655,6 @@ function updateTraps() {
   }
 }
 
-// Ao segurar duas teclas de cor aparece por baixo da mira o diagrama da mistura (ex.: vermelho + azul = roxo)
-function updateMixHint(dt) {
-  const cs = state.colors, el = $("mixHint");
-  const n = cs.held.length, r = n === 2 ? mixColors(cs.held[0], cs.held[1]) : n === 3 && COLOR_RULES.triple ? TERTIARY : null;
-  if (r) {
-    state.mixHintT = 1.2;
-    const key = cs.held.join("");
-    if (key !== state.mixHintKey) {
-      state.mixHintKey = key;
-      el.innerHTML = `${cs.held.map((h) => chipHTML(h, 26)).join("<i>+</i>")}<i>=</i>${chipHTML(r, 32)}<span>${COLORS[r].name}</span>`;
-    }
-  } else if (state.mixHintT > 0) state.mixHintT -= dt;
-  const show = state.mixHintT > 0 && !state.paused;
-  if (el.classList.contains("show") !== show) { el.classList.toggle("show", show); if (!show) state.mixHintKey = ""; }
-}
 
 function update(dt, t) {
   const st = state, p = st.player, map = st.map, cam = st.cam;
@@ -2277,7 +1752,7 @@ function update(dt, t) {
   updateMixHint(dt);
   updateZoneTable(dt);
   updateInvisibility(dt);
-  updateCrosshair();
+  updateCrosshair(dummy);
   st.paint.update(dt);
   st.paint.flush();
   st.weather.cloudsVisible = !cam.aerial;
@@ -2327,6 +1802,10 @@ function update(dt, t) {
     dist = cam.curDist;
   }
   camera.position.set(tx + dirx * dist, Math.max(0.6, ty + diry * dist), tz + dirz * dist);
+  if (!aerial) {                                                                   // nunca sai da arena: junto ao muro de trás (ex.: na base) ficava por cima dele e o topo do muro tapava o ecrã
+    camera.position.x = Math.max(-ARENA.halfX + 0.4, Math.min(ARENA.halfX - 0.4, camera.position.x));
+    camera.position.z = Math.max(-ARENA.halfZ + 0.4, Math.min(ARENA.halfZ - 0.4, camera.position.z));
+  }
   camera.lookAt(tx, ty, tz);
   if (st.ads && st.cannon) {                                                       // mirar no canhão: a câmara sobe por trás do canhão e olha para baixo, para a zona onde a bola cai
     const pt = Math.max(0.25, cam.pitch), cpt = Math.cos(pt), sy = Math.sin(cam.yaw), cy = Math.cos(cam.yaw);
@@ -2400,12 +1879,13 @@ function frame(now) {
   const dt = Math.max(0, Math.min(0.05, (now - lastTime) / 1000));   // nunca negativo (o 1.º frame pode vir antes de lastTime)
   lastTime = now;
   if (state.replaying) replay.update(dt, now / 1000);   // repetição da melhor jogada: o resto do jogo fica parado
-  else if (!state.paused || state.online) update(dt, now / 1000);   // com amigos o jogo não para na pausa (os outros continuam a jogar)
+  else if ((!state.paused || state.online) && !(podium.active && !state.online)) update(dt, now / 1000);   // (no pódio, sozinho, o jogo por trás não precisa de andar: menos CPU)   // com amigos o jogo não para na pausa (os outros continuam a jogar)
   if (state.online) net.tick(dt);                                    // amigos: envia o teu boneco (ou, no anfitrião, o estado de todos)
   trackPerformance(dt);
   dmgNums.update(dt, camera, window.innerWidth, window.innerHeight);
   Sfx.listen(camera);                                                // os sons do mapa ouvem-se a partir da câmara
-  renderer.render(scene, camera);
+  if (podium.active) podium.render(now);                             // fim do jogo: o pódio fica no lugar do mapa
+  else renderer.render(scene, camera);
 }
 requestAnimationFrame(frame);
 
@@ -2417,123 +1897,10 @@ function achieve(what, a, b) {
   for (const m of Missions.track(what, a, b)) { showToast(`📅 Missão feita: ${m.desc}! ${Missions.prize(m).replace(" ", " +")}`, "#47e06a"); lobby?.renderTop(); }
 }
 
-// ---------- JOGAR COM AMIGOS (salas: online.js; o jogo em rede: net-game.js) ----------
-const NAME_KEY = "colorattack.name";
-// Lugar na base de cada número da equipa (como o anfitrião a vê): na equipa A o 1.º fica no do meio (A[2])
-function spawnIndex(team, i) {
-  const canon = state.netFlip ? (team === "A" ? "B" : "A") : team;
-  return canon === "A" ? [2, 0, 1, 3, 4][i] : i;
-}
-// Nomes e skins de todos os lugares, como o anfitrião os mandou (trocados se fores da equipa B dele); o teu nome passa a "Tu"
-function netRosters(r) {
-  const f = state.netFlip, out = { A: [...(f ? r.B : r.A)], B: [...(f ? r.A : r.B)], names: { A: [...(f ? r.names.B : r.names.A)], B: [...(f ? r.names.A : r.names.B)] },
-    extra: r.extra ? { A: f ? r.extra.B : r.extra.A, B: f ? r.extra.A : r.extra.B } : null };
-  out.names.A[state.myIndex] = "Tu";
-  return out;
-}
-// O teu boneco, para os outros PCs: [x, y, z, para onde olha, velocidade, no chão, vy, escada, agachado, mão, escondido]
-function localNet() {
-  const p = state.player, st = state, m = p.motion;
-  return [p.pos.x, p.pos.y, p.pos.z, p.facing, Math.hypot(m.vx, m.vz), m.onGround ? 1 : 0, m.vy, m.climbing ? 1 : 0, st.me?.crouching ? 1 : 0,
-    st.healingT > 0 ? 2 : st.aimingGrenade && !st.dead ? 1 : 0, st.dead || st.invisible > 0 ? 1 : 0];
-}
-function sendUpgrades(full) {
-  const me = state.me;
-  if (me) online.send({ t: "upg", maxHp: me.maxHp, pierce: me.pierce || 0, damageMul: me.damageMul || 1, grenadeMul: me.grenadeMul || 1, full });
-}
-// anfitrião: todos os convidados já têm o mapa carregado? Então começa a contagem em todos ao mesmo tempo
-function netCheckReady() {
-  if (state.net !== "host" || !state.netWait) return;
-  const guests = state.netPlayers.filter((p) => p.peer !== online.myId && online.room.conns.has(p.peer));
-  if (guests.every((p) => state.netReady.has(p.peer))) netGo();
-}
-function netGo() {
-  if (!state.netWait) return;
-  state.netWait = false; showCountdown("");
-  if (state.net === "host") online.broadcast({ t: "go" });
-}
-// anfitrião: um amigo saiu da partida (ou da sala): o boneco dele sai do jogo
-function dropFriend(peer) {
-  const p = state.bots.find((b) => b.peer === peer);
-  state.netPlayers = state.netPlayers.filter((x) => x.peer !== peer);
-  if (state.netWait) netCheckReady();
-  if (p && state.world) removeCombatant(p);
-}
-function removeCombatant(p) {
-  p.alive = false;
-  p.model?.parent?.remove(p.model);
-  if (p.model) disposeCharacter(p.model);
-  state.bots = state.bots.filter((b) => b !== p);
-  if (state.world) state.world.combatants = state.world.combatants.filter((c) => c !== p);
-  setPlayerOut(p.team, p.index, true);
-  showToast(`🚪 ${nameOf(p)} saiu da partida`, "#ffd21f");
-}
-// mensagens do jogo que não são do combate (início, fim, rounds, baús...)
-function onNetOther(m, from, who) {
-  if (state.net === "host" || (online.isHost && !state.net)) {                         // ---- no anfitrião (de um convidado)
-    if (m.t === "ready") { state.netReady?.add(from); netCheckReady(); }
-    else if (m.t === "next" && state.intermission > 0 && !state.over) startNextRound();   // um amigo carregou em "Começar round"
-    else if (m.t === "away") dropFriend(from);
-    else if (m.t === "cn" && who && state.features) {                                // um amigo no canhão
-      const cn = state.features.cannons[m.i];
-      if (!cn) return;
-      if (m.a === "mount" && who.alive && Math.hypot(who.pos.x - cn.x, who.pos.z - cn.z) < 3.5) cn.mount(who);
-      else if (m.a === "leave" && cn.user === who) cn.leave();
-      else if (m.a === "fire" && cn.user === who && COLORS[m.c]) { cn.fireCd = 0; cn.fire(m.x, m.z, m.c); }   // (o ritmo dos tiros já é contado no PC do amigo)
-    }
-    else if (m.t === "chest" && who?.alive && state.map && !state.netWait) {
-      const c = state.map.chests[m.i];
-      if (!c || Math.hypot(c.x - who.pos.x, c.z - who.pos.z) > CONFIG.chest.interactDist + 1.5) return;
-      const out = openChestFor(c);
-      if (!out) return;
-      online.sendTo(from, { t: "chr", ...out });
-      if (out.golden) showToast(`🌟 ${nameOf(who)} (${who.team === "A" ? "colega" : "adversário"}) abriu o baú dourado`, who.team === "A" ? "#4da8ff" : "#ff4455");
-    }
-    return;
-  }
-  // ---- no convidado (do anfitrião)
-  if (m.t === "start") {
-    if (!m.players?.some((p) => p.peer === online.myId)) return;                      // entraste a meio: jogas na próxima partida
-    const def = MAPS.find((x) => x.id === m.map);
-    if (!def) return;
-    if (m.kept) {                                                                      // round seguinte
-      if (state.screen !== "viewer" || !state.round) return;                           // (já tinhas saído da partida)
-      if (state.upgradeChoices) pickUpgrade(Math.floor(Math.random() * state.upgradeChoices.length));   // não escolheste a tempo: melhoria à sorte
-      $("roundBox").style.display = "none";
-      state.round.n = m.n; state.round.kills = { A: 0, B: 0 }; state.round.sudden = false;
-    } else {                                                                           // partida nova: as regras do anfitrião (sem gravar: as tuas ficam para quando jogares sozinho)
-      state.soloOpts ||= { mode: CONFIG.mode, secs: CONFIG.roundSeconds, toWin: CONFIG.match.toWin, diff: CONFIG.botDifficulty };
-      if (MODES[m.mode]) CONFIG.mode = m.mode;
-      if (BOT_PRESETS[m.diff]) CONFIG.botDifficulty = m.diff;                          // (as moedas da vitória dependem da dificuldade dos bots do anfitrião)
-      if (ROUND_MINUTES.includes(m.minutes)) CONFIG.roundSeconds = m.minutes * 60;
-      if (MATCH_TO_WIN.includes(m.toWin)) { CONFIG.match.toWin = m.toWin; CONFIG.match.maxRounds = 2 * m.toWin - 1; CONFIG.match.intenseAt = Math.max(2, m.toWin - 1); }
-      $("gameOver").style.display = "none"; $("roundBox").style.display = "none";
-    }
-    online.close();
-    state.forceWeather = m.weather; state.netStart = m;
-    startMap(def, !!m.kept);
-  } else if (state.net !== "guest") return;
-  else if (m.t === "go") netGo();
-  else if (m.t === "pre") MAPS.find((x) => x.id === m.map)?.load?.preload?.();          // o anfitrião já escolheu o mapa seguinte: começa a carregá-lo
-  else if (m.t === "end" && "w" in m) endRound(state.netFlip ? (m.w === "A" ? "B" : "A") : m.w, true);
-  else if (m.t === "end") { showToast("🚪 O anfitrião terminou a partida", "#ffd21f"); leaveViewer(); }
-  else if (m.t === "hot") showToast("🔥 As cores mudaram!", "#ff8a1f");
-  else if (m.t === "ft") state.features?.onEvent(m.ev);
-  else if (m.t === "mix") { setMixes(m.p); mixesChanged(); }
-  else if (m.t === "got") gotItem(m);
-  else if (m.t === "chr") chestResult(m);
-}
-const online = createOnline({
-  getProfile: () => ({ name: (() => { try { return localStorage.getItem(NAME_KEY) || "Jogador"; } catch { return "Jogador"; } })(), skin: state.characterId, equip: { arma: Progress.wallet.equip.arma }, title: Ach.titleName() }),
-  setName: (n) => { try { localStorage.setItem(NAME_KEY, n.slice(0, 14)); } catch { /* ignora */ } },
-  onGame: (m, from) => net.onMessage(m, from),
-  onLeft: (peer) => dropFriend(peer),
-  onClosed: (wasGuest) => { if (wasGuest && state.net === "guest") { showToast("🚪 A sala fechou", "#ffd21f"); leaveViewer(); } else if (state.net === "host") { state.online = false; state.net = null; net.stop(); } },
-  flash: (t) => { if (state.screen === "viewer") showToast(t, "#9be7ff"); else lobby?.flash(t); },
-});
-const net = createNetGame({
-  online, state, localNet, paintPlayer, paintBot, nameOf, removeCombatant, onOther: onNetOther,
-  toast: showToast, scoreUi: () => updateScoreUi(),
+// ---------- JOGAR COM AMIGOS (salas: online.js; o jogo em rede: net-game.js; a ligação à partida: net-match.js) ----------
+const { online, net, spawnIndex, netRosters, sendUpgrades, netCheckReady, netGo } = setupNetMatch({
+  showToast, setPlayerOut, startMap, leaveViewer, updateScoreUi, pickUpgrade, endRound, startNextRound, mixesChanged,
+  openChestFor, chestResult, paintPlayer, paintBot, showCountdown, gotItem, getLobby: () => lobby,
 });
 $("lbFriendsBtn").addEventListener("click", () => online.open());
 
@@ -2547,6 +1914,12 @@ lobby = createLobby({ renderer, template: null, getTemplate: (id) => botTemplate
   onPanel: (t) => { for (const [id, on] of [["lbHomeBtn", !t], ["lbShopBtn", t === "shop"], ["lbInvBtn", t === "inv"], ["lbProfBtn", t === "profile"]]) $(id).classList.toggle("on", on); } });   // separador ativo
 $("lbHomeBtn").addEventListener("click", () => lobby.closePanel());
 $("misBtn").addEventListener("click", () => lobby.openPanel("missions"));
+daily = createDailyScreen({ onClaim: (r) => { Sfx.play("golden"); lobby.renderTop(); lobby.flash(`🎁 Prémio do dia ${r.day}: ${prizeText(r)}`); } });
+$("dailyBtn").addEventListener("click", () => daily.open());
+const wheel = createWheelScreen({ onPrize: (r) => { lobby.renderTop(); refreshLevelBadge(); checkLevelUp(); lobby.flash(`🎡 Roda da sorte: ${r.text}`); } });
+$("wheelBtn").addEventListener("click", () => wheel.open());
+wheel.refresh();
+if (state.screen === "lobby") daily.auto();
 async function lobbyCharacter(id) {
   const c = charById(id);
   $("lbName").textContent = c.name; $("lbBlurb").textContent = c.desc;
@@ -2566,7 +1939,10 @@ $("lbInvBtn").addEventListener("click", () => lobby.openPanel("inv"));
 $("lbProfBtn").addEventListener("click", () => lobby.openPanel("profile"));
 window.addEventListener("keydown", (e) => {
   if (state.screen !== "lobby") return;
-  if (settings.isOpen) return;                                                        // (as setas mexem nas barras das Configurações)
+  if (settings.isOpen || document.activeElement?.tagName === "INPUT") return;        // (a escrever o nome no Perfil: as setas não mudam o boneco)                                                        // (as setas mexem nas barras das Configurações)
+  if (daily.isOpen) { if (e.code === "Escape") daily.close(); return; }
+  if (wheel.isOpen) { if (e.code === "Escape") wheel.close(); return; }
+  if ($("mysteryBox").style.display === "flex") { if (e.code === "Escape") $("mysteryBox").style.display = "none"; return; }
   if (e.code === "Escape" && lobby.panelOpen) lobby.closePanel();
   else if (e.code === "ArrowLeft" && !lobby.panelOpen) stepChar(-1);
   else if (e.code === "ArrowRight" && !lobby.panelOpen) stepChar(1);

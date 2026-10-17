@@ -14,7 +14,7 @@ Coordenadas do jogo (x, z) -> Blender (x, -z). Arena 100 x 70 m, simétrica em x
 """
 import math
 import os
-exec(open("/home/andrexie/Documents/ColorAttack/tools/blender/map_kit.py").read())
+exec(open("/home/andrexie/Documents/ColorAttack/src/tools/blender/map_kit.py").read())
 OUTPUT = globals().get("OUTPUT")
 
 MATERIALS.update({

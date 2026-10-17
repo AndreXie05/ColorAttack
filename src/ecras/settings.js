@@ -45,6 +45,9 @@ export function createSettings(hooks) {
         <div class="cfgChips">${hooks.qualities.map((x) => `<button class="cfgChip${x.id === q ? " on" : ""}" data-q="${x.id}" title="${x.tip}">${x.icon} ${x.label}</button>`).join("")}</div>
         <small class="cfgTip">${hooks.qualities.find((x) => x.id === q)?.tip || ""}</small>
       </section>
+      ${hooks.lobbyThemes ? `<section><h4>Fundo do lobby</h4>
+        <div class="cfgChips">${hooks.lobbyThemes.map((x) => `<button class="cfgChip${x.id === hooks.getLobbyTheme() ? " on" : ""}" data-lt="${x.id}">${x.icon} ${x.name}</button>`).join("")}</div>
+      </section>` : ""}
       <section><h4>Rato</h4>
         <label class="cfgRow"><span class="cfgName">🖱️ Sensibilidade<small>Quanto a câmara roda ao mexer o rato</small></span>
           <input type="range" min="40" max="250" step="10" value="${Math.round(sens * 100)}" data-sens><b class="cfgVal">${sens.toFixed(1).replace(".", ",")}×</b></label>
@@ -66,7 +69,9 @@ export function createSettings(hooks) {
   body.addEventListener("change", (e) => { if ("bg" in e.target.dataset) Sfx.set("bgMute", e.target.checked); });
   body.addEventListener("click", (e) => {
     const q = e.target.closest("[data-q]");
+    const lt = e.target.closest("[data-lt]");
     if (q) { hooks.setQuality(q.dataset.q); render(); }
+    else if (lt) { hooks.setLobbyTheme(lt.dataset.lt); render(); }
     else if (e.target.closest(".cfgFs")) hooks.toggleFullscreen();
   });
   return {
